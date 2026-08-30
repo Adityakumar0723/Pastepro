@@ -1,0 +1,25 @@
+node_modules
+npm-debug.log
+
+# Secrets — never bake these into the image. Pass equivalents via
+# docker-compose env_file / environment instead.
+.env
+.env.example
+cookies.txt
+firebase-service-account.json
+
+# Windows-only binaries — useless inside a Linux container
+yt-dlp.exe
+ffmpeg.exe
+
+# Local runtime state / leftovers from pre-container dev runs
+downloads
+.mongodb-data
+.mongodb.log
+backend.log
+*.log
+
+.git
+.vscode
+SETUP.md
+downloadfile.js

@@ -1,0 +1,8 @@
+/node_modules
+.env
+.mongodb.log
+backend.log
+cookies.txt
+.mongodb-data
+firebase-service-account.json
+downloads/

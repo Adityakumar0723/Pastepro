@@ -1,0 +1,29 @@
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    env_file:
+      - .env
+    environment:
+      # Overrides whatever MONGODB_URI is in .env — inside Compose's network,
+      # Mongo is reachable at the service name "mongo", not 127.0.0.1.
+      MONGODB_URI: mongodb://mongo:27017/pastepro
+    depends_on:
+      - mongo
+    # Optional: only if you have a real cookies.txt (needed for age-restricted
+    # or login-gated videos). Uncomment and the file MUST exist on the host
+    # first — mounting a path that doesn't exist creates an empty directory
+    # there instead, which breaks yt-dlp's --cookies flag.
+    # volumes:
+    #   - ./cookies.txt:/app/cookies.txt:ro
+
+volumes:
+  mongo_data:
