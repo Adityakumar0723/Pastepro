@@ -438,15 +438,20 @@ app.post('/api/download', requireAuth, async (req, res) => {
   }
 
   const commandPath = quoteIfPath(ytdlpCmd);
-  const command = `${commandPath} ${fmtFlag} ${cookiesFlag()} --paths "temp:${DOWNLOADS_DIR}" --no-playlist --max-filesize 200m --output "${outFile}" "${url}"`;
+  const baseArgs = `${fmtFlag} ${cookiesFlag()} --paths "temp:${DOWNLOADS_DIR}" --no-playlist --max-filesize 200m --output "${outFile}" "${url}"`;
+  const primaryCommand = `${commandPath} ${baseArgs}`;
+  // Fallback if the web client hits YouTube's bot-check: retry once with
+  // alternate player clients (android/tv), which use a different API surface
+  // and are sometimes not gated the same way. Not forced on every request —
+  // forcing android-only has its own current issue (YouTube's SABR streaming
+  // experiment drops some android-client formats) — so this is only a retry,
+  // never the default path.
+  const retryCommand = `${commandPath} --extractor-args "youtube:player_client=android,web,tv" ${baseArgs}`;
 
   console.log(`[${uid.slice(0,8)}] Using yt-dlp command: ${ytdlpCmd}`);
   console.log(`[${uid.slice(0,8)}] Downloading: ${url} | ${type} | ${quality}`);
 
-  exec(command, { timeout: 5 * 60 * 1000, shell: true, cwd: DOWNLOADS_DIR }, async (error, stdout, stderr) => {
-    // Clean active lock
-    try { fs.unlinkSync(activeFile); } catch{}
-
+  const handleResult = async (error, stdout, stderr) => {
     if (error) {
       console.error('yt-dlp full error:', stderr || error.message, stdout);
       const lowerErr = (stderr || error.message || '').toLowerCase();
@@ -506,6 +511,18 @@ app.post('/api/download', requireAuth, async (req, res) => {
       format: ext,
       captions
     });
+  };
+
+  exec(primaryCommand, { timeout: 5 * 60 * 1000, shell: true, cwd: DOWNLOADS_DIR }, (error, stdout, stderr) => {
+    // Clean active lock
+    try { fs.unlinkSync(activeFile); } catch{}
+
+    const hitBotCheck = error && (stderr || '').toLowerCase().includes('sign in to confirm');
+    if (hitBotCheck) {
+      console.log(`[${uid.slice(0,8)}] Bot-check on default client, retrying with alternate player clients...`);
+      return exec(retryCommand, { timeout: 5 * 60 * 1000, shell: true, cwd: DOWNLOADS_DIR }, handleResult);
+    }
+    handleResult(error, stdout, stderr);
   });
 });
 
