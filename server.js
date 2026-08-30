@@ -460,16 +460,16 @@ app.post('/api/download', requireAuth, async (req, res) => {
   const commandPath = quoteIfPath(ytdlpCmd);
   const baseArgs = `${fmtFlag} ${cookiesFlag()} ${proxyFlag()} --paths "temp:${DOWNLOADS_DIR}" --no-playlist --max-filesize 200m --output "${outFile}" "${url}"`;
   const primaryCommand = `${commandPath} ${baseArgs}`;
-  // Fallback if the web client hits YouTube's bot-check: retry once with
-  // alternate player clients (ios/android/tv), which use a different API
-  // surface and are sometimes not gated the same way, plus
+  // Fallback if the default client hits YouTube's bot-check: retry once
+  // with a broad list of alternate player clients — verified valid for this
+  // yt-dlp build (visionos is currently yt-dlp's own preferred default,
+  // usually a sign it's least-restricted at the moment) — plus
   // formats=missing_pot so a format isn't silently discarded just because
   // it lacks a proof-of-origin token. Not forced on every request — ios/
   // android alone have their own current issue (YouTube's SABR streaming
   // experiment drops some of their formats, verified directly), so this
-  // combination (falls back across all four) is only a retry, never the
-  // default path.
-  const retryCommand = `${commandPath} --extractor-args "youtube:player_client=ios,android,web,tv;formats=missing_pot" ${baseArgs}`;
+  // wide combination is only a retry, never the default path.
+  const retryCommand = `${commandPath} --extractor-args "youtube:player_client=visionos,tv_simply,ios,android,mweb,web_creator,web,tv;formats=missing_pot" ${baseArgs}`;
 
   console.log(`[${uid.slice(0,8)}] Using yt-dlp command: ${ytdlpCmd}`);
   console.log(`[${uid.slice(0,8)}] Downloading: ${url} | ${type} | ${quality}`);
@@ -708,7 +708,7 @@ app.post('/api/search', requireAuth, async (req, res) => {
   // Same rationale as /api/download: cookies don't guarantee immunity from
   // YouTube's bot-check on a datacenter IP, so retry once with alternate
   // player clients if the default client gets blocked.
-  const retryArgs   = [...extraArgs, '--extractor-args', 'youtube:player_client=ios,android,web,tv;formats=missing_pot', ...baseArgs];
+  const retryArgs   = [...extraArgs, '--extractor-args', 'youtube:player_client=visionos,tv_simply,ios,android,mweb,web_creator,web,tv;formats=missing_pot', ...baseArgs];
 
   const handleSearchResult = (error, stdout, stderr, res) => {
     if (error) {

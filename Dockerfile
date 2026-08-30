@@ -32,7 +32,12 @@ RUN curl -fL https://github.com/denoland/deno/releases/latest/download/deno-x86_
 # file as if it were the binary, and the build still "succeeds" with a
 # broken file. The trailing `yt-dlp --version` makes the BUILD itself fail
 # loudly if that ever happens again, instead of deploying silently broken.
-RUN curl -fL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux \
+#
+# Using the nightly-builds channel instead of the stable release: YouTube's
+# anti-bot measures change often enough that yt-dlp's nightly builds (nearly
+# daily) regularly ship countermeasures well before they reach a stable tag
+# (verified: nightly here is ~10 days newer than the current stable release).
+RUN curl -fL https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp_linux \
       -o /usr/local/bin/yt-dlp && \
     chmod a+rx /usr/local/bin/yt-dlp && \
     yt-dlp --version
