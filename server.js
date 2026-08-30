@@ -234,16 +234,20 @@ function getYtdlpFormat(quality, type, format) {
     const aq = audioQualityMap[quality] || '0';
     return `-x --audio-format ${format} --audio-quality ${aq}`;
   }
-  const qualityMap = {
-    '1080p': 'bestvideo[height<=1080]+bestaudio/best[height<=1080]',
-    '720p':  'bestvideo[height<=720]+bestaudio/best[height<=720]',
-    '480p':  'bestvideo[height<=480]+bestaudio/best[height<=480]',
-    '360p':  'bestvideo[height<=360]+bestaudio/best[height<=360]',
-  };
-  const fmt = qualityMap[quality] || qualityMap['720p'];
+  const heightMap = { '1080p': 1080, '720p': 720, '480p': 480, '360p': 360 };
+  const targetRes  = heightMap[quality] || 720;
+  // -S "res:X" (format SORTING) instead of -f "bestvideo[height<=X]..."
+  // (format FILTERING): a hard height<=X filter fails outright for portrait
+  // video (Instagram Reels, TikTok, YouTube Shorts) — their pixel *height*
+  // is the long/vertical side (e.g. a 720-wide reel reports height=1280),
+  // so "height<=720" excludes every format and yt-dlp errors with
+  // "Requested format is not available". Sorting by res:X picks whichever
+  // dimension is the short side, so it works for both orientations, and
+  // gracefully falls back to the closest available quality instead of
+  // hard-failing when the exact tier isn't offered.
   // --recode-video re-encodes only if the container actually needs it,
   // so mp4 (the common case) stays a fast remux.
-  return `-f "${fmt}" --recode-video ${format}`;
+  return `-S "res:${targetRes}" -f "bv*+ba/b" --recode-video ${format}`;
 }
 
 function quoteIfPath(value) {
