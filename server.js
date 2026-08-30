@@ -75,6 +75,27 @@ if (!fs.existsSync(DOWNLOADS_DIR)) fs.mkdirSync(DOWNLOADS_DIR, { recursive: true
 // Files) can point at a mounted cookies file without baking it into the image.
 const COOKIES_PATH = process.env.COOKIES_PATH || path.join(__dirname, 'cookies.txt');
 
+// Only pass --cookies when the file genuinely exists and is readable. If
+// COOKIES_PATH points at a path whose directory doesn't exist (e.g. a
+// misconfigured Secret File mount), yt-dlp doesn't just skip cookies — it
+// crashes on exit trying to save the cookie jar back, breaking EVERY
+// yt-dlp call (search, download, captions) at once. Checking here means a
+// bad cookies setup degrades to "no cookies" instead of taking everything down.
+function cookiesFlag() {
+  try {
+    return fs.existsSync(COOKIES_PATH) ? `--cookies "${COOKIES_PATH}"` : '';
+  } catch (e) {
+    return '';
+  }
+}
+function cookiesArgs() {
+  try {
+    return fs.existsSync(COOKIES_PATH) ? ['--cookies', COOKIES_PATH] : [];
+  } catch (e) {
+    return [];
+  }
+}
+
 // Serve the frontend itself (only index.html — not the whole directory,
 // so .env / cookies.txt / node_modules never become web-accessible).
 app.get('/', (req, res) => {
@@ -346,7 +367,7 @@ function parseVttWords(raw) {
 function fetchAutoCaptions(url, ytdlpCmd, safeId) {
   return new Promise((resolve) => {
     const subBase = path.join(DOWNLOADS_DIR, safeId);
-    const command  = `${quoteIfPath(ytdlpCmd)} --write-auto-sub --sub-lang en --skip-download --sub-format vtt --cookies "${COOKIES_PATH}" --paths "temp:${DOWNLOADS_DIR}" --output "${subBase}.%(ext)s" "${url}"`;
+    const command  = `${quoteIfPath(ytdlpCmd)} --write-auto-sub --sub-lang en --skip-download --sub-format vtt ${cookiesFlag()} --paths "temp:${DOWNLOADS_DIR}" --output "${subBase}.%(ext)s" "${url}"`;
     exec(command, { timeout: 30 * 1000, shell: true, cwd: DOWNLOADS_DIR }, (error) => {
       const vttPath = `${subBase}.en.vtt`;
       if (error || !fs.existsSync(vttPath)) return resolve([]);
@@ -401,7 +422,7 @@ app.post('/api/download', requireAuth, async (req, res) => {
   }
 
   const commandPath = quoteIfPath(ytdlpCmd);
-  const command = `${commandPath} ${fmtFlag} --cookies "${COOKIES_PATH}" --paths "temp:${DOWNLOADS_DIR}" --no-playlist --max-filesize 200m --output "${outFile}" "${url}"`;
+  const command = `${commandPath} ${fmtFlag} ${cookiesFlag()} --paths "temp:${DOWNLOADS_DIR}" --no-playlist --max-filesize 200m --output "${outFile}" "${url}"`;
 
   console.log(`[${uid.slice(0,8)}] Using yt-dlp command: ${ytdlpCmd}`);
   console.log(`[${uid.slice(0,8)}] Downloading: ${url} | ${type} | ${quality}`);
@@ -626,7 +647,7 @@ app.post('/api/search', requireAuth, async (req, res) => {
   }
 
   const { cmd, extraArgs } = splitYtdlpCommand(ytdlpCmd);
-  const args = [...extraArgs, '--flat-playlist', '--dump-json', '--cookies', COOKIES_PATH, `ytsearch12:${query}`];
+  const args = [...extraArgs, '--flat-playlist', '--dump-json', ...cookiesArgs(), `ytsearch12:${query}`];
 
   execFile(cmd, args, { timeout: 30 * 1000, cwd: DOWNLOADS_DIR, maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
     if (error) {
