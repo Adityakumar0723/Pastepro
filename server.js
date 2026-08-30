@@ -91,6 +91,22 @@ try {
   console.error('Could not copy cookies.txt to a writable path:', e.message);
 }
 
+// Optional proxy for yt-dlp's outbound requests (search/download/captions).
+// Cookies + Deno + player-client retries reduce YouTube's bot-check on a
+// datacenter IP, but can't fully eliminate it — that's an IP-reputation
+// block, not something any yt-dlp flag can fully undo. Routing through a
+// residential/mobile proxy is the only way to guarantee it stops happening.
+// Set YTDLP_PROXY to a proxy URL (e.g. http://user:pass@host:port or
+// socks5://user:pass@host:port) from any proxy provider to enable this —
+// left unset, everything behaves exactly as before (direct connection).
+const YTDLP_PROXY = process.env.YTDLP_PROXY || '';
+function proxyFlag() {
+  return YTDLP_PROXY ? `--proxy "${YTDLP_PROXY}"` : '';
+}
+function proxyArgs() {
+  return YTDLP_PROXY ? ['--proxy', YTDLP_PROXY] : [];
+}
+
 // Only pass --cookies when the file genuinely exists and is readable. If
 // COOKIES_PATH points at a path whose directory doesn't exist (e.g. a
 // misconfigured Secret File mount), yt-dlp doesn't just skip cookies — it
@@ -383,7 +399,7 @@ function parseVttWords(raw) {
 function fetchAutoCaptions(url, ytdlpCmd, safeId) {
   return new Promise((resolve) => {
     const subBase = path.join(DOWNLOADS_DIR, safeId);
-    const command  = `${quoteIfPath(ytdlpCmd)} --write-auto-sub --sub-lang en --skip-download --sub-format vtt ${cookiesFlag()} --paths "temp:${DOWNLOADS_DIR}" --output "${subBase}.%(ext)s" "${url}"`;
+    const command  = `${quoteIfPath(ytdlpCmd)} --write-auto-sub --sub-lang en --skip-download --sub-format vtt ${cookiesFlag()} ${proxyFlag()} --paths "temp:${DOWNLOADS_DIR}" --output "${subBase}.%(ext)s" "${url}"`;
     exec(command, { timeout: 30 * 1000, shell: true, cwd: DOWNLOADS_DIR }, (error) => {
       const vttPath = `${subBase}.en.vtt`;
       if (error || !fs.existsSync(vttPath)) return resolve([]);
@@ -438,7 +454,7 @@ app.post('/api/download', requireAuth, async (req, res) => {
   }
 
   const commandPath = quoteIfPath(ytdlpCmd);
-  const baseArgs = `${fmtFlag} ${cookiesFlag()} --paths "temp:${DOWNLOADS_DIR}" --no-playlist --max-filesize 200m --output "${outFile}" "${url}"`;
+  const baseArgs = `${fmtFlag} ${cookiesFlag()} ${proxyFlag()} --paths "temp:${DOWNLOADS_DIR}" --no-playlist --max-filesize 200m --output "${outFile}" "${url}"`;
   const primaryCommand = `${commandPath} ${baseArgs}`;
   // Fallback if the web client hits YouTube's bot-check: retry once with
   // alternate player clients (ios/android/tv), which use a different API
@@ -683,7 +699,7 @@ app.post('/api/search', requireAuth, async (req, res) => {
   }
 
   const { cmd, extraArgs } = splitYtdlpCommand(ytdlpCmd);
-  const baseArgs    = ['--flat-playlist', '--dump-json', ...cookiesArgs(), `ytsearch12:${query}`];
+  const baseArgs    = ['--flat-playlist', '--dump-json', ...cookiesArgs(), ...proxyArgs(), `ytsearch12:${query}`];
   const primaryArgs = [...extraArgs, ...baseArgs];
   // Same rationale as /api/download: cookies don't guarantee immunity from
   // YouTube's bot-check on a datacenter IP, so retry once with alternate
