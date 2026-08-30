@@ -46,8 +46,37 @@ const downloadSchema = new mongoose.Schema({
   quality: { type: String, required: true }
 }, { timestamps: true });
 
+// Per-user activity log — "kis user ne kab kya kiya, kahan se" ka record.
+// details Mixed hai kyunki har action ka shape alag hota hai (download vs
+// search vs page_view). Kabhi bhi Auth password/token store nahi hota yahan.
+const activityLogSchema = new mongoose.Schema({
+  user:      { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  action:    { type: String, required: true }, // 'login' | 'signup' | 'page_view' | 'download' | 'search' | 'convert' | 'playground_query'
+  details:   { type: mongoose.Schema.Types.Mixed, default: {} },
+  ip:        String,
+  userAgent: String,
+}, { timestamps: true });
+
 const User = mongoose.model('User', userSchema);
 const Download = mongoose.model('Download', downloadSchema);
+const ActivityLog = mongoose.model('ActivityLog', activityLogSchema);
+
+// Best-effort — logging kabhi bhi asal feature ko fail nahi karna chahiye,
+// isliye caller ko await karne ki bhi zaroorat nahi (fire-and-forget),
+// lekin agar await kiya jaaye toh bhi ye khud kabhi throw nahi karta.
+async function logActivity(req, action, details = {}) {
+  try {
+    await ActivityLog.create({
+      user: req.user?.id,
+      action,
+      details,
+      ip: (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress || '',
+      userAgent: req.headers['user-agent'] || '',
+    });
+  } catch (e) {
+    console.error(`Activity log failed (${action}):`, e.message);
+  }
+}
 
 // ─── Middleware ───────────────────────────────────────────
 // No cookie credentials are used; JWTs are sent in the Authorization header.
@@ -176,6 +205,8 @@ app.post('/api/auth/signup', async (req, res) => {
     if (await User.exists({ email })) return res.status(409).json({ error: 'Email already registered hai' });
 
     const user = await User.create({ name, email, password: await bcrypt.hash(password, 12) });
+    req.user = { id: user._id.toString() };
+    logActivity(req, 'signup', { email: user.email, name: user.name });
     res.status(201).json({ token: createToken(user), user: { id: user._id, name: user.name, email: user.email } });
   } catch (error) {
     console.error('Signup error:', error);
@@ -191,6 +222,8 @@ app.post('/api/auth/login', async (req, res) => {
     if (!user || !(await bcrypt.compare(password, user.password))) {
       return res.status(401).json({ error: 'Email ya password galat hai' });
     }
+    req.user = { id: user._id.toString() };
+    logActivity(req, 'login', { email: user.email });
     res.json({ token: createToken(user), user: { id: user._id, name: user.name, email: user.email } });
   } catch (error) {
     console.error('Login error:', error);
@@ -519,6 +552,7 @@ app.post('/api/download', requireAuth, async (req, res) => {
     } catch (dbError) {
       console.error('Could not save download history:', dbError);
     }
+    logActivity(req, 'download', { url, type, quality, format: ext, filename });
 
     // Best-effort: YouTube ke auto-captions se word-by-word timed transcript.
     // Fail ho jaaye toh chup-chaap [] — caption na hona download ko fail nahi karta.
@@ -589,6 +623,7 @@ app.post('/api/convert', requireAuth, async (req, res) => {
       return res.status(500).json({ error: 'Convert fail ho gaya. Dobara try karo' });
     }
     console.log(`[${uid.slice(0,8)}] Converted: ${outName}`);
+    logActivity(req, 'convert', { sourceFilename: safeName, targetFormat, outName });
     res.json({ success: true, fileUrl: `/files/${outName}`, filename: outName, format: targetFormat });
   });
 });
@@ -608,6 +643,7 @@ app.post('/api/query', requireAuth, async (req, res) => {
     return res.status(429).json({ error: 'Pehli query abhi process ho rahi hai, thoda ruko' });
   }
   activeQueries.add(uid);
+  logActivity(req, 'playground_query', { query });
 
   try {
     const upstream = await fetch(`${XAI_BASE_URL}/chat/completions`, {
@@ -735,6 +771,7 @@ app.post('/api/search', requireAuth, async (req, res) => {
       }
     }).filter(Boolean);
 
+    logActivity(req, 'search', { query, resultsCount: results.length });
     res.json({ success: true, results });
   };
 
@@ -748,6 +785,33 @@ app.post('/api/search', requireAuth, async (req, res) => {
     }
     handleSearchResult(error, stdout, stderr, res);
   });
+});
+
+// ─── Page-visit tracking ───────────────────────────────────
+// Yeh ek SPA hai — page navigation (search/docs/playground/category) sirf
+// client-side hota hai, server ko pata nahi chalta. Frontend har navigation
+// par yeh route call karta hai taaki "user kahan visit kar raha hai" bhi log ho.
+app.post('/api/log-visit', requireAuth, async (req, res) => {
+  const page = String(req.body.page || '').slice(0, 100);
+  if (!page) return res.status(400).json({ error: 'page zaroori hai' });
+  await logActivity(req, 'page_view', { page, extra: req.body.extra || undefined });
+  res.json({ success: true });
+});
+
+// ─── Apna activity history dekhna ──────────────────────────
+// Sirf apne hi logs — kisi aur user ka data yahan se nahi dikhta.
+app.get('/api/activity', requireAuth, async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
+    const logs = await ActivityLog.find({ user: req.user.id })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+    res.json({ success: true, logs });
+  } catch (error) {
+    console.error('Activity fetch error:', error);
+    res.status(500).json({ error: 'Activity load nahi ho saka' });
+  }
 });
 
 // ─── Health check ─────────────────────────────────────────

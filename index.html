@@ -946,10 +946,22 @@
     document.getElementById('sidebar-overlay').classList.remove('open');
   };
 
+  // Activity log — "user kahan visit kar raha hai" ka best-effort record.
+  // Fire-and-forget: kabhi bhi navigation ko block/fail nahi karna chahiye.
+  function logVisit(page, extra) {
+    if (!authToken) return;
+    fetch(`${BACKEND}/api/log-visit`, {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${authToken}` },
+      body: JSON.stringify({ page, extra })
+    }).catch(() => {}); // best-effort — response ka wait bhi nahi karna
+  }
+
   // Category click — user ko seedha URL box par le jao, us platform ke liye
   window.selectCategory = (name) => {
     closeSidebar();
     if (!(currentUser && authToken)) { showAuth(); showToast('Pehle login karo','error'); return; }
+    logVisit('category', { name });
     document.getElementById('download-page').classList.remove('show');
     document.getElementById('docs-page').classList.remove('show');
     document.getElementById('playground-page').classList.remove('show');
@@ -967,6 +979,7 @@
   // Documentation page
   window.showDocs = () => {
     closeSidebar();
+    logVisit('docs');
     document.getElementById('auth-view').style.display = 'none';
     document.getElementById('app-view').style.display = 'none';
     document.getElementById('download-page').classList.remove('show');
@@ -985,6 +998,7 @@
   window.showPlayground = () => {
     closeSidebar();
     if (!(currentUser && authToken)) { showAuth(); showToast('Pehle login karo','error'); return; }
+    logVisit('playground');
     document.getElementById('auth-view').style.display = 'none';
     document.getElementById('app-view').style.display = 'none';
     document.getElementById('download-page').classList.remove('show');
@@ -1058,6 +1072,7 @@
   window.showSearch = () => {
     closeSidebar();
     if (!(currentUser && authToken)) { showAuth(); showToast('Pehle login karo','error'); return; }
+    logVisit('search_page');
     document.getElementById('auth-view').style.display = 'none';
     document.getElementById('app-view').style.display = 'none';
     document.getElementById('download-page').classList.remove('show');
