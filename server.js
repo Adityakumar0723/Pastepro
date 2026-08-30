@@ -441,12 +441,15 @@ app.post('/api/download', requireAuth, async (req, res) => {
   const baseArgs = `${fmtFlag} ${cookiesFlag()} --paths "temp:${DOWNLOADS_DIR}" --no-playlist --max-filesize 200m --output "${outFile}" "${url}"`;
   const primaryCommand = `${commandPath} ${baseArgs}`;
   // Fallback if the web client hits YouTube's bot-check: retry once with
-  // alternate player clients (android/tv), which use a different API surface
-  // and are sometimes not gated the same way. Not forced on every request —
-  // forcing android-only has its own current issue (YouTube's SABR streaming
-  // experiment drops some android-client formats) — so this is only a retry,
-  // never the default path.
-  const retryCommand = `${commandPath} --extractor-args "youtube:player_client=android,web,tv" ${baseArgs}`;
+  // alternate player clients (ios/android/tv), which use a different API
+  // surface and are sometimes not gated the same way, plus
+  // formats=missing_pot so a format isn't silently discarded just because
+  // it lacks a proof-of-origin token. Not forced on every request — ios/
+  // android alone have their own current issue (YouTube's SABR streaming
+  // experiment drops some of their formats, verified directly), so this
+  // combination (falls back across all four) is only a retry, never the
+  // default path.
+  const retryCommand = `${commandPath} --extractor-args "youtube:player_client=ios,android,web,tv;formats=missing_pot" ${baseArgs}`;
 
   console.log(`[${uid.slice(0,8)}] Using yt-dlp command: ${ytdlpCmd}`);
   console.log(`[${uid.slice(0,8)}] Downloading: ${url} | ${type} | ${quality}`);
@@ -685,7 +688,7 @@ app.post('/api/search', requireAuth, async (req, res) => {
   // Same rationale as /api/download: cookies don't guarantee immunity from
   // YouTube's bot-check on a datacenter IP, so retry once with alternate
   // player clients if the default client gets blocked.
-  const retryArgs   = [...extraArgs, '--extractor-args', 'youtube:player_client=android,web,tv', ...baseArgs];
+  const retryArgs   = [...extraArgs, '--extractor-args', 'youtube:player_client=ios,android,web,tv;formats=missing_pot', ...baseArgs];
 
   const handleSearchResult = (error, stdout, stderr, res) => {
     if (error) {
