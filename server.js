@@ -71,7 +71,9 @@ if (!fs.existsSync(DOWNLOADS_DIR)) fs.mkdirSync(DOWNLOADS_DIR, { recursive: true
 // Absolute path — yt-dlp/ffmpeg processes below run with cwd = DOWNLOADS_DIR
 // (see the `cwd:` option on each exec() call), so a bare relative "cookies.txt"
 // would no longer resolve to this file. Keep it absolute everywhere.
-const COOKIES_PATH = path.join(__dirname, 'cookies.txt');
+// Overridable via COOKIES_PATH so a deployed instance (e.g. Render Secret
+// Files) can point at a mounted cookies file without baking it into the image.
+const COOKIES_PATH = process.env.COOKIES_PATH || path.join(__dirname, 'cookies.txt');
 
 // Serve the frontend itself (only index.html — not the whole directory,
 // so .env / cookies.txt / node_modules never become web-accessible).
