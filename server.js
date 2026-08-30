@@ -411,9 +411,12 @@ app.post('/api/download', requireAuth, async (req, res) => {
     try { fs.unlinkSync(activeFile); } catch{}
 
     if (error) {
-      console.error('yt-dlp full error:', stderr, error = error.message, stdout);
+      console.error('yt-dlp full error:', stderr || error.message, stdout);
       const lowerErr = (stderr || error.message || '').toLowerCase();
-      const msg = lowerErr.includes('private video')      ? 'Yeh private video hai' :
+      const msg = lowerErr.includes('sign in to confirm')  ? 'YouTube bot-check lag gaya hai. Server par real cookies.txt set karo (COOKIES_PATH)' :
+                  lowerErr.includes('429') || lowerErr.includes('too many requests')
+                                                        ? 'YouTube rate limit lag gaya hai (bahut requests). Thodi der baad try karo' :
+                  lowerErr.includes('private video')      ? 'Yeh private video hai' :
                   lowerErr.includes('not available') || lowerErr.includes('unavailable')
                                                         ? 'Video available nahi hai ya private hai' :
                   lowerErr.includes('max-filesize')       ? 'File bahut badi hai (200MB limit)' :
