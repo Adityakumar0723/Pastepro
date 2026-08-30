@@ -680,9 +680,14 @@ app.post('/api/search', requireAuth, async (req, res) => {
   }
 
   const { cmd, extraArgs } = splitYtdlpCommand(ytdlpCmd);
-  const args = [...extraArgs, '--flat-playlist', '--dump-json', ...cookiesArgs(), `ytsearch12:${query}`];
+  const baseArgs    = ['--flat-playlist', '--dump-json', ...cookiesArgs(), `ytsearch12:${query}`];
+  const primaryArgs = [...extraArgs, ...baseArgs];
+  // Same rationale as /api/download: cookies don't guarantee immunity from
+  // YouTube's bot-check on a datacenter IP, so retry once with alternate
+  // player clients if the default client gets blocked.
+  const retryArgs   = [...extraArgs, '--extractor-args', 'youtube:player_client=android,web,tv', ...baseArgs];
 
-  execFile(cmd, args, { timeout: 30 * 1000, cwd: DOWNLOADS_DIR, maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
+  const handleSearchResult = (error, stdout, stderr, res) => {
     if (error) {
       console.error('Search error:', stderr || error.message);
       return res.status(500).json({ error: 'Search fail ho gaya. Dobara try karo' });
@@ -708,6 +713,17 @@ app.post('/api/search', requireAuth, async (req, res) => {
     }).filter(Boolean);
 
     res.json({ success: true, results });
+  };
+
+  execFile(cmd, primaryArgs, { timeout: 30 * 1000, cwd: DOWNLOADS_DIR, maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
+    const hitBotCheck = error && (stderr || '').toLowerCase().includes('sign in to confirm');
+    if (hitBotCheck) {
+      console.log('Search bot-check on default client, retrying with alternate player clients...');
+      return execFile(cmd, retryArgs, { timeout: 30 * 1000, cwd: DOWNLOADS_DIR, maxBuffer: 10 * 1024 * 1024 }, (error2, stdout2, stderr2) => {
+        handleSearchResult(error2, stdout2, stderr2, res);
+      });
+    }
+    handleSearchResult(error, stdout, stderr, res);
   });
 });
 
