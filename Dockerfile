@@ -4,10 +4,23 @@
 FROM node:20-bookworm-slim
 
 # ffmpeg: needed for audio extraction (-x) and video re-encode (--recode-video)
-# curl/ca-certificates: needed only to fetch the yt-dlp binary below
+# curl/ca-certificates/unzip: needed only to fetch the yt-dlp/deno binaries below
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ffmpeg curl ca-certificates && \
+    apt-get install -y --no-install-recommends ffmpeg curl ca-certificates unzip && \
     rm -rf /var/lib/apt/lists/*
+
+# Deno — the JS runtime yt-dlp uses (auto-detected on PATH, no flag needed)
+# to solve YouTube's JS bot-check/PoToken challenges. Without ANY JS runtime
+# present, yt-dlp is far more likely to hit "Sign in to confirm you're not
+# a bot" even with valid cookies — this was silently missing before and is
+# very likely why deployed requests failed while local ones (which have
+# Deno installed) worked.
+RUN curl -fL https://github.com/denoland/deno/releases/latest/download/deno-x86_64-unknown-linux-gnu.zip \
+      -o /tmp/deno.zip && \
+    unzip -o /tmp/deno.zip -d /usr/local/bin && \
+    rm /tmp/deno.zip && \
+    chmod a+rx /usr/local/bin/deno && \
+    deno --version
 
 # yt-dlp — MUST be the "yt-dlp_linux" asset, not the plain "yt-dlp" one.
 # The plain asset is a Python zipapp (needs a real python3 interpreter on
