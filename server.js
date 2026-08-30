@@ -68,12 +68,28 @@ app.use(express.json());
 const DOWNLOADS_DIR = path.join(os.tmpdir(), 'pastepro-downloads');
 if (!fs.existsSync(DOWNLOADS_DIR)) fs.mkdirSync(DOWNLOADS_DIR, { recursive: true });
 
-// Absolute path — yt-dlp/ffmpeg processes below run with cwd = DOWNLOADS_DIR
-// (see the `cwd:` option on each exec() call), so a bare relative "cookies.txt"
-// would no longer resolve to this file. Keep it absolute everywhere.
-// Overridable via COOKIES_PATH so a deployed instance (e.g. Render Secret
-// Files) can point at a mounted cookies file without baking it into the image.
-const COOKIES_PATH = process.env.COOKIES_PATH || path.join(__dirname, 'cookies.txt');
+// COOKIES_PATH may point at a read-only mount (e.g. Render Secret Files,
+// which are mounted read-only at /etc/secrets/<file>). yt-dlp always tries
+// to save the cookie jar back to whatever --cookies path it was given when
+// it exits — on a read-only mount that crashes with
+// "OSError: Read-only file system" on every single run, even though the
+// cookies themselves load and work fine. Copy the source file once at
+// startup into a writable path (inside DOWNLOADS_DIR, already writable)
+// and use that copy for every yt-dlp invocation instead.
+const RAW_COOKIES_PATH = process.env.COOKIES_PATH || path.join(__dirname, 'cookies.txt');
+const COOKIES_PATH = path.join(DOWNLOADS_DIR, 'cookies.txt');
+try {
+  if (fs.existsSync(RAW_COOKIES_PATH)) {
+    fs.copyFileSync(RAW_COOKIES_PATH, COOKIES_PATH);
+    // copyFileSync can inherit the source's read-only mode on the copy too
+    // (confirmed on Windows; Linux behavior can vary by filesystem) — force
+    // it writable explicitly rather than relying on that.
+    fs.chmodSync(COOKIES_PATH, 0o644);
+    console.log(`cookies.txt copied from ${RAW_COOKIES_PATH} to writable path ${COOKIES_PATH}`);
+  }
+} catch (e) {
+  console.error('Could not copy cookies.txt to a writable path:', e.message);
+}
 
 // Only pass --cookies when the file genuinely exists and is readable. If
 // COOKIES_PATH points at a path whose directory doesn't exist (e.g. a
