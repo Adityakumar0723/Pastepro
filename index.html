@@ -135,8 +135,10 @@
     .loading-bar.active { display:block; }
     .loading-bar::after { content:''; display:block; height:100%; width:40%; background:linear-gradient(90deg,var(--accent),var(--accent2)); animation:slide 1.2s ease-in-out infinite; border-radius:3px; }
     @keyframes slide { 0%{margin-left:-40%} 100%{margin-left:100%} }
-    .loading-status { display:none; text-align:center; padding:12px; color:var(--muted); font-size:14px; margin-bottom:16px; background:var(--surface); border-radius:10px; }
-    .loading-status.active { display:block; }
+    .loading-status { display:none; align-items:center; justify-content:center; gap:12px; text-align:center; padding:12px; color:var(--muted); font-size:14px; margin-bottom:16px; background:var(--surface); border-radius:10px; }
+    .loading-status.active { display:flex; }
+    .loading-cancel-btn { padding:5px 14px; border:1px solid var(--border); border-radius:50px; background:transparent; color:var(--muted); font-family:'Space Grotesk',sans-serif; font-size:12px; font-weight:600; cursor:pointer; transition:all 0.2s; }
+    .loading-cancel-btn:hover { border-color:var(--accent); color:var(--accent); }
  
     /* PLATFORMS */
     .platforms { margin-top:32px; }
@@ -561,6 +563,7 @@
     <div class="loading-bar" id="load-bar"></div>
     <div class="loading-status" id="load-status">
       ⏳ <span id="load-msg">Processing...</span>
+      <button type="button" class="loading-cancel-btn" id="load-cancel-btn" onclick="cancelDownload()">✕ Cancel</button>
     </div>
 
     <button type="button" class="btn-dl btn-video" id="btn-download" style="width:100%; margin-bottom:32px;" onclick="doDownload(event)">📹 Video Download Karo (MP4)</button>
@@ -910,6 +913,8 @@
   let currentDownloadedFilename = null;
   let searchResults = [];
   let selectedSearchPlatform = 'youtube';
+  let currentDownloadController = null;
+  let downloadCancelledByUser = false;
   let currentPlayingIndex = -1;
   let ytApiLoadingPromise = null;
   let ytPlayer = null;
@@ -1464,7 +1469,11 @@
     // Client-side safety net: agar backend kabhi hang ho jaaye (network issue,
     // ya server-side process kabhi stuck reh jaaye), toh UI hamesha recover
     // ho jaani chahiye — loading screen par hamesha ke liye atka nahi rehna chahiye.
+    // Same controller cancelDownload() bhi use karta hai jab user khud
+    // "Cancel" dabaye.
     const controller = new AbortController();
+    currentDownloadController = controller;
+    downloadCancelledByUser = false;
     const timeoutId  = setTimeout(() => controller.abort(), 4 * 60 * 1000); // 4 minute cap
 
     try {
@@ -1500,10 +1509,35 @@
       setLoading(false);
       console.error(ex);
       if (ex.name === 'AbortError') {
-        showToast('Download bahut time le raha hai (4 min+). Video bada hai ya server busy hai — dobara try karo.', 'error');
+        if (!downloadCancelledByUser) {
+          showToast('Download bahut time le raha hai (4 min+). Video bada hai ya server busy hai — dobara try karo.', 'error');
+        }
+        // User-cancelled case ka toast cancelDownload() khud dikha chuka hai.
       } else {
         showToast('Backend se connect nahi ho pa raha. Server chalu hai?','error');
       }
+    } finally {
+      currentDownloadController = null;
+    }
+  };
+
+  // Loading ke dauraan user khud download cancel kar sake — sirf frontend
+  // fetch abort nahi, backend ko bhi batao taaki yt-dlp process turant kill
+  // ho jaaye aur "already downloading" lock turant clear ho, warna agla
+  // download 6 minute tak stale-lock ki wajah se atka reh sakta hai.
+  window.cancelDownload = async () => {
+    downloadCancelledByUser = true;
+    if (currentDownloadController) currentDownloadController.abort();
+    setLoading(false);
+    showToast('Download cancel kar diya', 'success');
+    try {
+      await fetch(`${BACKEND}/api/download/cancel`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${authToken}` }
+      });
+    } catch (e) {
+      // Backend tak cancel request na pahunche toh bhi UI already free hai —
+      // stale-lock apne aap 6 minute mein clear ho jaayega.
     }
   };
  
@@ -1728,7 +1762,7 @@
   function setLoading(on, type) {
     document.getElementById('load-bar').classList.toggle('active', on);
     const status = document.getElementById('load-status');
-    status.style.display = on ? 'block' : 'none';
+    status.style.display = on ? 'flex' : 'none';
     if (on) document.getElementById('load-msg').textContent =
       type === 'audio' ? 'Audio extract ho rahi hai, thoda wait karo...' : 'Video download ho rahi hai, thoda wait karo...';
     document.getElementById('btn-download').disabled = on;

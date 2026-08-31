@@ -511,6 +511,11 @@ function fetchWhisperCaptions(mediaPath, ffmpegCmd) {
 }
 
 // ─── MAIN DOWNLOAD ROUTE ──────────────────────────────────
+// uid -> { child, cancelled } for whichever yt-dlp process is currently
+// running on their behalf — lets /api/download/cancel actually kill it
+// instead of only dropping the frontend's own fetch.
+const activeDownloadProcesses = new Map();
+
 app.post('/api/download', requireAuth, async (req, res) => {
   const { url, quality = '720p', type = 'video', format } = req.body;
   const ext = resolveDlFormat(type, format);
@@ -539,9 +544,16 @@ app.post('/api/download', requireAuth, async (req, res) => {
   }
   fs.writeFileSync(activeFile, timestamp.toString());
 
+  // Tracked so /api/download/cancel can actually kill the yt-dlp process
+  // (not just let the frontend drop its own fetch) — child gets filled in
+  // once the exec() below actually starts.
+  const procEntry = { child: null, cancelled: false };
+  activeDownloadProcesses.set(uid, procEntry);
+
   const ytdlpCmd = await resolveYtdlpCommand();
   if (!ytdlpCmd) {
     try { fs.unlinkSync(activeFile); } catch {}
+    activeDownloadProcesses.delete(uid);
     return res.status(500).json({
       error: 'yt-dlp install nahi hai. Install karo ya YTDLP_PATH set karo',
       detail: 'Try `winget install yt-dlp`, download yt-dlp.exe into this folder, or `pip install yt-dlp` then set YTDLP_PATH.'
@@ -566,6 +578,14 @@ app.post('/api/download', requireAuth, async (req, res) => {
   console.log(`[${uid.slice(0,8)}] Downloading: ${url} | ${type} | ${quality}`);
 
   const handleResult = async (error, stdout, stderr) => {
+    // /api/download/cancel already killed the process and told the frontend
+    // (which also aborted its own fetch, so it won't read this) — but this
+    // original request is still open server-side and must be finalized,
+    // otherwise the connection just hangs forever instead of closing.
+    if (procEntry.cancelled) {
+      try { if (!res.headersSent) res.status(499).json({ error: 'Download cancel kar diya gaya', cancelled: true }); } catch (e) {}
+      return;
+    }
     if (error) {
       console.error('yt-dlp full error:', stderr || error.message, stdout);
       const lowerErr = (stderr || error.message || '').toLowerCase();
@@ -638,17 +658,63 @@ app.post('/api/download', requireAuth, async (req, res) => {
     });
   };
 
-  exec(primaryCommand, { timeout: 5 * 60 * 1000, shell: true, cwd: DOWNLOADS_DIR }, (error, stdout, stderr) => {
+  // detached:true makes yt-dlp (and anything it spawns, like ffmpeg for
+  // merging) the leader of its own process group on POSIX — that's what
+  // lets /api/download/cancel kill the whole group (negative pid), not
+  // just the top-level shell exec() actually launches. Harmless no-op-ish
+  // on Windows local dev, where cancel falls back to killing just the
+  // direct child instead.
+  const primaryChild = exec(primaryCommand, { timeout: 5 * 60 * 1000, shell: true, cwd: DOWNLOADS_DIR, detached: true }, (error, stdout, stderr) => {
     // Clean active lock
     try { fs.unlinkSync(activeFile); } catch{}
 
     const hitBotCheck = error && (stderr || '').toLowerCase().includes('sign in to confirm');
-    if (hitBotCheck) {
+    if (hitBotCheck && !procEntry.cancelled) {
       console.log(`[${uid.slice(0,8)}] Bot-check on default client, retrying with alternate player clients...`);
-      return exec(retryCommand, { timeout: 5 * 60 * 1000, shell: true, cwd: DOWNLOADS_DIR }, handleResult);
+      const retryChild = exec(retryCommand, { timeout: 5 * 60 * 1000, shell: true, cwd: DOWNLOADS_DIR, detached: true }, (error2, stdout2, stderr2) => {
+        activeDownloadProcesses.delete(uid);
+        handleResult(error2, stdout2, stderr2);
+      });
+      procEntry.child = retryChild;
+      return;
     }
+    activeDownloadProcesses.delete(uid);
     handleResult(error, stdout, stderr);
   });
+  procEntry.child = primaryChild;
+});
+
+// User apni current download cancel kar sake — sirf frontend fetch abort
+// karna kaafi nahi, warna yt-dlp server par chalta rehta aur agla download
+// stale lock (6 minute tak) ki wajah se atka rehta.
+app.post('/api/download/cancel', requireAuth, (req, res) => {
+  const uid = req.user.id;
+  const entry = activeDownloadProcesses.get(uid);
+  const activeFile = path.join(DOWNLOADS_DIR, `${uid.slice(0,8)}_active`);
+
+  if (entry && entry.child && entry.child.pid) {
+    entry.cancelled = true;
+    if (process.platform === 'win32') {
+      // On Windows, exec()'s child is cmd.exe /c <command> — killing just
+      // that leaves the actual yt-dlp.exe (and any ffmpeg it spawns for
+      // merging) running as orphans. taskkill /t walks the whole process
+      // tree; /f forces it. Verified directly: without this, yt-dlp.exe
+      // kept running (and the download response never returned) even
+      // after entry.child.kill() reported success.
+      execFile('taskkill', ['/pid', String(entry.child.pid), '/t', '/f'], () => {});
+    } else {
+      try {
+        process.kill(-entry.child.pid, 'SIGKILL'); // whole process group
+      } catch (e) {
+        try { entry.child.kill('SIGKILL'); } catch (e2) {}
+      }
+    }
+    activeDownloadProcesses.delete(uid);
+  }
+
+  try { fs.unlinkSync(activeFile); } catch (e) {}
+  logActivity(req, 'download_cancelled', {});
+  res.json({ success: true });
 });
 
 // ─── CONVERT ROUTE — already-downloaded file ko doosre format mein badlo ──
