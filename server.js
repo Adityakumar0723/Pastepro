@@ -966,7 +966,7 @@ app.post('/api/search', requireAuth, async (req, res) => {
   }
 
   const { cmd, extraArgs } = splitYtdlpCommand(ytdlpCmd);
-  const baseArgs    = ['--flat-playlist', '--dump-json', ...cookiesArgs(), ...proxyArgs(), `ytsearch12:${query}`];
+  const baseArgs    = ['--flat-playlist', '--dump-json', ...cookiesArgs(), ...proxyArgs(), `ytsearch24:${query}`];
   const primaryArgs = [...extraArgs, ...baseArgs];
   // Same rationale as /api/download: cookies don't guarantee immunity from
   // YouTube's bot-check on a datacenter IP, so retry once with alternate
