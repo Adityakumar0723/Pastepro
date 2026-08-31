@@ -25,12 +25,19 @@ const PORT = process.env.PORT || 3002;
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/pastepro';
 const JWT_SECRET = process.env.JWT_SECRET || 'change-this-development-secret';
 
-// ─── xAI / Grok (Playground Query section) ─────────────────
+// ─── OpenRouter (Playground Query section) ─────────────────
 // Key sirf yahan, server-side, rehta hai — kabhi bhi frontend/index.html mein
 // mat daalna, warna koi bhi visitor DevTools se churaake use kar sakta hai.
-const XAI_API_KEY  = process.env.XAI_API_KEY || '';
-const XAI_MODEL    = process.env.XAI_MODEL || 'grok-4-fast';
-const XAI_BASE_URL = 'https://api.x.ai/v1';
+// Default free models — verified directly against the live API before
+// picking these: several other free models on OpenRouter (gemma-4-31b,
+// glm-5.2, nemotron nano) were hitting shared-pool 429s/502s at the time,
+// these two were not. OPENROUTER_MODEL retries once with
+// OPENROUTER_FALLBACK_MODEL if the primary is upstream-rate-limited,
+// since free models on OpenRouter share a pool that can get busy.
+const OPENROUTER_API_KEY       = process.env.OPENROUTER_API_KEY || '';
+const OPENROUTER_MODEL         = process.env.OPENROUTER_MODEL || 'minimax/minimax-m3:free';
+const OPENROUTER_FALLBACK_MODEL = process.env.OPENROUTER_FALLBACK_MODEL || 'cohere/north-mini-code:free';
+const OPENROUTER_BASE_URL      = 'https://openrouter.ai/api/v1';
 
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true, maxlength: 80 },
@@ -762,15 +769,33 @@ app.post('/api/convert', requireAuth, async (req, res) => {
   });
 });
 
-// ─── PLAYGROUND QUERY — xAI/Grok se streamed jawab ────────
+// ─── PLAYGROUND QUERY — OpenRouter se streamed jawab ──────
 // Ek waqt mein ek user ki ek hi query process hoti hai (jaise download wala rate limit).
 const activeQueries = new Set();
+
+function queryOpenRouter(model, query) {
+  return fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model,
+      stream: true,
+      messages: [
+        { role: 'system', content: 'Tum PastePro Assistant ho. Seedha, sahi aur helpful jawab do. Jab Hindi/Hinglish mein poocha jaaye, usi mein jawab do.' },
+        { role: 'user', content: query },
+      ],
+    }),
+  });
+}
 
 app.post('/api/query', requireAuth, async (req, res) => {
   const query = String(req.body.query || '').trim();
   if (!query) return res.status(400).json({ error: 'Pehle kuch likho' });
   if (query.length > 4000) return res.status(400).json({ error: 'Query bahut lambi hai (max 4000 characters)' });
-  if (!XAI_API_KEY) return res.status(500).json({ error: 'xAI API key server par configure nahi hai' });
+  if (!OPENROUTER_API_KEY) return res.status(500).json({ error: 'OpenRouter API key server par configure nahi hai' });
 
   const uid = req.user.id;
   if (activeQueries.has(uid)) {
@@ -780,28 +805,23 @@ app.post('/api/query', requireAuth, async (req, res) => {
   logActivity(req, 'playground_query', { query });
 
   try {
-    const upstream = await fetch(`${XAI_BASE_URL}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${XAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: XAI_MODEL,
-        stream: true,
-        messages: [
-          { role: 'system', content: 'Tum PastePro Assistant ho. Seedha, sahi aur helpful jawab do. Jab Hindi/Hinglish mein poocha jaaye, usi mein jawab do.' },
-          { role: 'user', content: query },
-        ],
-      }),
-    });
+    let upstream = await queryOpenRouter(OPENROUTER_MODEL, query);
+
+    // Free OpenRouter models share a rate-limited pool that occasionally
+    // gets busy (verified directly — some free models 429 consistently,
+    // others only intermittently) — one retry with a different free model
+    // covers most of those cases instead of failing the query outright.
+    if (upstream.status === 429 && OPENROUTER_FALLBACK_MODEL !== OPENROUTER_MODEL) {
+      console.log('OpenRouter primary model rate-limited, retrying with fallback model...');
+      upstream = await queryOpenRouter(OPENROUTER_FALLBACK_MODEL, query);
+    }
 
     if (!upstream.ok || !upstream.body) {
       const errText = await upstream.text().catch(() => '');
-      console.error('xAI error:', upstream.status, errText);
-      const msg = upstream.status === 401 ? 'xAI API key invalid hai. .env mein XAI_API_KEY check karo' :
-                  upstream.status === 403 ? 'xAI account/team mein credits ya license nahi hai. console.x.ai par billing add karo' :
-                  upstream.status === 429 ? 'Rate limit lag gaya hai. Thoda ruk kar dobara try karo' :
+      console.error('OpenRouter error:', upstream.status, errText);
+      const msg = upstream.status === 401 ? 'OpenRouter API key invalid hai. .env mein OPENROUTER_API_KEY check karo' :
+                  upstream.status === 403 ? 'OpenRouter account mein credits ya license nahi hai. openrouter.ai par billing check karo' :
+                  upstream.status === 429 ? 'AI models abhi busy hain (free tier). Thodi der baad dobara try karo' :
                   `AI se jawab nahi mil paya (upstream HTTP ${upstream.status}). Dobara try karo.`;
       return res.status(upstream.status >= 400 && upstream.status < 500 ? upstream.status : 502).json({ error: msg });
     }
