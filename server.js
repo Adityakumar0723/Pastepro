@@ -894,8 +894,19 @@ app.post('/api/query', requireAuth, async (req, res) => {
     const reader  = upstream.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    let streamDone = false;
 
-    while (true) {
+    // "[DONE]" khud hi authoritative signal hai ki stream khatam ho gayi —
+    // isko dekhte hi turant rukna chahiye, upstream connection ke apne aap
+    // band hone ka intezaar nahi karna chahiye. Verified directly: agar
+    // sirf `if (done) break` par depend karo (jo reader.read() se aata hai,
+    // matlab underlying connection band), toh OpenRouter/network kabhi-kabhi
+    // "[DONE]" bhejne ke baad bhi connection turant close nahi karta —
+    // isse poori request hamesha ke liye latak jaati thi (jawab poora aa
+    // chuka hota tha lekin UI kabhi "complete" state par nahi pahunchta,
+    // askBtn hamesha disabled reh jaata, aur session mein assistant ka
+    // message kabhi save hi nahi hota).
+    while (!streamDone) {
       const { value, done } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
@@ -906,7 +917,7 @@ app.post('/api/query', requireAuth, async (req, res) => {
         const trimmed = line.trim();
         if (!trimmed.startsWith('data:')) continue;
         const payload = trimmed.slice(5).trim();
-        if (payload === '[DONE]') continue;
+        if (payload === '[DONE]') { streamDone = true; break; }
         try {
           const token = JSON.parse(payload).choices?.[0]?.delta?.content;
           if (token) res.write(token);
@@ -915,6 +926,7 @@ app.post('/api/query', requireAuth, async (req, res) => {
         }
       }
     }
+    try { reader.cancel(); } catch (e) {}
     res.end();
   } catch (error) {
     console.error('Query stream error:', error);
