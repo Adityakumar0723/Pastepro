@@ -57,7 +57,8 @@
  
     main { position: relative; z-index:1; max-width: 860px; margin: 0 auto; padding: 80px 24px 120px; transition: max-width 0.2s ease; }
     main:has(#download-page.show) { max-width: 1180px; }
-    main:has(#search-page.show) { max-width: 1180px; }
+    main:has(#search-page.show) { max-width: 1320px; padding-top: 24px; padding-bottom: 24px; }
+    main:has(#search-page.show) .hero { display: none; }
     main:has(#docs-page.show) { max-width: 1180px; }
     main:has(#settings-page.show) { max-width: 1180px; }
     main:has(#playground-page.show) { max-width: 1320px; padding-top: 24px; padding-bottom: 24px; }
@@ -420,7 +421,7 @@
       .search-list-col { border-left:none; border-top:1px solid var(--border); }
     }
 
-    .search-results-list { display:flex; flex-direction:column; gap:10px; max-height:640px; overflow-y:auto; padding-right:6px; margin-top:12px; }
+    .search-results-list { display:flex; flex-direction:column; gap:10px; max-height:calc(100vh - 360px); min-height:400px; overflow-y:auto; padding-right:6px; margin-top:12px; }
     .search-result-row { display:flex; gap:10px; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:8px; cursor:pointer; transition:border-color 0.2s, background 0.2s; }
     .search-result-row:hover { border-color:var(--border-hover); }
     .search-result-row.active { border-color:var(--green); background:rgba(46,196,182,0.07); }
