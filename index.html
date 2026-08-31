@@ -209,6 +209,7 @@
     .dl-preview-box audio::-webkit-media-controls-play-button { transform:scale(1.4); }
     .dl-captions-box { margin-top:12px; max-height:170px; overflow-y:auto; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px; font-size:15px; line-height:2; }
     .cap-word { display:inline-block; padding:1px 4px; margin:1px; border-radius:5px; color:var(--muted); transition:color 0.15s, background 0.15s; }
+    .cap-status { color:var(--muted); font-size:13px; }
     .cap-word.active { color:#0c0c0e; background:var(--green); font-weight:700; }
 
     /* Convert to other formats */
@@ -1602,7 +1603,12 @@
   function renderSearchCaptions(words) {
     const box = document.getElementById('search-captions-box');
     currentSearchCaptionWords = words || [];
-    if (!searchCaptionsEnabled || !currentSearchCaptionWords.length) {
+    if (!searchCaptionsEnabled) {
+      box.style.display = 'none';
+      box.innerHTML = '';
+      return;
+    }
+    if (!currentSearchCaptionWords.length) {
       box.style.display = 'none';
       box.innerHTML = '';
       return;
@@ -1610,6 +1616,23 @@
     box.innerHTML = currentSearchCaptionWords
       .map((w, i) => `<span class="cap-word" data-i="${i}">${escapeHtml(w.text)}</span>`)
       .join(' ');
+    box.style.display = 'block';
+  }
+
+  // Fetch mein 8-12 second tak lag sakte hain (video metadata + subtitle
+  // pull) — bina kisi feedback ke ye "feature kaam nahi kar raha" jaisa
+  // lagta hai. In do states se user ko pata chalta hai kuch ho raha hai.
+  function showSearchCaptionsLoading() {
+    if (!searchCaptionsEnabled) return;
+    const box = document.getElementById('search-captions-box');
+    box.innerHTML = `<span class="cap-status">⏳ Captions load ho rahe hain...</span>`;
+    box.style.display = 'block';
+  }
+
+  function showSearchCaptionsUnavailable() {
+    if (!searchCaptionsEnabled) return;
+    const box = document.getElementById('search-captions-box');
+    box.innerHTML = `<span class="cap-status">Is video ke liye captions available nahi hain.</span>`;
     box.style.display = 'block';
   }
 
@@ -1676,7 +1699,12 @@
     origBtn.classList.toggle('active', lang === 'orig');
     enBtn.classList.toggle('active', lang === 'en');
 
-    renderSearchCaptions(data.captions || []);
+    if (!data.captions || !data.captions.length) {
+      showSearchCaptionsUnavailable();
+      currentSearchCaptionWords = [];
+    } else {
+      renderSearchCaptions(data.captions);
+    }
   }
 
   window.toggleSearchCaptions = (enabled) => {
@@ -1686,6 +1714,7 @@
     } else if (currentSearchCaptionWords.length) {
       document.getElementById('search-captions-box').style.display = 'block';
     } else if (currentSearchVideoId) {
+      showSearchCaptionsLoading();
       fetchAndRenderSearchCaptions(currentSearchVideoId, searchCaptionLang);
     }
   };
@@ -1699,8 +1728,9 @@
   function loadSearchCaptions(videoId) {
     currentSearchVideoId = videoId;
     searchCaptionLang = 'orig';
+    currentSearchCaptionWords = [];
     document.getElementById('search-cap-lang-tabs').style.display = 'none';
-    renderSearchCaptions([]);
+    showSearchCaptionsLoading();
     startSearchCaptionPolling();
     fetchAndRenderSearchCaptions(videoId, 'orig');
   }
