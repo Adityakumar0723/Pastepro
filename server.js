@@ -136,6 +136,19 @@ function proxyArgs() {
   return YTDLP_PROXY ? ['--proxy', YTDLP_PROXY] : [];
 }
 
+// Local speech-to-text (whisper.cpp), baked into the Docker image at
+// /opt/whisper — this is what makes word-by-word captions work on
+// platforms that don't provide any caption data of their own (Instagram
+// never does; Twitter/TikTok only when that specific video happens to
+// carry one). Since it transcribes OUR downloaded file directly, it
+// doesn't depend on the source platform at all. Optional by design: if
+// the binary/model aren't present (e.g. local dev on this Windows
+// machine, where only the Docker image has them), captions for
+// non-YouTube platforms simply stay empty — same as before this existed.
+const WHISPER_BIN   = process.env.WHISPER_BIN   || '/opt/whisper/whisper-cli';
+const WHISPER_MODEL = process.env.WHISPER_MODEL || '/opt/whisper/ggml-tiny.en.bin';
+const WHISPER_READY = fs.existsSync(WHISPER_BIN) && fs.existsSync(WHISPER_MODEL);
+
 // Only pass --cookies when the file genuinely exists and is readable. If
 // COOKIES_PATH points at a path whose directory doesn't exist (e.g. a
 // misconfigured Secret File mount), yt-dlp doesn't just skip cookies — it
@@ -452,6 +465,51 @@ function fetchAutoCaptions(url, ytdlpCmd, safeId) {
   });
 }
 
+// Fallback for every platform that doesn't hand us real caption data:
+// transcribe the file we just downloaded, ourselves, with a local
+// whisper.cpp model. `-ml 2` caps each VTT cue at ~2 words so the
+// existing parseVttWords() (built for YouTube's word-timed cues) gets
+// near-word-level timing here too, instead of one giant per-sentence cue.
+// Bounded and best-effort like fetchAutoCaptions: any failure (missing
+// binary, ffmpeg hiccup, timeout) just resolves to [] rather than
+// touching the download response.
+function fetchWhisperCaptions(mediaPath, ffmpegCmd) {
+  return new Promise((resolve) => {
+    if (!WHISPER_READY) return resolve([]);
+    try {
+      const stat = fs.statSync(mediaPath);
+      // Rough proxy for "too long to transcribe in a reasonable time" on a
+      // free-tier CPU — skip rather than risk a very long-running process.
+      if (stat.size > 150 * 1024 * 1024) return resolve([]);
+    } catch (e) {
+      return resolve([]);
+    }
+
+    const base    = mediaPath.replace(/\.[^/.]+$/, '') + '.whisper';
+    const wavPath = `${base}.wav`;
+    const vttPath = `${base}.vtt`;
+    const extractCmd = `${quoteIfPath(ffmpegCmd)} -y -i "${mediaPath}" -vn -ar 16000 -ac 1 -c:a pcm_s16le "${wavPath}"`;
+
+    exec(extractCmd, { timeout: 60 * 1000, shell: true, cwd: DOWNLOADS_DIR }, (ffErr) => {
+      if (ffErr || !fs.existsSync(wavPath)) return resolve([]);
+
+      const whisperCmd = `${quoteIfPath(WHISPER_BIN)} -m "${WHISPER_MODEL}" -f "${wavPath}" -ml 2 -ovtt -of "${base}" -np`;
+      exec(whisperCmd, { timeout: 120 * 1000, shell: true, cwd: DOWNLOADS_DIR, env: { ...process.env, LD_LIBRARY_PATH: path.dirname(WHISPER_BIN) } }, (wErr) => {
+        try { fs.unlinkSync(wavPath); } catch (e) {}
+        if (wErr || !fs.existsSync(vttPath)) return resolve([]);
+        try {
+          const raw   = fs.readFileSync(vttPath, 'utf8');
+          const words = parseVttWords(raw);
+          fs.unlinkSync(vttPath);
+          resolve(words);
+        } catch (e) {
+          resolve([]);
+        }
+      });
+    });
+  });
+}
+
 // ─── MAIN DOWNLOAD ROUTE ──────────────────────────────────
 app.post('/api/download', requireAuth, async (req, res) => {
   const { url, quality = '720p', type = 'video', format } = req.body;
@@ -554,9 +612,19 @@ app.post('/api/download', requireAuth, async (req, res) => {
     }
     logActivity(req, 'download', { url, type, quality, format: ext, filename });
 
-    // Best-effort: YouTube ke auto-captions se word-by-word timed transcript.
-    // Fail ho jaaye toh chup-chaap [] — caption na hona download ko fail nahi karta.
-    const captions = await fetchAutoCaptions(url, ytdlpCmd, safeId);
+    // Best-effort: pehle platform ke apne auto-captions try karo (YouTube
+    // ke paas hamesha hote hain, TikTok/Twitter ke paas kabhi-kabhi). Agar
+    // kuch na mile (Instagram — jiske paas ye data kabhi hota hi nahi), toh
+    // downloaded file ko khud transcribe karo (whisper.cpp) — is tarah
+    // captions kisi bhi platform ke video par kaam karte hain, na ki sirf
+    // unpar jo apna caption data expose karte hain. Dono step best-effort
+    // hain — fail ho jaaye toh chup-chaap [] — caption na hona download ko
+    // fail nahi karta.
+    let captions = await fetchAutoCaptions(url, ytdlpCmd, safeId);
+    if (!captions.length && WHISPER_READY) {
+      const ffmpegCmd = await resolveFfmpegCommand();
+      if (ffmpegCmd) captions = await fetchWhisperCaptions(finalFile, ffmpegCmd);
+    }
 
     res.json({
       success:  true,

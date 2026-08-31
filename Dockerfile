@@ -42,6 +42,32 @@ RUN curl -fL https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/dow
     chmod a+rx /usr/local/bin/yt-dlp && \
     yt-dlp --version
 
+# whisper.cpp — local speech-to-text so word-by-word captions on the
+# download-ready page work for EVERY platform, not just YouTube.
+# Instagram never exposes caption data of its own via yt-dlp, and
+# Twitter/TikTok only do so sometimes — so instead of depending on the
+# source platform, server.js transcribes the file it already downloaded,
+# itself (see fetchWhisperCaptions). Precompiled release binary, not
+# built from source, to keep this Docker build itself fast and low-risk;
+# its GLIBC requirement (verified: max GLIBC_2.34 across the binary and
+# all its .so files) is satisfied by this image's Debian bookworm (2.36).
+# Model is the smallest English one (tiny.en, ~75MB) to keep CPU time and
+# image size down on a free-tier host. Entirely best-effort at runtime —
+# a missing/failed transcription just means no captions, never a broken
+# download (see WHISPER_READY in server.js).
+RUN curl -fL https://github.com/ggml-org/whisper.cpp/releases/download/b4938/whisper-bin-ubuntu-x64.tar.gz \
+      -o /tmp/whisper.tar.gz && \
+    mkdir -p /opt/whisper && \
+    tar xzf /tmp/whisper.tar.gz -C /opt/whisper --strip-components=1 && \
+    rm -f /tmp/whisper.tar.gz \
+          /opt/whisper/bench /opt/whisper/whisper-bench /opt/whisper/whisper-server \
+          /opt/whisper/whisper-vad-speech-segments /opt/whisper/parakeet-cli \
+          /opt/whisper/libparakeet.so* /opt/whisper/test-* /opt/whisper/LICENSE && \
+    chmod a+rx /opt/whisper/whisper-cli && \
+    curl -fL https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin \
+      -o /opt/whisper/ggml-tiny.en.bin && \
+    LD_LIBRARY_PATH=/opt/whisper /opt/whisper/whisper-cli --help > /dev/null
+
 WORKDIR /app
 
 # Install deps first so this layer is cached across code-only changes
