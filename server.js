@@ -144,16 +144,18 @@ function proxyArgs() {
 }
 
 // Local speech-to-text (whisper.cpp), baked into the Docker image at
-// /opt/whisper — this is what makes word-by-word captions work on
-// platforms that don't provide any caption data of their own (Instagram
-// never does; Twitter/TikTok only when that specific video happens to
-// carry one). Since it transcribes OUR downloaded file directly, it
-// doesn't depend on the source platform at all. Optional by design: if
-// the binary/model aren't present (e.g. local dev on this Windows
-// machine, where only the Docker image has them), captions for
-// non-YouTube platforms simply stay empty — same as before this existed.
+// /opt/whisper — this is what makes word-by-word captions work when the
+// source has no caption data of its own (Instagram never has any;
+// Twitter/TikTok only sometimes; and now also the Search-page live
+// preview, when YouTube itself has no auto-captions for that video).
+// Multilingual model (not the English-only "tiny.en") on purpose — many
+// PastePro users search/preview Hindi videos, and an English-only model
+// would mangle non-English speech instead of transcribing it. Optional by
+// design: if the binary/model aren't present (e.g. local dev on this
+// Windows machine, where only the Docker image has them), this fallback
+// simply doesn't run — same graceful behavior as before it existed.
 const WHISPER_BIN   = process.env.WHISPER_BIN   || '/opt/whisper/whisper-cli';
-const WHISPER_MODEL = process.env.WHISPER_MODEL || '/opt/whisper/ggml-tiny.en.bin';
+const WHISPER_MODEL = process.env.WHISPER_MODEL || '/opt/whisper/ggml-tiny.bin';
 const WHISPER_READY = fs.existsSync(WHISPER_BIN) && fs.existsSync(WHISPER_MODEL);
 
 // Only pass --cookies when the file genuinely exists and is readable. If
@@ -538,6 +540,40 @@ function fetchWhisperCaptions(mediaPath, ffmpegCmd) {
           resolve([]);
         }
       });
+    });
+  });
+}
+
+// Search-page preview fallback: when YouTube itself has no auto-captions
+// for a video (confirmed happens — not every video has speech, or ASR
+// data), transcribe it ourselves instead of leaving captions empty. There's
+// no already-downloaded file to reuse here (this runs before the user
+// decides to download anything), so this pulls just the audio stream —
+// not the full video — then reuses fetchWhisperCaptions() on it. Capped by
+// duration (not just file size like the download-flow version) since a
+// live preview shouldn't kick off a multi-minute transcription for a
+// 2-hour livestream — it degrades to "no captions" instead, same as any
+// other unavailable-captions case.
+const MAX_WHISPER_PREVIEW_SECONDS = 20 * 60;
+
+function fetchWhisperCaptionsForSearch(videoId, durationSeconds, ytdlpCmd, ffmpegCmd) {
+  return new Promise((resolve) => {
+    if (!WHISPER_READY) return resolve([]);
+    if (durationSeconds && durationSeconds > MAX_WHISPER_PREVIEW_SECONDS) return resolve([]);
+
+    const audioBase = path.join(DOWNLOADS_DIR, `whisper_preview_${videoId}`);
+    const audioPath = `${audioBase}.mp3`;
+    const url = `https://www.youtube.com/watch?v=${videoId}`;
+    // -f bestaudio pulls only the audio stream (not the full video) —
+    // -x --audio-format mp3 then gives fetchWhisperCaptions() a plain file
+    // it already knows how to handle exactly like a downloaded file.
+    const command = `${quoteIfPath(ytdlpCmd)} -f bestaudio -x --audio-format mp3 ${cookiesFlag()} ${proxyFlag()} --paths "temp:${DOWNLOADS_DIR}" --output "${audioBase}.%(ext)s" "${url}"`;
+
+    exec(command, { timeout: 90 * 1000, shell: true, cwd: DOWNLOADS_DIR }, async (error) => {
+      if (error || !fs.existsSync(audioPath)) return resolve([]);
+      const words = await fetchWhisperCaptions(audioPath, ffmpegCmd);
+      try { fs.unlinkSync(audioPath); } catch (e) {}
+      resolve(words);
     });
   });
 }
@@ -997,7 +1033,7 @@ function fetchVideoCaptionsMeta(videoId) {
         if (error) return reject(error);
         try {
           const info = JSON.parse(stdout);
-          const data = { automaticCaptions: info.automatic_captions || {} };
+          const data = { automaticCaptions: info.automatic_captions || {}, duration: info.duration || 0 };
           videoCaptionsMetaCache.set(videoId, { data, expiresAt: Date.now() + VIDEO_META_CACHE_MS });
           resolve(data);
         } catch (e) {
@@ -1021,7 +1057,7 @@ app.post('/api/search-captions', requireAuth, async (req, res) => {
   if (!/^[\w-]{5,20}$/.test(videoId)) return res.status(400).json({ error: 'Invalid video id' });
 
   try {
-    const { automaticCaptions: autoCaps } = await fetchVideoCaptionsMeta(videoId);
+    const { automaticCaptions: autoCaps, duration } = await fetchVideoCaptionsMeta(videoId);
     const origKey      = Object.keys(autoCaps).find(k => k.endsWith('-orig'));
     const origLangCode = origKey ? origKey.replace(/-orig$/, '') : null;
     const origLangName = origKey
@@ -1036,25 +1072,46 @@ app.post('/api/search-captions', requireAuth, async (req, res) => {
     }
 
     const activeLang = targetKey ? targetKey.replace(/-orig$/, '') : null;
-    const empty = { success: true, captions: [], origLang: origLangCode, origLangName, activeLang };
-    if (!targetKey || !autoCaps[targetKey]) return res.json({ ...empty, activeLang: null });
-
-    const vttEntry = autoCaps[targetKey].find(e => e.ext === 'vtt');
     let captions = [];
-    if (vttEntry) {
-      const vttRes = await fetch(vttEntry.url);
-      if (vttRes.ok) captions = parseVttWords(await vttRes.text());
+
+    if (targetKey && autoCaps[targetKey]) {
+      const vttEntry = autoCaps[targetKey].find(e => e.ext === 'vtt');
+      if (vttEntry) {
+        const vttRes = await fetch(vttEntry.url);
+        if (vttRes.ok) captions = parseVttWords(await vttRes.text());
+      }
+      // Direct timedtext URL can occasionally get rate-limited by YouTube
+      // itself (independent of yt-dlp's own bot-check, verified directly) —
+      // fall back to fetching it fresh through yt-dlp instead of failing.
+      if (!captions.length) {
+        const ytdlpCmd = await resolveYtdlpCommand();
+        if (ytdlpCmd) captions = await fetchCaptionsViaYtdlpLang(ytdlpCmd, videoId, activeLang);
+      }
     }
 
-    // Direct timedtext URL can occasionally get rate-limited by YouTube
-    // itself (independent of yt-dlp's own bot-check, verified directly) —
-    // fall back to fetching it fresh through yt-dlp instead of failing.
-    if (!captions.length) {
-      const ytdlpCmd = await resolveYtdlpCommand();
-      if (ytdlpCmd) captions = await fetchCaptionsViaYtdlpLang(ytdlpCmd, videoId, activeLang);
+    // YouTube ke paas is video ke liye koi caption data hai hi nahi (kayi
+    // videos mein ye hota hai) — sirf tab khud transcribe karo jab user ne
+    // "original" maanga ho: whisper original spoken language mein hi
+    // transcribe karta hai, translate nahi kar sakta, isliye explicit "en"
+    // request par isko chalane ka koi matlab nahi.
+    let usedWhisper = false;
+    if (!captions.length && lang === 'orig') {
+      const ytdlpCmd  = await resolveYtdlpCommand();
+      const ffmpegCmd = await resolveFfmpegCommand();
+      if (ytdlpCmd && ffmpegCmd) {
+        captions = await fetchWhisperCaptionsForSearch(videoId, duration, ytdlpCmd, ffmpegCmd);
+        if (captions.length) usedWhisper = true;
+      }
     }
 
-    res.json({ ...empty, captions });
+    res.json({
+      success: true,
+      captions,
+      origLang: usedWhisper ? null : origLangCode,
+      origLangName: usedWhisper ? null : origLangName,
+      activeLang: usedWhisper ? null : activeLang,
+      source: usedWhisper ? 'whisper' : 'youtube'
+    });
   } catch (error) {
     console.error('search-captions error:', error.message);
     res.status(500).json({ error: 'Captions load nahi ho paaye' });

@@ -42,19 +42,21 @@ RUN curl -fL https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/dow
     chmod a+rx /usr/local/bin/yt-dlp && \
     yt-dlp --version
 
-# whisper.cpp — local speech-to-text so word-by-word captions on the
-# download-ready page work for EVERY platform, not just YouTube.
-# Instagram never exposes caption data of its own via yt-dlp, and
-# Twitter/TikTok only do so sometimes — so instead of depending on the
-# source platform, server.js transcribes the file it already downloaded,
-# itself (see fetchWhisperCaptions). Precompiled release binary, not
-# built from source, to keep this Docker build itself fast and low-risk;
-# its GLIBC requirement (verified: max GLIBC_2.34 across the binary and
-# all its .so files) is satisfied by this image's Debian bookworm (2.36).
-# Model is the smallest English one (tiny.en, ~75MB) to keep CPU time and
-# image size down on a free-tier host. Entirely best-effort at runtime —
-# a missing/failed transcription just means no captions, never a broken
-# download (see WHISPER_READY in server.js).
+# whisper.cpp — local speech-to-text so word-by-word captions work when
+# the source has no caption data of its own: every platform's download
+# flow (Instagram never exposes captions via yt-dlp; Twitter/TikTok only
+# sometimes do), and now also the Search page's live preview when YouTube
+# itself has no auto-captions for that video (verified — happens for a
+# real fraction of videos). Precompiled release binary, not built from
+# source, to keep this Docker build itself fast and low-risk; its GLIBC
+# requirement (verified: max GLIBC_2.34 across the binary and all its .so
+# files) is satisfied by this image's Debian bookworm (2.36). Multilingual
+# tiny model (not "tiny.en") on purpose — plenty of PastePro traffic is
+# Hindi video, and an English-only model would mangle non-English speech
+# instead of transcribing it; still ~75MB, same CPU/size budget as the
+# English-only one. Entirely best-effort at runtime — a missing/failed
+# transcription just means no captions, never a broken download or a
+# broken preview (see WHISPER_READY in server.js).
 RUN curl -fL https://github.com/ggml-org/whisper.cpp/releases/download/b4938/whisper-bin-ubuntu-x64.tar.gz \
       -o /tmp/whisper.tar.gz && \
     mkdir -p /opt/whisper && \
@@ -64,8 +66,8 @@ RUN curl -fL https://github.com/ggml-org/whisper.cpp/releases/download/b4938/whi
           /opt/whisper/whisper-vad-speech-segments /opt/whisper/parakeet-cli \
           /opt/whisper/libparakeet.so* /opt/whisper/test-* /opt/whisper/LICENSE && \
     chmod a+rx /opt/whisper/whisper-cli && \
-    curl -fL https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin \
-      -o /opt/whisper/ggml-tiny.en.bin && \
+    curl -fL https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin \
+      -o /opt/whisper/ggml-tiny.bin && \
     LD_LIBRARY_PATH=/opt/whisper /opt/whisper/whisper-cli --help > /dev/null
 
 WORKDIR /app
