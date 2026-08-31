@@ -14,6 +14,7 @@ const os        = require('os');
 const mongoose  = require('mongoose');
 const bcrypt    = require('bcryptjs');
 const jwt       = require('jsonwebtoken');
+const pdfParse  = require('pdf-parse');
 require('dotenv').config();
 
 const app  = express();
@@ -37,6 +38,12 @@ const JWT_SECRET = process.env.JWT_SECRET || 'change-this-development-secret';
 const OPENROUTER_API_KEY       = process.env.OPENROUTER_API_KEY || '';
 const OPENROUTER_MODEL         = process.env.OPENROUTER_MODEL || 'minimax/minimax-m3:free';
 const OPENROUTER_FALLBACK_MODEL = process.env.OPENROUTER_FALLBACK_MODEL || 'cohere/north-mini-code:free';
+// Image attachments need a vision-capable model — verified directly against
+// the live API with a real photo (not just going by OpenRouter's listed
+// "input_modalities"): minimax-m3 and gemma-4-31b both refused/rate-limited
+// on actual image input despite being listed as vision-capable, this one
+// correctly described the test photo.
+const OPENROUTER_VISION_MODEL  = process.env.OPENROUTER_VISION_MODEL || 'dots-studio/dots-3-note-preview:free';
 const OPENROUTER_BASE_URL      = 'https://openrouter.ai/api/v1';
 
 const userSchema = new mongoose.Schema({
@@ -93,7 +100,10 @@ app.use(cors({
   methods: ['GET', 'POST'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
-app.use(express.json());
+// Default express.json() limit is 100kb — way too small for a base64-encoded
+// image/PDF attachment on the Playground Query. 20mb comfortably covers a
+// ~15MB file once base64's ~33% size overhead is added.
+app.use(express.json({ limit: '20mb' }));
 
 // Downloads folder — files yahan save honge.
 // Kept OUTSIDE the project directory on purpose: if index.html is opened via
@@ -834,7 +844,7 @@ app.post('/api/convert', requireAuth, async (req, res) => {
 // Ek waqt mein ek user ki ek hi query process hoti hai (jaise download wala rate limit).
 const activeQueries = new Set();
 
-function queryOpenRouter(model, query) {
+function queryOpenRouter(model, content) {
   return fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -846,35 +856,86 @@ function queryOpenRouter(model, query) {
       stream: true,
       messages: [
         { role: 'system', content: 'Tum PastePro Assistant ho. Seedha, sahi aur helpful jawab do. Jab Hindi/Hinglish mein poocha jaaye, usi mein jawab do.' },
-        { role: 'user', content: query },
+        { role: 'user', content },
       ],
     }),
   });
 }
 
+const MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024; // base64 decoded size
+const MAX_PDF_TEXT_CHARS   = 15000; // itna hi prompt mein bhejte hain, poora PDF nahi — bahut lambi PDF se query hi itni badi ho jaati ki free model reject/timeout kar de
+
 app.post('/api/query', requireAuth, async (req, res) => {
   const query = String(req.body.query || '').trim();
+  const imageDataUrl = typeof req.body.image === 'string' ? req.body.image : null;
+  const pdfBase64     = typeof req.body.pdfBase64 === 'string' ? req.body.pdfBase64 : null;
+  const pdfName       = String(req.body.pdfName || 'document.pdf');
+
   if (!query) return res.status(400).json({ error: 'Pehle kuch likho' });
   if (query.length > 4000) return res.status(400).json({ error: 'Query bahut lambi hai (max 4000 characters)' });
   if (!OPENROUTER_API_KEY) return res.status(500).json({ error: 'OpenRouter API key server par configure nahi hai' });
+
+  if (imageDataUrl && !/^data:image\/(png|jpe?g|webp|gif);base64,/.test(imageDataUrl)) {
+    return res.status(400).json({ error: 'Sirf PNG/JPEG/WEBP/GIF images support hain' });
+  }
+  if (pdfBase64) {
+    const approxBytes = pdfBase64.length * 0.75;
+    if (approxBytes > MAX_ATTACHMENT_BYTES) return res.status(400).json({ error: 'PDF bahut badi hai (max 15MB)' });
+  }
+  if (imageDataUrl) {
+    const approxBytes = imageDataUrl.length * 0.75;
+    if (approxBytes > MAX_ATTACHMENT_BYTES) return res.status(400).json({ error: 'Image bahut badi hai (max 15MB)' });
+  }
 
   const uid = req.user.id;
   if (activeQueries.has(uid)) {
     return res.status(429).json({ error: 'Pehli query abhi process ho rahi hai, thoda ruko' });
   }
   activeQueries.add(uid);
-  logActivity(req, 'playground_query', { query });
+  logActivity(req, 'playground_query', { query, hasImage: !!imageDataUrl, hasPdf: !!pdfBase64 });
 
   try {
-    let upstream = await queryOpenRouter(OPENROUTER_MODEL, query);
+    // PDF attachment: extract its text server-side and fold it into the
+    // prompt as plain context — no model here accepts a raw PDF as a
+    // "file", but every model already handles a longer text prompt fine.
+    let finalQuery = query;
+    if (pdfBase64) {
+      try {
+        const pdfBuffer = Buffer.from(pdfBase64, 'base64');
+        const parsed = await pdfParse(pdfBuffer);
+        const extracted = (parsed.text || '').trim().slice(0, MAX_PDF_TEXT_CHARS);
+        if (extracted) {
+          finalQuery = `Yeh ek PDF ("${pdfName}") ka content hai:\n\n${extracted}\n\n---\n\nUpar wale PDF content ke baare mein sawaal: ${query}`;
+        } else {
+          finalQuery = `(PDF "${pdfName}" se koi readable text nahi mila — shayad ye scanned/image-based PDF hai.)\n\n${query}`;
+        }
+      } catch (e) {
+        console.error('PDF parse error:', e.message);
+        activeQueries.delete(uid);
+        return res.status(400).json({ error: 'PDF read nahi ho payi. Kya ye ek valid PDF file hai?' });
+      }
+    }
+
+    // Image attachment: needs a vision-capable model — verified directly,
+    // not every model listed as "vision-capable" on OpenRouter actually
+    // handles image input correctly, so this is a fixed, separately-tested
+    // model rather than the usual text model + fallback pair.
+    const content = imageDataUrl
+      ? [{ type: 'text', text: finalQuery }, { type: 'image_url', image_url: { url: imageDataUrl } }]
+      : finalQuery;
+    const primaryModel = imageDataUrl ? OPENROUTER_VISION_MODEL : OPENROUTER_MODEL;
+
+    let upstream = await queryOpenRouter(primaryModel, content);
 
     // Free OpenRouter models share a rate-limited pool that occasionally
     // gets busy (verified directly — some free models 429 consistently,
     // others only intermittently) — one retry with a different free model
     // covers most of those cases instead of failing the query outright.
-    if (upstream.status === 429 && OPENROUTER_FALLBACK_MODEL !== OPENROUTER_MODEL) {
+    // No verified-working second vision model yet, so this retry only
+    // applies to plain text queries.
+    if (upstream.status === 429 && !imageDataUrl && OPENROUTER_FALLBACK_MODEL !== OPENROUTER_MODEL) {
       console.log('OpenRouter primary model rate-limited, retrying with fallback model...');
-      upstream = await queryOpenRouter(OPENROUTER_FALLBACK_MODEL, query);
+      upstream = await queryOpenRouter(OPENROUTER_FALLBACK_MODEL, content);
     }
 
     if (!upstream.ok || !upstream.body) {
