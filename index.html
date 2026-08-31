@@ -421,16 +421,22 @@
        needed for the same reason .pg-main needed it — a flex item won't
        shrink below its content's size otherwise, so the results list would
        overflow the fixed height instead of scrolling inside it. */
-    .search-body { display:grid; grid-template-columns: minmax(280px, 1fr) minmax(260px, 340px); gap:0; align-items:stretch; height:calc(100vh - 280px); min-height:520px; }
-    .search-player-col { min-width:0; padding:24px 32px 32px; overflow:visible; }
+    /* Player column ki natural height (video + title + captions + button,
+       no forced sizing) ab grid row ka real height-reference hai — results
+       column usi height tak stretch hoke andar hi scroll karta hai. Isse
+       koi bhi ancestor (.dl-card ka overflow:hidden, border-radius ke liye)
+       download button ko clip nahi karta, kyunki ab kuch bhi apni di gayi
+       height se overflow nahi hota — sab apni jagah, poora dikhta hai. */
+    .search-body { display:grid; grid-template-columns: minmax(280px, 1fr) minmax(260px, 340px); gap:0; align-items:stretch; }
+    .search-player-col { min-width:0; padding:24px 32px 32px; }
     .search-list-col { min-width:0; min-height:0; padding:24px 20px 32px; background:var(--surface); border-left:1px solid var(--border); display:flex; flex-direction:column; }
     @media (max-width:760px) {
-      .search-body { grid-template-columns: 1fr; height:auto; }
+      .search-body { grid-template-columns: 1fr; }
       .search-list-col { border-left:none; border-top:1px solid var(--border); }
       .search-results-list { flex:none; max-height:70vh; }
     }
 
-    .search-results-list { display:flex; flex-direction:column; gap:10px; flex:1; min-height:0; overflow-y:auto; padding-right:6px; margin-top:12px; }
+    .search-results-list { display:flex; flex-direction:column; gap:10px; flex:1; max-height:700px; overflow-y:auto; padding-right:6px; margin-top:12px; }
     .search-result-row { display:flex; gap:10px; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:8px; cursor:pointer; transition:border-color 0.2s, background 0.2s; }
     .search-result-row:hover { border-color:var(--border-hover); }
     .search-result-row.active { border-color:var(--green); background:rgba(46,196,182,0.07); }
