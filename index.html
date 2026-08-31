@@ -282,6 +282,13 @@
     .pg-answer-box { display:none; margin-top:18px; background:var(--surface); border:1px solid rgba(46,196,182,0.2); border-radius:12px; padding:20px; }
     .pg-answer-box.active { display:block; }
 
+    /* SOCIAL SEARCH — platform tabs */
+    .splat-tabs { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
+    .splat-tab { padding:8px 16px; border:1px solid var(--border); border-radius:50px; background:var(--surface); color:var(--muted); font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:600; cursor:pointer; transition:all 0.2s; }
+    .splat-tab:hover { border-color:rgba(255,255,255,0.3); }
+    .splat-tab.active { background:linear-gradient(135deg,var(--accent),#c1121f); border-color:transparent; color:#fff; }
+    .search-linkonly-note { display:none; background:rgba(244,162,97,0.1); border:1px solid rgba(244,162,97,0.25); border-radius:10px; padding:12px 16px; font-size:13px; color:var(--muted); line-height:1.6; margin-bottom:14px; }
+
     /* YOUTUBE SEARCH */
     .search-player-wrap { position:relative; width:100%; padding-top:56.25%; background:#000; border-radius:14px; overflow:hidden; }
     .search-player-wrap iframe { position:absolute; inset:0; width:100%; height:100%; border:none; }
@@ -381,7 +388,7 @@
   <div class="sidebar-section">
     <div class="sidebar-section-title">🧪 Tools</div>
     <div class="sidebar-list">
-      <button class="sidebar-item" onclick="showSearch()">🔍 YouTube Search</button>
+      <button class="sidebar-item" onclick="showSearch()">🔍 Search & Download</button>
       <button class="sidebar-item" onclick="showPlayground()">💬 Playground Query</button>
     </div>
   </div>
@@ -722,7 +729,7 @@
           <div class="dl-section" style="border-bottom:none;">
             <div class="dl-section-label">Sidebar Tools</div>
             <div class="dl-info-grid" style="grid-template-columns:1fr;">
-              <div class="dl-info-item"><div class="lbl">🔍 YouTube Search</div><div class="val" style="font-size:14px;">Keyword se videos dhoondo, inline player mein preview karo, phir seedha download karo — link paste karne ki zaroorat nahi</div></div>
+              <div class="dl-info-item"><div class="lbl">🔍 Search & Download</div><div class="val" style="font-size:14px;">YouTube par keyword se videos dhoondo aur preview karo; Reddit par username se unke posts dhoondo; Instagram/Twitter ka post link paste karo — sab yahin se download karo</div></div>
               <div class="dl-info-item"><div class="lbl">💬 Playground Query</div><div class="val" style="font-size:14px;">PastePro Assistant se kuch bhi pucho — AI-powered chat, real-time streaming jawab ke saath</div></div>
               <div class="dl-info-item"><div class="lbl">🗂️ Categories</div><div class="val" style="font-size:14px;">Sidebar se platform (YouTube, Instagram, etc.) seedha select karke download box khol lo</div></div>
             </div>
@@ -820,12 +827,23 @@
       <div class="dl-banner">
         <div class="dl-banner-icon">🔍</div>
         <div>
-          <h2>YouTube Search</h2>
-          <p>Video dhundo, play karo, aur seedha download karo</p>
+          <h2 id="search-banner-title">YouTube Search</h2>
+          <p id="search-banner-sub">Video dhundo, play karo, aur seedha download karo</p>
         </div>
       </div>
 
       <div class="dl-section">
+        <div class="splat-tabs" id="search-platform-tabs">
+          <button type="button" class="splat-tab active" data-plat="youtube" onclick="setSearchPlatform('youtube', this)">▶️ YouTube</button>
+          <button type="button" class="splat-tab" data-plat="reddit" onclick="setSearchPlatform('reddit', this)">👽 Reddit</button>
+          <button type="button" class="splat-tab" data-plat="instagram" onclick="setSearchPlatform('instagram', this)">📸 Instagram</button>
+          <button type="button" class="splat-tab" data-plat="twitter" onclick="setSearchPlatform('twitter', this)">✖️ Twitter / X</button>
+        </div>
+
+        <div class="search-linkonly-note" id="search-linkonly-note">
+          ℹ️ Reddit, Instagram aur Twitter/X apni policy ki wajah se pura profile list karne ki ijazat anonymously nahi dete — bas us profile ke kisi bhi post/reel/tweet ka link yahan paste karo, hum seedha wahi download kar denge.
+        </div>
+
         <div class="url-wrap" style="margin-bottom:0;">
           <input class="url-input" id="search-query" type="text" placeholder="Kya dhundna hai? (e.g. lofi music, cooking recipe...)" onkeydown="if(event.key==='Enter') doSearch()" />
         </div>
@@ -891,6 +909,7 @@
   let selectedAudioFormat = 'mp3';
   let currentDownloadedFilename = null;
   let searchResults = [];
+  let selectedSearchPlatform = 'youtube';
   let currentPlayingIndex = -1;
   let ytApiLoadingPromise = null;
   let ytPlayer = null;
@@ -1169,6 +1188,8 @@
     document.getElementById('docs-page').classList.remove('show');
     document.getElementById('playground-page').classList.remove('show');
     document.getElementById('search-page').classList.add('show');
+    const ytTab = document.querySelector('.splat-tab[data-plat="youtube"]');
+    if (ytTab) setSearchPlatform('youtube', ytTab);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -1207,9 +1228,57 @@
     currentPlayingIndex = -1;
   }
 
+  // Platform selector — YouTube keyword search vs Reddit profile search
+  // vs Instagram/Twitter (jo profile listing allow nahi karte, sirf
+  // direct post link accept karte hain).
+  window.setSearchPlatform = (plat, btn) => {
+    selectedSearchPlatform = plat;
+    document.querySelectorAll('.splat-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    stopSearchPlayer();
+    document.getElementById('search-results').innerHTML = '';
+    document.getElementById('search-query').value = '';
+
+    const input   = document.getElementById('search-query');
+    const btnEl   = document.getElementById('search-btn');
+    const note    = document.getElementById('search-linkonly-note');
+    const title   = document.getElementById('search-banner-title');
+    const sub     = document.getElementById('search-banner-sub');
+
+    if (plat === 'youtube') {
+      title.textContent = 'YouTube Search';
+      sub.textContent = 'Video dhundo, play karo, aur seedha download karo';
+      input.placeholder = 'Kya dhundna hai? (e.g. lofi music, cooking recipe...)';
+      btnEl.textContent = '🔍 Search Karo';
+      note.style.display = 'none';
+    } else {
+      // Reddit/Instagram/Twitter: koi bhi platform ab anonymous "puri profile
+      // list karo" ko allow nahi karta (Reddit ne bhi ye lock kar diya hai —
+      // logged-out requests par login-wall ya bot-block aata hai, YouTube
+      // jaisa hi IP-reputation issue). Isliye teeno platforms ke liye
+      // honest, hamesha-kaam-karne-wala flow: seedha post ka link do.
+      const names = { reddit: 'Reddit', instagram: 'Instagram', twitter: 'Twitter / X' };
+      title.textContent = `${names[plat]} Download`;
+      sub.textContent = 'Post/Reel/Tweet ka link paste karke seedha download karo';
+      input.placeholder = 'Post/Reel/Tweet ka link yahan paste karo';
+      btnEl.textContent = '⬇ Isse Download Karo';
+      note.style.display = 'block';
+    }
+  };
+
   window.doSearch = async () => {
     const query = document.getElementById('search-query').value.trim();
-    if (!query) { showToast('Kuch search toh karo!','error'); return; }
+    if (!query) { showToast('Kuch daalo!','error'); return; }
+
+    // Reddit/Instagram/Twitter: koi profile-listing nahi (teeno hi anonymous
+    // scraping block karte hain), seedha diya gaya link download flow mein
+    // bhej do — ye hamesha kaam karta hai.
+    if (selectedSearchPlatform !== 'youtube') {
+      if (!isValidUrl(query)) { showToast('Ek valid post/reel/tweet ka link paste karo','error'); return; }
+      goToDownloadWithUrl(query);
+      return;
+    }
 
     const btn      = document.getElementById('search-btn');
     const thinking = document.getElementById('search-thinking');
@@ -1242,6 +1311,17 @@
       thinking.classList.remove('active');
     }
   };
+
+  // Common hand-off: URL app-view ke main download box mein daal do taaki
+  // user quality/format choose karke normal flow se download kar sake.
+  function goToDownloadWithUrl(url) {
+    stopSearchPlayer();
+    document.getElementById('search-page').classList.remove('show');
+    document.getElementById('app-view').style.display = 'block';
+    document.getElementById('vid-url').value = url;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    showToast('Ab quality/format choose karke Download button dabao', 'success');
+  }
 
   function renderSearchResults(results) {
     const wrap = document.getElementById('search-results');
@@ -1305,12 +1385,7 @@
   window.downloadSearchResult = (i) => {
     const r = searchResults[i];
     if (!r) return;
-    stopSearchPlayer();
-    document.getElementById('search-page').classList.remove('show');
-    document.getElementById('app-view').style.display = 'block';
-    document.getElementById('vid-url').value = r.url;
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    showToast('Ab quality/format choose karke Download button dabao', 'success');
+    goToDownloadWithUrl(r.url);
   };
 
   // Type — video ya audio, sabse pehle choose karo
@@ -1661,7 +1736,7 @@
  
   // URL validation
   function isValidUrl(url) {
-    return [/youtube\.com/,/youtu\.be/,/instagram\.com/,/twitter\.com/,/x\.com/,/tiktok\.com/,/facebook\.com/,/vimeo\.com/].some(p=>p.test(url));
+    return [/youtube\.com/,/youtu\.be/,/instagram\.com/,/twitter\.com/,/x\.com/,/tiktok\.com/,/facebook\.com/,/vimeo\.com/,/reddit\.com/,/redd\.it/].some(p=>p.test(url));
   }
  
   // Toast
