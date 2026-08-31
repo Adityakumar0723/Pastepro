@@ -6,6 +6,14 @@
   <title>PastePro — Video Downloader</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23e63946'/%3E%3Cstop offset='100%25' stop-color='%23f4a261'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='url(%23g)'/%3E%3Cpath d='M32 15 V37 M32 37 L23 28 M32 37 L41 28' stroke='%230c0c0e' stroke-width='6' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3Cpath d='M19 46 H45' stroke='%230c0c0e' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E" />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet"/>
+  <script>
+    // Theme apply karo CSS/body render hone se pehle hi — warna ek pal ke
+    // liye dark theme flash hoke phir light mein badal jaata (FOUC).
+    try {
+      const savedTheme = localStorage.getItem('pastepro_theme');
+      if (savedTheme === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    } catch (e) {}
+  </script>
   <style>
     :root {
       --bg: #0c0c0e;
@@ -17,11 +25,29 @@
       --accent: #e63946;
       --accent2: #f4a261;
       --green: #2ec4b6;
+      --noise-line: rgba(255,255,255,0.02);
+      --border-hover: rgba(255,255,255,0.25);
+    }
+    /* LIGHT MODE — toggled via data-theme="light" on <html> (setTheme() in
+       the script below), persisted to localStorage so it survives reloads. */
+    html[data-theme="light"] {
+      --bg: #f4f3f7;
+      --surface: #ececf2;
+      --card: #ffffff;
+      --border: rgba(12,12,20,0.09);
+      --text: #17161c;
+      --muted: #6b6a75;
+      --noise-line: rgba(12,12,20,0.025);
+      --border-hover: rgba(12,12,20,0.25);
+    }
+    html[data-theme="light"] header { background: rgba(244,243,247,0.85); }
+    html[data-theme="light"] .card, html[data-theme="light"] .dl-card, html[data-theme="light"] .auth-card {
+      box-shadow: 0 1px 3px rgba(12,12,20,0.06), 0 8px 24px rgba(12,12,20,0.04);
     }
     * { margin:0; padding:0; box-sizing:border-box; }
     body { font-family: 'Space Grotesk', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
     body::before { content:''; position:fixed; inset:0; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E"); pointer-events:none; z-index:0; opacity:0.4; }
-    body::after { content:''; position:fixed; inset:0; background-image: linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px); background-size: 60px 60px; pointer-events:none; z-index:0; }
+    body::after { content:''; position:fixed; inset:0; background-image: linear-gradient(var(--noise-line) 1px, transparent 1px), linear-gradient(90deg, var(--noise-line) 1px, transparent 1px); background-size: 60px 60px; pointer-events:none; z-index:0; }
  
     header { position: sticky; top:0; z-index:50; display: flex; align-items:center; justify-content:space-between; padding: 20px 48px; background: rgba(12,12,14,0.85); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
     .logo { display:flex; align-items:center; gap:10px; font-family: 'Syne', sans-serif; font-size: 26px; font-weight:800; letter-spacing: -1px; background: linear-gradient(90deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; cursor: pointer; }
@@ -33,6 +59,7 @@
     main:has(#download-page.show) { max-width: 1180px; }
     main:has(#search-page.show) { max-width: 1180px; }
     main:has(#docs-page.show) { max-width: 1180px; }
+    main:has(#settings-page.show) { max-width: 1180px; }
     main:has(#auth-view:not([style*="none"])) { max-width: 1040px; }
  
     /* HERO */
@@ -102,7 +129,7 @@
     .divider::before { content:''; position:absolute; left:0; top:50%; width:42%; height:1px; background:var(--border); }
     .divider::after  { content:''; position:absolute; right:0; top:50%; width:42%; height:1px; background:var(--border); }
     .btn-google { width:100%; padding:14px; background:var(--surface); border:1px solid var(--border); border-radius:10px; color:var(--text); font-family:'Space Grotesk',sans-serif; font-size:15px; font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px; transition:border-color 0.2s, transform 0.1s; }
-    .btn-google:hover { border-color:rgba(255,255,255,0.2); transform:translateY(-1px); }
+    .btn-google:hover { border-color:var(--border-hover); transform:translateY(-1px); }
     .err { color:var(--accent); font-size:13px; margin-top:8px; display:none; }
  
     /* APP VIEW */
@@ -114,6 +141,8 @@
     .user-email-text { font-size:12px; color:var(--muted); }
     .btn-logout { padding:8px 18px; background:transparent; border:1px solid var(--border); border-radius:8px; color:var(--muted); font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:600; cursor:pointer; transition:all 0.2s; }
     .btn-logout:hover { border-color:var(--accent); color:var(--accent); }
+    .settings-account-row { display:flex; align-items:center; gap:14px; }
+    .settings-account-row .avatar { width:52px; height:52px; font-size:20px; flex-shrink:0; }
     .section-title { font-family:'Syne',sans-serif; font-size:22px; font-weight:800; margin-bottom:24px; }
     .url-wrap { position:relative; margin-bottom:20px; }
     .url-input { width:100%; padding:18px 20px; background:var(--surface); border:1px solid var(--border); border-radius:12px; color:var(--text); font-family:'Space Grotesk',sans-serif; font-size:16px; outline:none; transition:border-color 0.2s; }
@@ -152,7 +181,7 @@
     @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
  
     .back-btn { display:inline-flex; align-items:center; gap:8px; padding:10px 20px; background:transparent; border:1px solid var(--border); border-radius:8px; color:var(--muted); font-family:'Space Grotesk',sans-serif; font-size:14px; font-weight:600; cursor:pointer; transition:all 0.2s; margin-bottom:24px; }
-    .back-btn:hover { border-color:rgba(255,255,255,0.2); color:var(--text); }
+    .back-btn:hover { border-color:var(--border-hover); color:var(--text); }
  
     .dl-card { background:var(--card); border:1px solid var(--border); border-radius:20px; overflow:hidden; }
  
@@ -253,9 +282,11 @@
 
     /* SIDEBAR */
     .hamburger-btn { width:40px; height:40px; display:flex; align-items:center; justify-content:center; background:transparent; border:1px solid var(--border); border-radius:8px; color:var(--text); cursor:pointer; transition:border-color 0.2s; }
-    .hamburger-btn:hover { border-color:rgba(255,255,255,0.25); }
+    .hamburger-btn:hover { border-color:var(--border-hover); }
     .hamburger-btn svg { width:20px; height:20px; }
     .header-left { display:flex; align-items:center; gap:16px; }
+    .header-right { display:flex; align-items:center; gap:12px; }
+    #theme-toggle-btn { font-size:17px; }
 
     .sidebar-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.55); opacity:0; pointer-events:none; transition:opacity 0.25s ease; z-index:200; }
     .sidebar-overlay.open { opacity:1; pointer-events:auto; }
@@ -287,7 +318,7 @@
     /* SOCIAL SEARCH — platform tabs */
     .splat-tabs { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
     .splat-tab { padding:8px 16px; border:1px solid var(--border); border-radius:50px; background:var(--surface); color:var(--muted); font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:600; cursor:pointer; transition:all 0.2s; }
-    .splat-tab:hover { border-color:rgba(255,255,255,0.3); }
+    .splat-tab:hover { border-color:var(--border-hover); }
     .splat-tab.active { background:linear-gradient(135deg,var(--accent),#c1121f); border-color:transparent; color:#fff; }
     .search-linkonly-note { display:none; background:rgba(244,162,97,0.1); border:1px solid rgba(244,162,97,0.25); border-radius:10px; padding:12px 16px; font-size:13px; color:var(--muted); line-height:1.6; margin-bottom:14px; }
 
@@ -310,7 +341,7 @@
 
     .search-results-list { display:flex; flex-direction:column; gap:10px; max-height:640px; overflow-y:auto; padding-right:6px; margin-top:12px; }
     .search-result-row { display:flex; gap:10px; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:8px; cursor:pointer; transition:border-color 0.2s, background 0.2s; }
-    .search-result-row:hover { border-color:rgba(255,255,255,0.25); }
+    .search-result-row:hover { border-color:var(--border-hover); }
     .search-result-row.active { border-color:var(--green); background:rgba(46,196,182,0.07); }
     .search-result-row-thumb { position:relative; width:140px; flex-shrink:0; aspect-ratio:16/9; border-radius:8px; overflow:hidden; background:#000; }
     .search-result-row-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
@@ -348,8 +379,13 @@
       PASTEPRO
     </div>
   </div>
-  <div id="header-user" style="display:none;">
-    <button class="btn-logout" onclick="logout()">Sign out</button>
+  <div class="header-right">
+    <button class="hamburger-btn" id="theme-toggle-btn" onclick="toggleTheme()" aria-label="Theme badlo" title="Light/Dark mode">
+      <span id="theme-toggle-icon">🌙</span>
+    </button>
+    <div id="header-user" style="display:none;">
+      <button class="btn-logout" onclick="logout()">Sign out</button>
+    </div>
   </div>
 </header>
 
@@ -392,6 +428,13 @@
     <div class="sidebar-list">
       <button class="sidebar-item" onclick="showSearch()">🔍 Search & Download</button>
       <button class="sidebar-item" onclick="showPlayground()">💬 Playground Query</button>
+    </div>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-section-title">👤 Account</div>
+    <div class="sidebar-list">
+      <button class="sidebar-item" onclick="showSettings()">⚙️ Settings</button>
     </div>
   </div>
 
@@ -889,6 +932,73 @@
     </div>
   </div>
 
+  <!-- SETTINGS PAGE -->
+  <div id="settings-page" class="download-page">
+
+    <button class="back-btn" onclick="goHome()">← Wapas Jaao</button>
+
+    <div class="dl-card">
+
+      <div class="dl-banner">
+        <div class="dl-banner-icon">⚙️</div>
+        <div>
+          <h2>Settings</h2>
+          <p>Apna account, appearance aur usage details yahan dekho</p>
+        </div>
+      </div>
+
+      <div class="dl-body">
+        <div class="dl-left">
+
+          <div class="dl-section">
+            <div class="dl-section-label">Account</div>
+            <div class="settings-account-row">
+              <div class="avatar" id="settings-avatar"></div>
+              <div>
+                <div class="user-name-text" id="settings-name">—</div>
+                <div class="user-email-text" id="settings-email">—</div>
+              </div>
+            </div>
+            <div class="dl-info-grid" style="grid-template-columns:1fr; margin-top:16px;">
+              <div class="dl-info-item"><div class="lbl">Member Since</div><div class="val" style="font-size:14px;" id="settings-joined">—</div></div>
+            </div>
+          </div>
+
+          <div class="dl-section" style="border-bottom:none;">
+            <div class="dl-section-label">Appearance</div>
+            <div class="splat-tabs">
+              <button class="splat-tab" id="theme-btn-dark" onclick="setTheme('dark')">🌙 Dark</button>
+              <button class="splat-tab" id="theme-btn-light" onclick="setTheme('light')">☀️ Light</button>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="dl-right">
+
+          <div class="dl-section">
+            <div class="dl-section-label">Usage Stats</div>
+            <div class="dl-info-grid" id="settings-stats-grid">
+              <div class="dl-info-item"><div class="lbl">Total Downloads</div><div class="val" id="stat-downloads">—</div></div>
+              <div class="dl-info-item"><div class="lbl">Searches</div><div class="val" id="stat-searches">—</div></div>
+              <div class="dl-info-item"><div class="lbl">Playground Queries</div><div class="val" id="stat-playground">—</div></div>
+              <div class="dl-info-item"><div class="lbl">Conversions</div><div class="val" id="stat-converts">—</div></div>
+              <div class="dl-info-item"><div class="lbl">Page Visits</div><div class="val" id="stat-pageviews">—</div></div>
+              <div class="dl-info-item"><div class="lbl">Logins</div><div class="val" id="stat-logins">—</div></div>
+            </div>
+          </div>
+
+          <div class="dl-section" style="border-bottom:none;">
+            <div class="dl-section-label">Recent Downloads</div>
+            <div id="settings-recent-downloads" class="search-results-list" style="max-height:340px;"></div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+
 </main>
  
 <div class="toast" id="toast"></div>
@@ -904,7 +1014,31 @@
     : '';
   let currentUser = JSON.parse(localStorage.getItem('pastepro_user') || 'null');
   let authToken = localStorage.getItem('pastepro_token');
- 
+
+  // ════════════════════════════════
+  //  LIGHT / DARK MODE
+  //  Actual theme is already applied in <head> (before first paint, to
+  //  avoid a flash) — this just keeps the toggle icon/state in sync and
+  //  handles switching + persisting from here on.
+  // ════════════════════════════════
+  function applyThemeIcon() {
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    const icon = document.getElementById('theme-toggle-icon');
+    if (icon) icon.textContent = isLight ? '☀️' : '🌙';
+  }
+  window.setTheme = (theme) => {
+    if (theme === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    else document.documentElement.removeAttribute('data-theme');
+    try { localStorage.setItem('pastepro_theme', theme); } catch (e) {}
+    applyThemeIcon();
+    updateSettingsThemeButtons();
+  };
+  window.toggleTheme = () => {
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    setTheme(isLight ? 'dark' : 'light');
+  };
+  applyThemeIcon();
+
   let selectedType = 'video';
   let selectedQuality = '1080p';
   let selectedAudioQuality = 'best';
@@ -1012,6 +1146,7 @@
     document.getElementById('app-view').style.display   = 'block';
     document.getElementById('download-page').classList.remove('show');
     document.getElementById('docs-page').classList.remove('show');
+    document.getElementById('settings-page').classList.remove('show');
     document.getElementById('playground-page').classList.remove('show');
     document.getElementById('search-page').classList.remove('show');
     stopSearchPlayer();
@@ -1023,6 +1158,7 @@
     document.getElementById('app-view').style.display   = 'none';
     document.getElementById('download-page').classList.remove('show');
     document.getElementById('docs-page').classList.remove('show');
+    document.getElementById('settings-page').classList.remove('show');
     document.getElementById('playground-page').classList.remove('show');
     document.getElementById('search-page').classList.remove('show');
     stopSearchPlayer();
@@ -1033,6 +1169,7 @@
   window.goHome = () => {
     document.getElementById('download-page').classList.remove('show');
     document.getElementById('docs-page').classList.remove('show');
+    document.getElementById('settings-page').classList.remove('show');
     document.getElementById('playground-page').classList.remove('show');
     document.getElementById('search-page').classList.remove('show');
     stopSearchPlayer();
@@ -1078,6 +1215,7 @@
     logVisit('category', { name });
     document.getElementById('download-page').classList.remove('show');
     document.getElementById('docs-page').classList.remove('show');
+    document.getElementById('settings-page').classList.remove('show');
     document.getElementById('playground-page').classList.remove('show');
     document.getElementById('search-page').classList.remove('show');
     stopSearchPlayer();
@@ -1099,10 +1237,76 @@
     document.getElementById('download-page').classList.remove('show');
     document.getElementById('playground-page').classList.remove('show');
     document.getElementById('search-page').classList.remove('show');
+    document.getElementById('settings-page').classList.remove('show');
     stopSearchPlayer();
     document.getElementById('docs-page').classList.add('show');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  window.showSettings = () => {
+    closeSidebar();
+    if (!(currentUser && authToken)) { showAuth(); showToast('Pehle login karo','error'); return; }
+    logVisit('settings');
+    document.getElementById('auth-view').style.display = 'none';
+    document.getElementById('app-view').style.display = 'none';
+    document.getElementById('download-page').classList.remove('show');
+    document.getElementById('playground-page').classList.remove('show');
+    document.getElementById('search-page').classList.remove('show');
+    document.getElementById('docs-page').classList.remove('show');
+    stopSearchPlayer();
+    document.getElementById('settings-page').classList.add('show');
+    updateSettingsThemeButtons();
+    loadAccountStats();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  function updateSettingsThemeButtons() {
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    const darkBtn  = document.getElementById('theme-btn-dark');
+    const lightBtn = document.getElementById('theme-btn-light');
+    if (darkBtn)  darkBtn.classList.toggle('active', !isLight);
+    if (lightBtn) lightBtn.classList.toggle('active', isLight);
+  }
+
+  async function loadAccountStats() {
+    const grid = document.getElementById('settings-stats-grid');
+    try {
+      const res = await fetch(`${BACKEND}/api/account/stats`, {
+        headers: { 'Authorization': `Bearer ${authToken}` }
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || 'Stats load nahi ho saka');
+
+      document.getElementById('settings-name').textContent  = data.account.name;
+      document.getElementById('settings-email').textContent = data.account.email;
+      document.getElementById('settings-avatar').textContent = (data.account.name || 'U')[0].toUpperCase();
+      document.getElementById('settings-joined').textContent = new Date(data.account.memberSince).toLocaleDateString('en-IN', { day:'numeric', month:'long', year:'numeric' });
+
+      document.getElementById('stat-downloads').textContent  = data.stats.totalDownloads;
+      document.getElementById('stat-searches').textContent   = data.stats.totalSearches;
+      document.getElementById('stat-playground').textContent = data.stats.totalPlaygroundQueries;
+      document.getElementById('stat-converts').textContent   = data.stats.totalConverts;
+      document.getElementById('stat-pageviews').textContent  = data.stats.totalPageViews;
+      document.getElementById('stat-logins').textContent     = data.stats.totalLogins;
+
+      const list = document.getElementById('settings-recent-downloads');
+      if (!data.recentDownloads.length) {
+        list.innerHTML = `<p style="color:var(--muted); font-size:13px; padding:8px 0;">Abhi tak koi download nahi hua</p>`;
+      } else {
+        list.innerHTML = data.recentDownloads.map(d => `
+          <div class="search-result-row" style="cursor:default;">
+            <div class="search-result-row-body" style="padding:8px 4px;">
+              <div class="search-result-row-title">${escapeHtml(d.filename)}</div>
+              <div class="search-result-row-meta">${d.type === 'audio' ? '🎵' : '📹'} ${d.quality} • ${new Date(d.createdAt).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' })}</div>
+            </div>
+          </div>
+        `).join('');
+      }
+    } catch (ex) {
+      if (grid) grid.innerHTML = `<p style="color:var(--muted); font-size:13px;">Stats load nahi ho paaye. Dobara try karo.</p>`;
+      console.error(ex);
+    }
+  }
 
   // ════════════════════════════════
   //  PLAYGROUND QUERY — streamed AI jawab
@@ -1117,6 +1321,7 @@
     document.getElementById('app-view').style.display = 'none';
     document.getElementById('download-page').classList.remove('show');
     document.getElementById('docs-page').classList.remove('show');
+    document.getElementById('settings-page').classList.remove('show');
     document.getElementById('search-page').classList.remove('show');
     stopSearchPlayer();
     document.getElementById('playground-page').classList.add('show');
@@ -1191,6 +1396,7 @@
     document.getElementById('app-view').style.display = 'none';
     document.getElementById('download-page').classList.remove('show');
     document.getElementById('docs-page').classList.remove('show');
+    document.getElementById('settings-page').classList.remove('show');
     document.getElementById('playground-page').classList.remove('show');
     document.getElementById('search-page').classList.add('show');
     const ytTab = document.querySelector('.splat-tab[data-plat="youtube"]');

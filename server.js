@@ -948,6 +948,51 @@ app.get('/api/activity', requireAuth, async (req, res) => {
   }
 });
 
+// ─── Settings page ka account overview + usage stats ──────
+// Ek hi jagah se: profile info, kitne downloads/searches/conversions/
+// playground-queries hue, aur recent download history — sab existing
+// Download/ActivityLog data se derive hota hai, koi nayi tracking nahi.
+app.get('/api/account/stats', requireAuth, async (req, res) => {
+  try {
+    const uid = req.user.id;
+    const user = await User.findById(uid).select('name email createdAt').lean();
+    if (!user) return res.status(404).json({ error: 'User nahi mila' });
+
+    const totalDownloads = await Download.countDocuments({ user: uid });
+
+    const actionCounts = await ActivityLog.aggregate([
+      { $match: { user: new mongoose.Types.ObjectId(uid) } },
+      { $group: { _id: '$action', count: { $sum: 1 } } }
+    ]);
+    const counts = {};
+    actionCounts.forEach(a => { counts[a._id] = a.count; });
+
+    const recentDownloads = await Download.find({ user: uid })
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .select('url filename type quality createdAt')
+      .lean();
+
+    res.json({
+      success: true,
+      account: { name: user.name, email: user.email, memberSince: user.createdAt },
+      stats: {
+        totalDownloads,
+        totalSearches:           counts.search            || 0,
+        totalPlaygroundQueries:  counts.playground_query   || 0,
+        totalConverts:           counts.convert            || 0,
+        totalPageViews:          counts.page_view          || 0,
+        totalCancelled:          counts.download_cancelled || 0,
+        totalLogins:             counts.login              || 0,
+      },
+      recentDownloads
+    });
+  } catch (error) {
+    console.error('Account stats error:', error);
+    res.status(500).json({ error: 'Stats load nahi ho saka' });
+  }
+});
+
 // ─── Health check ─────────────────────────────────────────
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
