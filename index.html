@@ -412,16 +412,25 @@
     .cap-lang-btn.active { background:var(--green); border-color:transparent; color:#0c0c0e; }
     .cap-source-label { font-size:11px; color:var(--muted); font-style:italic; }
 
-    /* Two-column: player left, scrollable results list right (YouTube watch-page style) */
-    .search-body { display:grid; grid-template-columns: minmax(280px, 1fr) minmax(260px, 340px); gap:0; align-items:stretch; }
-    .search-player-col { min-width:0; padding:24px 32px 32px; }
-    .search-list-col { min-width:0; padding:24px 20px 32px; background:var(--surface); border-left:1px solid var(--border); }
+    /* Two-column: player left, scrollable results list right (YouTube watch-page style).
+       height is an explicit viewport calc (not just align-items:stretch) —
+       without a real height reference, a flex:1 child has nothing to fill
+       against and just grows to fit however many results there are
+       (verified directly: 40 results made the whole section ~4900px tall
+       instead of staying contained). min-height:0 on the flex column is
+       needed for the same reason .pg-main needed it — a flex item won't
+       shrink below its content's size otherwise, so the results list would
+       overflow the fixed height instead of scrolling inside it. */
+    .search-body { display:grid; grid-template-columns: minmax(280px, 1fr) minmax(260px, 340px); gap:0; align-items:stretch; height:calc(100vh - 280px); min-height:520px; }
+    .search-player-col { min-width:0; min-height:0; padding:24px 32px 32px; overflow-y:auto; }
+    .search-list-col { min-width:0; min-height:0; padding:24px 20px 32px; background:var(--surface); border-left:1px solid var(--border); display:flex; flex-direction:column; }
     @media (max-width:760px) {
-      .search-body { grid-template-columns: 1fr; }
+      .search-body { grid-template-columns: 1fr; height:auto; }
       .search-list-col { border-left:none; border-top:1px solid var(--border); }
+      .search-results-list { flex:none; max-height:70vh; }
     }
 
-    .search-results-list { display:flex; flex-direction:column; gap:10px; max-height:calc(100vh - 260px); min-height:520px; overflow-y:auto; padding-right:6px; margin-top:12px; }
+    .search-results-list { display:flex; flex-direction:column; gap:10px; flex:1; min-height:0; overflow-y:auto; padding-right:6px; margin-top:12px; }
     .search-result-row { display:flex; gap:10px; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:8px; cursor:pointer; transition:border-color 0.2s, background 0.2s; }
     .search-result-row:hover { border-color:var(--border-hover); }
     .search-result-row.active { border-color:var(--green); background:rgba(46,196,182,0.07); }
