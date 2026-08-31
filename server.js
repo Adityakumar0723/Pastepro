@@ -453,6 +453,31 @@ function parseVttWords(raw) {
   return words;
 }
 
+// Same idea as fetchAutoCaptions but for an arbitrary language code — used
+// as a fallback when the direct timedtext URL (from --dump-json metadata)
+// gets rate-limited by YouTube itself (verified directly: repeated direct
+// fetches to the same video's caption URL can 429 independently of
+// yt-dlp's own bot-check). yt-dlp fetching it fresh avoids that.
+function fetchCaptionsViaYtdlpLang(ytdlpCmd, videoId, langCode) {
+  return new Promise((resolve) => {
+    const subBase = path.join(DOWNLOADS_DIR, `cap_${videoId}_${langCode}`);
+    const url = `https://www.youtube.com/watch?v=${videoId}`;
+    const command = `${quoteIfPath(ytdlpCmd)} --write-auto-sub --sub-lang ${langCode} --skip-download --sub-format vtt ${cookiesFlag()} ${proxyFlag()} --paths "temp:${DOWNLOADS_DIR}" --output "${subBase}.%(ext)s" "${url}"`;
+    exec(command, { timeout: 20 * 1000, shell: true, cwd: DOWNLOADS_DIR }, (error) => {
+      const vttPath = `${subBase}.${langCode}.vtt`;
+      if (error || !fs.existsSync(vttPath)) return resolve([]);
+      try {
+        const raw   = fs.readFileSync(vttPath, 'utf8');
+        const words = parseVttWords(raw);
+        fs.unlinkSync(vttPath);
+        resolve(words);
+      } catch (e) {
+        resolve([]);
+      }
+    });
+  });
+}
+
 function fetchAutoCaptions(url, ytdlpCmd, safeId) {
   return new Promise((resolve) => {
     const subBase = path.join(DOWNLOADS_DIR, safeId);
@@ -939,6 +964,101 @@ app.post('/api/search', requireAuth, async (req, res) => {
     }
     handleSearchResult(error, stdout, stderr, res);
   });
+});
+
+// ─── SEARCH PAGE — live word-by-word captions while previewing ───
+// YouTube ke auto-captions do cheezein deti hain: original spoken language
+// ka ASR track (metadata mein "<lang>-orig" key se marked) aur usi track ka
+// ~100 languages mein auto-translate (jaise "en"). Verified directly (real
+// Hindi-original + real English-original videos): dono tracks hi rolling-
+// style VTT mein aate hain with inline per-word timestamps — matlab
+// parseVttWords() (jo pehle se YouTube ke liye bana hua hai) dono par
+// waisi hi word-level sync deta hai, translated track par bhi.
+//
+// Metadata (--dump-json) thoda bhaari hai, isliye per-video 5 minute cache
+// — same video par language switch (orig <-> en) dobara yt-dlp nahi chalata.
+const videoCaptionsMetaCache = new Map(); // videoId -> { data, expiresAt }
+const VIDEO_META_CACHE_MS = 5 * 60 * 1000;
+
+function fetchVideoCaptionsMeta(videoId) {
+  const cached = videoCaptionsMetaCache.get(videoId);
+  if (cached && cached.expiresAt > Date.now()) return Promise.resolve(cached.data);
+
+  return resolveYtdlpCommand().then(ytdlpCmd => {
+    if (!ytdlpCmd) throw new Error('yt-dlp install nahi hai');
+    const { cmd, extraArgs } = splitYtdlpCommand(ytdlpCmd);
+    const url = `https://www.youtube.com/watch?v=${videoId}`;
+    const baseArgs  = ['--skip-download', '--dump-json', ...cookiesArgs(), ...proxyArgs(), url];
+    const primaryArgs = [...extraArgs, ...baseArgs];
+    const retryArgs   = [...extraArgs, '--extractor-args', 'youtube:player_client=visionos,tv_simply,ios,android,mweb,web_creator,web,tv;formats=missing_pot', ...baseArgs];
+
+    return new Promise((resolve, reject) => {
+      const handle = (error, stdout) => {
+        if (error) return reject(error);
+        try {
+          const info = JSON.parse(stdout);
+          const data = { automaticCaptions: info.automatic_captions || {} };
+          videoCaptionsMetaCache.set(videoId, { data, expiresAt: Date.now() + VIDEO_META_CACHE_MS });
+          resolve(data);
+        } catch (e) {
+          reject(e);
+        }
+      };
+      execFile(cmd, primaryArgs, { timeout: 20 * 1000, cwd: DOWNLOADS_DIR, maxBuffer: 20 * 1024 * 1024 }, (error, stdout, stderr) => {
+        const hitBotCheck = error && (stderr || '').toLowerCase().includes('sign in to confirm');
+        if (hitBotCheck) {
+          return execFile(cmd, retryArgs, { timeout: 20 * 1000, cwd: DOWNLOADS_DIR, maxBuffer: 20 * 1024 * 1024 }, (error2, stdout2) => handle(error2, stdout2));
+        }
+        handle(error, stdout);
+      });
+    });
+  });
+}
+
+app.post('/api/search-captions', requireAuth, async (req, res) => {
+  const videoId = String(req.body.videoId || '').trim();
+  const lang     = String(req.body.lang || 'orig').trim();
+  if (!/^[\w-]{5,20}$/.test(videoId)) return res.status(400).json({ error: 'Invalid video id' });
+
+  try {
+    const { automaticCaptions: autoCaps } = await fetchVideoCaptionsMeta(videoId);
+    const origKey      = Object.keys(autoCaps).find(k => k.endsWith('-orig'));
+    const origLangCode = origKey ? origKey.replace(/-orig$/, '') : null;
+    const origLangName = origKey
+      ? (autoCaps[origKey][0]?.name || origLangCode || '').replace(/\s*\(Original\)\s*$/i, '')
+      : null;
+
+    let targetKey;
+    if (lang === 'orig') {
+      targetKey = origKey || (autoCaps.en ? 'en' : Object.keys(autoCaps)[0]);
+    } else {
+      targetKey = autoCaps[lang] ? lang : (autoCaps[`${lang}-orig`] ? `${lang}-orig` : null);
+    }
+
+    const activeLang = targetKey ? targetKey.replace(/-orig$/, '') : null;
+    const empty = { success: true, captions: [], origLang: origLangCode, origLangName, activeLang };
+    if (!targetKey || !autoCaps[targetKey]) return res.json({ ...empty, activeLang: null });
+
+    const vttEntry = autoCaps[targetKey].find(e => e.ext === 'vtt');
+    let captions = [];
+    if (vttEntry) {
+      const vttRes = await fetch(vttEntry.url);
+      if (vttRes.ok) captions = parseVttWords(await vttRes.text());
+    }
+
+    // Direct timedtext URL can occasionally get rate-limited by YouTube
+    // itself (independent of yt-dlp's own bot-check, verified directly) —
+    // fall back to fetching it fresh through yt-dlp instead of failing.
+    if (!captions.length) {
+      const ytdlpCmd = await resolveYtdlpCommand();
+      if (ytdlpCmd) captions = await fetchCaptionsViaYtdlpLang(ytdlpCmd, videoId, activeLang);
+    }
+
+    res.json({ ...empty, captions });
+  } catch (error) {
+    console.error('search-captions error:', error.message);
+    res.status(500).json({ error: 'Captions load nahi ho paaye' });
+  }
 });
 
 // ─── Page-visit tracking ───────────────────────────────────

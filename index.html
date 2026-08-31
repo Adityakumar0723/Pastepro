@@ -329,6 +329,17 @@
     .search-player-error.active { display:flex; }
     .search-player-error p { max-width:420px; color:var(--muted); font-size:14px; line-height:1.6; }
     .search-player-title { margin-top:12px; font-size:15px; font-weight:700; line-height:1.4; }
+    .search-cap-controls { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-top:14px; }
+    .cap-toggle-switch { display:flex; align-items:center; gap:8px; cursor:pointer; }
+    .cap-toggle-switch input { display:none; }
+    .cap-toggle-slider { position:relative; width:36px; height:20px; background:var(--border); border-radius:20px; transition:background 0.2s; flex-shrink:0; }
+    .cap-toggle-slider::before { content:''; position:absolute; left:2px; top:2px; width:16px; height:16px; border-radius:50%; background:#fff; transition:transform 0.2s; }
+    .cap-toggle-switch input:checked + .cap-toggle-slider { background:var(--green); }
+    .cap-toggle-switch input:checked + .cap-toggle-slider::before { transform:translateX(16px); }
+    .cap-toggle-label { font-size:13px; font-weight:600; color:var(--muted); }
+    .cap-lang-tabs { display:flex; gap:6px; }
+    .cap-lang-btn { padding:5px 12px; border:1px solid var(--border); border-radius:50px; background:transparent; color:var(--muted); font-family:'Space Grotesk',sans-serif; font-size:12px; font-weight:600; cursor:pointer; transition:all 0.2s; }
+    .cap-lang-btn.active { background:var(--green); border-color:transparent; color:#0c0c0e; }
 
     /* Two-column: player left, scrollable results list right (YouTube watch-page style) */
     .search-body { display:grid; grid-template-columns: minmax(280px, 1fr) minmax(260px, 340px); gap:0; align-items:stretch; }
@@ -916,6 +927,20 @@
             </div>
           </div>
           <div class="search-player-title" id="search-player-title"></div>
+
+          <div class="search-cap-controls">
+            <label class="cap-toggle-switch">
+              <input type="checkbox" id="search-cap-enabled" checked onchange="toggleSearchCaptions(this.checked)" />
+              <span class="cap-toggle-slider"></span>
+              <span class="cap-toggle-label">📝 Captions</span>
+            </label>
+            <div class="cap-lang-tabs" id="search-cap-lang-tabs" style="display:none;">
+              <button type="button" class="cap-lang-btn active" id="search-cap-lang-orig" onclick="setSearchCaptionLang('orig')">Original</button>
+              <button type="button" class="cap-lang-btn" id="search-cap-lang-en" onclick="setSearchCaptionLang('en')">English</button>
+            </div>
+          </div>
+          <div class="dl-captions-box" id="search-captions-box" style="display:none;"></div>
+
           <div class="dl-actions" style="padding:16px 0 0; grid-template-columns:1fr;">
             <button class="dl-btn dl-btn-green" id="search-player-dl-btn" onclick="downloadCurrentSearchResult()">⬇ Isko Download Karo</button>
           </div>
@@ -1049,6 +1074,12 @@
   let selectedSearchPlatform = 'youtube';
   let currentDownloadController = null;
   let downloadCancelledByUser = false;
+  let currentSearchCaptionWords = [];
+  let searchCaptionsEnabled = true;
+  let searchCaptionLang = 'orig'; // 'orig' | 'en'
+  let searchCaptionPollTimer = null;
+  let currentSearchVideoId = null;
+  const searchCaptionsCache = new Map(); // `${videoId}:${lang}` -> API response
   let currentPlayingIndex = -1;
   let ytApiLoadingPromise = null;
   let ytPlayer = null;
@@ -1437,6 +1468,9 @@
     const body = document.getElementById('search-body');
     if (body) body.style.display = 'none';
     currentPlayingIndex = -1;
+    stopSearchCaptionPolling();
+    currentSearchVideoId = null;
+    renderSearchCaptions([]);
   }
 
   // Platform selector — YouTube keyword search vs Reddit profile search
@@ -1559,6 +1593,118 @@
     return String(n);
   }
 
+  // ════════════════════════════════
+  //  SEARCH PAGE — live word-by-word captions
+  //  YouTube ki IFrame API mein HTML5 video jaisa "timeupdate" event nahi
+  //  hota, isliye poll karte hain (ytPlayer.getCurrentTime()) jab tak video
+  //  chal raha hai.
+  // ════════════════════════════════
+  function renderSearchCaptions(words) {
+    const box = document.getElementById('search-captions-box');
+    currentSearchCaptionWords = words || [];
+    if (!searchCaptionsEnabled || !currentSearchCaptionWords.length) {
+      box.style.display = 'none';
+      box.innerHTML = '';
+      return;
+    }
+    box.innerHTML = currentSearchCaptionWords
+      .map((w, i) => `<span class="cap-word" data-i="${i}">${escapeHtml(w.text)}</span>`)
+      .join(' ');
+    box.style.display = 'block';
+  }
+
+  function updateSearchCaptionHighlight(currentTime) {
+    if (!currentSearchCaptionWords.length) return;
+    let activeIdx = -1;
+    for (let i = 0; i < currentSearchCaptionWords.length; i++) {
+      if (currentSearchCaptionWords[i].time <= currentTime) activeIdx = i; else break;
+    }
+    const box = document.getElementById('search-captions-box');
+    const prevActive = box.querySelector('.cap-word.active');
+    if (prevActive) prevActive.classList.remove('active');
+    if (activeIdx >= 0) {
+      const el = box.querySelector(`.cap-word[data-i="${activeIdx}"]`);
+      if (el) {
+        el.classList.add('active');
+        el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    }
+  }
+
+  function startSearchCaptionPolling() {
+    stopSearchCaptionPolling();
+    searchCaptionPollTimer = setInterval(() => {
+      if (!ytPlayer || typeof ytPlayer.getCurrentTime !== 'function') return;
+      if (typeof ytPlayer.getPlayerState === 'function' && ytPlayer.getPlayerState() !== 1) return; // 1 = YT.PlayerState.PLAYING
+      updateSearchCaptionHighlight(ytPlayer.getCurrentTime());
+    }, 250);
+  }
+
+  function stopSearchCaptionPolling() {
+    if (searchCaptionPollTimer) { clearInterval(searchCaptionPollTimer); searchCaptionPollTimer = null; }
+  }
+
+  async function fetchAndRenderSearchCaptions(videoId, lang) {
+    const cacheKey = `${videoId}:${lang}`;
+    let data = searchCaptionsCache.get(cacheKey);
+    if (!data) {
+      try {
+        const res = await fetch(`${BACKEND}/api/search-captions`, {
+          method: 'POST',
+          headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${authToken}` },
+          body: JSON.stringify({ videoId, lang })
+        });
+        data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) data = { success:false, captions:[] };
+        else searchCaptionsCache.set(cacheKey, data);
+      } catch (e) {
+        data = { success:false, captions:[] };
+      }
+    }
+    // User itni der mein doosri video par ja chuka ho sakta hai — stale response ignore karo.
+    if (currentSearchVideoId !== videoId) return;
+
+    const langTabs  = document.getElementById('search-cap-lang-tabs');
+    const origBtn   = document.getElementById('search-cap-lang-orig');
+    const enBtn     = document.getElementById('search-cap-lang-en');
+    if (data.origLangName) {
+      origBtn.textContent = data.origLang === 'en' ? 'English' : `Original (${data.origLangName})`;
+      langTabs.style.display = data.origLang === 'en' ? 'none' : 'flex';
+    } else {
+      langTabs.style.display = 'none';
+    }
+    origBtn.classList.toggle('active', lang === 'orig');
+    enBtn.classList.toggle('active', lang === 'en');
+
+    renderSearchCaptions(data.captions || []);
+  }
+
+  window.toggleSearchCaptions = (enabled) => {
+    searchCaptionsEnabled = enabled;
+    if (!enabled) {
+      document.getElementById('search-captions-box').style.display = 'none';
+    } else if (currentSearchCaptionWords.length) {
+      document.getElementById('search-captions-box').style.display = 'block';
+    } else if (currentSearchVideoId) {
+      fetchAndRenderSearchCaptions(currentSearchVideoId, searchCaptionLang);
+    }
+  };
+
+  window.setSearchCaptionLang = (lang) => {
+    if (!currentSearchVideoId || lang === searchCaptionLang) return;
+    searchCaptionLang = lang;
+    fetchAndRenderSearchCaptions(currentSearchVideoId, lang);
+  };
+
+  function loadSearchCaptions(videoId) {
+    currentSearchVideoId = videoId;
+    searchCaptionLang = 'orig';
+    document.getElementById('search-cap-lang-tabs').style.display = 'none';
+    renderSearchCaptions([]);
+    startSearchCaptionPolling();
+    fetchAndRenderSearchCaptions(videoId, 'orig');
+  }
+
   window.playSearchResult = async (i) => {
     const r = searchResults[i];
     if (!r) return;
@@ -1586,6 +1732,7 @@
         events: { onError: handleYtPlayerError }
       });
     }
+    loadSearchCaptions(r.id);
   };
 
   window.downloadCurrentSearchResult = () => {
