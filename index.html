@@ -430,8 +430,8 @@
     .yt-searchbar { display:flex; flex:1; min-width:260px; max-width:600px; }
     .yt-search-input { flex:1; min-width:0; padding:11px 18px; background:var(--surface); border:1px solid var(--border); border-right:none; border-radius:24px 0 0 24px; color:var(--text); font-family:'Space Grotesk',sans-serif; font-size:15px; outline:none; transition:border-color 0.2s; }
     .yt-search-input:focus { border-color:var(--green); }
-    .yt-search-btn { padding:0 22px; background:var(--card); border:1px solid var(--border); border-radius:0 24px 24px 0; color:var(--text); font-size:16px; cursor:pointer; transition:background 0.2s; flex-shrink:0; }
-    .yt-search-btn:hover { background:var(--surface); }
+    .yt-search-btn { padding:0 22px; background:linear-gradient(135deg,var(--accent),var(--accent2)); border:none; border-radius:0 24px 24px 0; color:#fff; font-family:'Space Grotesk',sans-serif; font-size:14px; font-weight:700; cursor:pointer; transition:opacity 0.2s; flex-shrink:0; display:flex; align-items:center; gap:8px; white-space:nowrap; }
+    .yt-search-btn:hover { opacity:0.9; }
 
     /* Two-column: player left, scrollable results list right. Independent
        sizing (align-items:start, no stretch) — each column sizes to its
@@ -997,7 +997,7 @@
     <div class="yt-searchbar-row">
       <div class="yt-searchbar">
         <input class="yt-search-input" id="search-query" type="text" placeholder="Kya dhundna hai? (e.g. lofi music, cooking recipe...)" onkeydown="if(event.key==='Enter') doSearch()" />
-        <button type="button" class="yt-search-btn" id="search-btn" onclick="doSearch()" title="Search karo">🔍</button>
+        <button type="button" class="yt-search-btn" id="search-btn" onclick="doSearch()" title="Search karo">🔍 Search Karo</button>
       </div>
       <div class="splat-tabs" id="search-platform-tabs">
         <button type="button" class="splat-tab active" data-plat="youtube" onclick="setSearchPlatform('youtube', this)">▶️ YouTube</button>
@@ -1905,8 +1905,7 @@
 
     if (plat === 'youtube') {
       input.placeholder = 'Kya dhundna hai? (e.g. lofi music, cooking recipe...)';
-      btnEl.textContent = '🔍';
-      btnEl.title = 'Search karo';
+      btnEl.textContent = '🔍 Search Karo';
       note.style.display = 'none';
     } else {
       // Reddit/Instagram/Twitter: koi bhi platform ab anonymous "puri profile
@@ -1915,8 +1914,7 @@
       // jaisa hi IP-reputation issue). Isliye teeno platforms ke liye
       // honest, hamesha-kaam-karne-wala flow: seedha post ka link do.
       input.placeholder = 'Post/Reel/Tweet ka link yahan paste karo';
-      btnEl.textContent = '⬇';
-      btnEl.title = 'Isse download karo';
+      btnEl.textContent = '⬇ Download Karo';
       note.style.display = 'block';
     }
   };
