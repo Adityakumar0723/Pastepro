@@ -327,15 +327,27 @@
     .pg-sidebar-top .back-btn { margin-bottom:0; width:100%; justify-content:center; }
     .pg-new-chat-btn { width:100%; padding:11px; background:linear-gradient(135deg,var(--accent),var(--accent2)); border:none; border-radius:10px; color:#fff; font-family:'Space Grotesk',sans-serif; font-size:14px; font-weight:700; cursor:pointer; transition:opacity 0.2s; }
     .pg-new-chat-btn:hover { opacity:0.9; }
+    .pg-session-list-label { padding:14px 12px 4px; font-size:11px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:var(--muted); flex-shrink:0; }
     .pg-session-list { flex:1; overflow-y:auto; padding:10px; display:flex; flex-direction:column; gap:4px; }
     .pg-session-item { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px 12px; border-radius:8px; cursor:pointer; color:var(--muted); font-size:13px; transition:background 0.15s, color 0.15s; }
     .pg-session-item:hover { background:var(--border); color:var(--text); }
     .pg-session-item.active { background:rgba(46,196,182,0.14); color:var(--text); font-weight:600; }
     .pg-session-title-text { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; min-width:0; }
-    .pg-session-delete { opacity:0; background:none; border:none; color:var(--muted); cursor:pointer; font-size:13px; flex-shrink:0; padding:2px; }
-    .pg-session-item:hover .pg-session-delete { opacity:1; }
+    .pg-session-rename-input { flex:1; min-width:0; background:var(--bg); border:1px solid var(--accent); border-radius:6px; padding:3px 6px; font-size:13px; color:var(--text); font-family:inherit; outline:none; }
+    .pg-session-item-actions { display:flex; align-items:center; gap:2px; flex-shrink:0; opacity:0; transition:opacity 0.15s; }
+    .pg-session-item:hover .pg-session-item-actions { opacity:1; }
+    .pg-session-rename, .pg-session-delete { background:none; border:none; color:var(--muted); cursor:pointer; font-size:12.5px; flex-shrink:0; padding:2px 4px; }
+    .pg-session-rename:hover { color:var(--text); }
     .pg-session-delete:hover { color:var(--accent); }
     .pg-session-empty { padding:20px 12px; font-size:12.5px; color:var(--muted); text-align:center; }
+    .pg-confirm-modal { position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:1100; display:flex; align-items:center; justify-content:center; padding:20px; }
+    .pg-confirm-modal-inner { width:100%; max-width:360px; background:var(--card); border:1px solid var(--border); border-radius:14px; padding:22px; }
+    .pg-confirm-modal-inner p { margin:0 0 18px; font-size:14px; line-height:1.5; color:var(--text); word-break:break-word; }
+    .pg-confirm-modal-actions { display:flex; justify-content:flex-end; gap:10px; }
+    .pg-confirm-cancel-btn { background:none; border:1px solid var(--border); color:var(--text); border-radius:8px; padding:8px 16px; font-size:13px; font-weight:600; cursor:pointer; }
+    .pg-confirm-cancel-btn:hover { background:var(--border); }
+    .pg-confirm-delete-btn { background:var(--accent); border:1px solid var(--accent); color:#fff; border-radius:8px; padding:8px 16px; font-size:13px; font-weight:600; cursor:pointer; }
+    .pg-confirm-delete-btn:hover { opacity:0.88; }
 
     .pg-main { display:flex; flex-direction:column; min-width:0; min-height:0; }
     .pg-main-header { display:flex; align-items:center; gap:14px; padding:20px 28px; border-bottom:1px solid var(--border); flex-shrink:0; }
@@ -978,6 +990,7 @@
             <button class="back-btn" onclick="goHome()">← Wapas</button>
             <button type="button" class="pg-new-chat-btn" onclick="startNewPlaygroundChat()">+ Nayi Chat</button>
           </div>
+          <div class="pg-session-list-label">Chat History</div>
           <div class="pg-session-list" id="pg-session-list"></div>
         </aside>
 
@@ -1022,6 +1035,18 @@
           <button type="button" class="pg-attach-modal-close" onclick="closePgAttachmentModal()">✕</button>
         </div>
         <div class="pg-attach-modal-body" id="pg-attach-modal-body"></div>
+      </div>
+    </div>
+
+    <!-- Delete confirmation popup — session history se koi bhi chat ✕ se
+         seedha delete nahi hoti, pehle yahan confirm karwaya jaata hai. -->
+    <div class="pg-confirm-modal" id="pg-confirm-modal" style="display:none;" onclick="if(event.target===this) closePgConfirmModal()">
+      <div class="pg-confirm-modal-inner">
+        <p id="pg-confirm-modal-text"></p>
+        <div class="pg-confirm-modal-actions">
+          <button type="button" class="pg-confirm-cancel-btn" onclick="closePgConfirmModal()">Cancel</button>
+          <button type="button" class="pg-confirm-delete-btn" onclick="confirmDeletePgSession()">Delete Karo</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1567,9 +1592,12 @@
       return;
     }
     list.innerHTML = sortedPgSessions().map(s => `
-      <div class="pg-session-item ${s.id === currentPgSessionId ? 'active' : ''}" onclick="switchPgSession('${s.id}')">
+      <div class="pg-session-item ${s.id === currentPgSessionId ? 'active' : ''}" data-session-id="${s.id}" onclick="switchPgSession('${s.id}')">
         <span class="pg-session-title-text">${escapeHtml(s.title)}</span>
-        <button type="button" class="pg-session-delete" onclick="event.stopPropagation(); deletePgSession('${s.id}')" title="Delete karo">✕</button>
+        <div class="pg-session-item-actions">
+          <button type="button" class="pg-session-rename" onclick="event.stopPropagation(); startRenamePgSession('${s.id}')" title="Rename karo">✏️</button>
+          <button type="button" class="pg-session-delete" onclick="event.stopPropagation(); requestDeletePgSession('${s.id}')" title="Delete karo">✕</button>
+        </div>
       </div>
     `).join('');
   }
@@ -1646,6 +1674,68 @@
       setPgHeaderTitle();
     }
     renderPgSessionList();
+  };
+
+  // Delete confirmation popup — ✕ seedha delete nahi karta, pehle yahan
+  // se confirm karwaata hai taaki galti se koi chat delete na ho jaaye.
+  let pgConfirmDeleteId = null;
+
+  window.requestDeletePgSession = (id) => {
+    const session = pgSessions.find(s => s.id === id);
+    if (!session) return;
+    pgConfirmDeleteId = id;
+    document.getElementById('pg-confirm-modal-text').textContent = `"${session.title}" ko delete karna chahte ho? Ye wapas nahi aayega.`;
+    document.getElementById('pg-confirm-modal').style.display = 'flex';
+  };
+
+  window.closePgConfirmModal = () => {
+    pgConfirmDeleteId = null;
+    document.getElementById('pg-confirm-modal').style.display = 'none';
+  };
+
+  window.confirmDeletePgSession = () => {
+    if (pgConfirmDeleteId) deletePgSession(pgConfirmDeleteId);
+    closePgConfirmModal();
+  };
+
+  // Rename — title span ko turant editable input mein badal dete hain,
+  // Enter/blur par save, Escape par cancel.
+  window.startRenamePgSession = (id) => {
+    const item = document.querySelector(`.pg-session-item[data-session-id="${id}"]`);
+    const span = item && item.querySelector('.pg-session-title-text');
+    if (!span) return;
+    const session = pgSessions.find(s => s.id === id);
+    if (!session) return;
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'pg-session-rename-input';
+    input.value = session.title;
+    input.maxLength = 60;
+    let settled = false;
+    const finish = (save) => {
+      if (settled) return;
+      settled = true;
+      if (save) {
+        const trimmed = input.value.trim();
+        if (trimmed) {
+          session.title = trimmed;
+          savePgSessions();
+          if (currentPgSessionId === id) setPgHeaderTitle();
+        }
+      }
+      renderPgSessionList();
+    };
+    input.onclick = (e) => e.stopPropagation();
+    input.onkeydown = (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+      else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+    };
+    input.onblur = () => finish(true);
+    span.replaceWith(input);
+    input.focus();
+    input.select();
   };
 
   // Session ko history se hataata nahi (wo delete/New Chat se hota hai) —
