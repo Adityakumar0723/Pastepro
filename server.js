@@ -870,6 +870,7 @@ app.post('/api/query', requireAuth, async (req, res) => {
   const imageDataUrl = typeof req.body.image === 'string' ? req.body.image : null;
   const pdfBase64     = typeof req.body.pdfBase64 === 'string' ? req.body.pdfBase64 : null;
   const pdfName       = String(req.body.pdfName || 'document.pdf');
+  const videoName     = typeof req.body.videoName === 'string' ? req.body.videoName.trim().slice(0, 200) : null;
 
   if (!query) return res.status(400).json({ error: 'Pehle kuch likho' });
   if (query.length > 4000) return res.status(400).json({ error: 'Query bahut lambi hai (max 4000 characters)' });
@@ -892,13 +893,20 @@ app.post('/api/query', requireAuth, async (req, res) => {
     return res.status(429).json({ error: 'Pehli query abhi process ho rahi hai, thoda ruko' });
   }
   activeQueries.add(uid);
-  logActivity(req, 'playground_query', { query, hasImage: !!imageDataUrl, hasPdf: !!pdfBase64 });
+  logActivity(req, 'playground_query', { query, hasImage: !!imageDataUrl, hasPdf: !!pdfBase64, hasVideo: !!videoName });
 
   try {
     // PDF attachment: extract its text server-side and fold it into the
     // prompt as plain context — no model here accepts a raw PDF as a
     // "file", but every model already handles a longer text prompt fine.
     let finalQuery = query;
+    // Video attachment: no free model here can actually watch a video, so
+    // the raw file never leaves the browser (only kept in IndexedDB for
+    // playback) — we just let the model know one was attached, by name,
+    // so it doesn't answer as if it's blind to the fact one exists.
+    if (videoName) {
+      finalQuery = `(User ne ek video file attach ki hai: "${videoName}". Video ka content dekhna abhi possible nahi hai, sirf filename pata hai — agar zaroori ho to user se pucho video mein kya hai.)\n\n${finalQuery}`;
+    }
     if (pdfBase64) {
       try {
         const pdfBuffer = Buffer.from(pdfBase64, 'base64');
