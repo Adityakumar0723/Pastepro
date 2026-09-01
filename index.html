@@ -61,7 +61,7 @@
     main:has(#search-page.show) .hero { display: none; }
     main:has(#docs-page.show) { max-width: 1180px; }
     main:has(#settings-page.show) { max-width: 1180px; }
-    main:has(#playground-page.show) { max-width: 1320px; padding-top: 24px; padding-bottom: 24px; }
+    main:has(#playground-page.show) { max-width: 1800px; padding-top: 24px; padding-bottom: 24px; padding-left: 16px; padding-right: 16px; }
     main:has(#playground-page.show) .hero { display: none; }
     main:has(#auth-view:not([style*="none"])) { max-width: 1040px; }
  
@@ -320,7 +320,7 @@
 
     /* PLAYGROUND QUERY — full-page ChatGPT-style layout */
     .pg-card { padding:0; overflow:hidden; }
-    .pg-shell { display:grid; grid-template-columns:280px 1fr; height:calc(100vh - 160px); max-height:920px; min-height:520px; }
+    .pg-shell { display:grid; grid-template-columns:280px 1fr; height:calc(100vh - 140px); min-height:560px; }
 
     .pg-sidebar { background:var(--surface); border-right:1px solid var(--border); display:flex; flex-direction:column; min-height:0; }
     .pg-sidebar-top { padding:20px; display:flex; flex-direction:column; gap:12px; border-bottom:1px solid var(--border); flex-shrink:0; }
@@ -355,7 +355,7 @@
     .pg-header-text { flex:1; min-width:0; }
     .pg-clear-btn { flex-shrink:0; padding:9px 16px; background:transparent; border:1px solid var(--border); border-radius:8px; color:var(--muted); font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:600; cursor:pointer; transition:all 0.2s; }
     .pg-clear-btn:hover { border-color:var(--accent); color:var(--accent); }
-    .pg-main-header h2 { font-family:'Syne',sans-serif; font-size:18px; font-weight:800; margin-bottom:2px; }
+    .pg-main-header h2 { font-family:'Space Grotesk',sans-serif; font-size:16px; font-weight:700; letter-spacing:normal; line-height:1.35; margin-bottom:2px; display:-webkit-box; -webkit-line-clamp:2; line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
     .pg-main-header p { font-size:12.5px; color:var(--muted); }
 
     .pg-messages { flex:1; overflow-y:auto; padding:24px 28px; display:flex; flex-direction:column; gap:18px; }
@@ -382,6 +382,10 @@
     .pg-md-h { display:block; font-size:1.05em; margin:4px 0; }
     .pg-md-list { margin:4px 0 8px 22px; }
     .pg-md-list li { margin-bottom:4px; }
+    .pg-md-table-wrap { overflow-x:auto; margin:8px 0; }
+    .pg-md-table { border-collapse:collapse; width:100%; font-size:13px; }
+    .pg-md-table th, .pg-md-table td { border:1px solid var(--border); padding:6px 12px; text-align:left; }
+    .pg-md-table th { background:var(--surface); font-weight:700; }
 
     .pg-input-wrap { border-top:1px solid var(--border); flex-shrink:0; }
     .pg-input-bar { display:flex; gap:10px; align-items:flex-end; padding:16px 28px; }
@@ -1606,7 +1610,7 @@
     }
     list.innerHTML = sortedPgSessions().map(s => `
       <div class="pg-session-item ${s.id === currentPgSessionId ? 'active' : ''}" data-session-id="${s.id}" onclick="switchPgSession('${s.id}')">
-        <span class="pg-session-title-text">${escapeHtml(s.title)}</span>
+        <span class="pg-session-title-text" title="${escapeHtml(s.title)}">${escapeHtml(s.title)}</span>
         <div class="pg-session-item-actions">
           <button type="button" class="pg-session-rename" onclick="event.stopPropagation(); startRenamePgSession('${s.id}')" title="Rename karo">✏️</button>
           <button type="button" class="pg-session-delete" onclick="event.stopPropagation(); requestDeletePgSession('${s.id}')" title="Delete karo">✕</button>
@@ -1657,7 +1661,9 @@
 
   function setPgHeaderTitle() {
     const s = getCurrentPgSession();
-    document.getElementById('pg-session-title').textContent = s ? s.title : 'Playground Query';
+    const el = document.getElementById('pg-session-title');
+    el.textContent = s ? s.title : 'Playground Query';
+    el.title = s ? s.title : ''; // pura title hover par dikh jaaye agar 2 lines mein bhi cut ho jaaye
   }
 
   window.startNewPlaygroundChat = () => {
@@ -2060,7 +2066,12 @@
           : undefined
       });
       if (session.messages.filter(m => m.role === 'user').length === 1) {
-        session.title = query.length > 40 ? query.slice(0, 40) + '…' : query;
+        // Poora query save karte hain (bas ek sane cap ke saath) — sidebar
+        // mein CSS text-overflow:ellipsis khud hi ek line mein clamp kar
+        // deta hai, aur bade header mein bhi line-clamp lag jaata hai, isliye
+        // yahan hard 40-char cut karne ki zaroorat nahi (jo header mein bhi
+        // wahi truncated string dikhata tha, chahe wahan poori jagah ho).
+        session.title = query.length > 300 ? query.slice(0, 300) + '…' : query;
         if (currentPgSessionId === sessionIdForThisQuery) setPgHeaderTitle();
       }
     }
@@ -2784,6 +2795,40 @@
   // lists, code blocks, headers) — is se wo asterisks/hash literally dikhne ki
   // jagah sahi se format hoke dikhte hain. HTML pehle escape hota hai taaki
   // AI/user ka koi bhi text raw HTML/script inject na kar sake.
+  // GFM-style pipe tables (| A | B |\n|---|---|\n| 1 | 2 |) — AI jawab
+  // aksar in mein data deta hai (comparisons, stats wagera), pehle ye
+  // raw pipe-text ki tarah hi dikh rahe the kyunki koi table parsing
+  // nahi thi. Consecutive table-jaisi lines ko ek `<table>` block mein
+  // group karke, unki jagah ek hi placeholder line chhod dete hain taaki
+  // neeche wala list/paragraph loop unhe touch na kare.
+  function parseMarkdownTables(lines) {
+    const splitRow = (row) => row.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim());
+    const isSepRow = (row) => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(row || '');
+    const out = [];
+    let i = 0;
+    while (i < lines.length) {
+      const headerLine = lines[i];
+      const sepLine = lines[i + 1];
+      if (headerLine && headerLine.includes('|') && headerLine.trim() !== '' && isSepRow(sepLine)) {
+        const headers = splitRow(headerLine);
+        let j = i + 2;
+        const bodyRows = [];
+        while (j < lines.length && lines[j].includes('|') && lines[j].trim() !== '') {
+          bodyRows.push(splitRow(lines[j]));
+          j++;
+        }
+        const theadHtml = `<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>`;
+        const tbodyHtml = bodyRows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('');
+        out.push(`<div class="pg-md-table-wrap"><table class="pg-md-table"><thead>${theadHtml}</thead><tbody>${tbodyHtml}</tbody></table></div>`);
+        i = j;
+      } else {
+        out.push(headerLine);
+        i++;
+      }
+    }
+    return out;
+  }
+
   function renderMarkdownToHtml(text) {
     let html = escapeHtml(text);
 
@@ -2800,10 +2845,15 @@
     html = html.replace(/^#{1,3}\s+(.*)$/gm, '<strong class="pg-md-h">$1</strong>');
     html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
 
-    const lines = html.split('\n');
+    const lines = parseMarkdownTables(html.split('\n'));
     const out = [];
     let listType = null;
     for (const line of lines) {
+      if (line.startsWith('<div class="pg-md-table-wrap">')) {
+        if (listType) { out.push(`</${listType}>`); listType = null; }
+        out.push(line);
+        continue;
+      }
       const bulletMatch = line.match(/^\s*[-*]\s+(.+)$/);
       const numberMatch = line.match(/^\s*\d+\.\s+(.+)$/);
       if (bulletMatch) {
