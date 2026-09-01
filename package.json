@@ -17,6 +17,7 @@
     "jsonwebtoken": "^9.0.2",
     "mammoth": "^1.12.2",
     "mongoose": "^8.5.1",
+    "nodemailer": "^9.1.0",
     "pdf-parse": "^1.1.4",
     "xlsx": "^0.18.5"
   },

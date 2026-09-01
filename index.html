@@ -144,6 +144,11 @@
     .btn-google { width:100%; padding:14px; background:var(--surface); border:1px solid var(--border); border-radius:10px; color:var(--text); font-family:'Space Grotesk',sans-serif; font-size:15px; font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px; transition:border-color 0.2s, transform 0.1s; }
     .btn-google:hover { border-color:var(--border-hover); transform:translateY(-1px); }
     .err { color:var(--accent); font-size:13px; margin-top:8px; display:none; }
+    .auth-forgot-link { display:block; text-align:right; background:none; border:none; color:var(--muted); font-family:'Space Grotesk',sans-serif; font-size:12.5px; font-weight:600; cursor:pointer; margin:-8px 0 8px; padding:0; width:100%; }
+    .auth-forgot-link:hover { color:var(--accent); }
+    .link-btn { display:inline-block; background:none; border:none; color:var(--muted); font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:600; cursor:pointer; padding:0; }
+    .link-btn:hover { color:var(--accent); }
+    .auth-success-msg { color:var(--green); font-size:13.5px; line-height:1.5; margin-top:8px; display:none; }
  
     /* APP VIEW */
     .user-bar { display:flex; align-items:center; justify-content:space-between; margin-bottom:32px; }
@@ -712,8 +717,36 @@
               </button>
             </div>
           </div>
+          <button type="button" class="auth-forgot-link" onclick="showForgotForm()">Password bhool gaye?</button>
           <div class="err" id="l-err"></div>
           <button type="button" class="btn-main" style="margin-top:16px;" onclick="emailLogin()">Login</button>
+        </div>
+
+        <!-- FORGOT PASSWORD FORM — email daalo, reset link bhejo -->
+        <div id="forgot-form" style="display:none;">
+          <div class="auth-sub" style="margin-bottom:20px;">Apna email daalo — reset link bhej denge (10 minute valid).</div>
+          <div class="form-group"><label>Email</label><input type="email" id="f-email" placeholder="aap@email.com" /></div>
+          <div class="err" id="f-err"></div>
+          <div class="auth-success-msg" id="f-success"></div>
+          <button type="button" class="btn-main" style="margin-top:16px;" onclick="requestPasswordReset()">Reset Link Bhejo</button>
+          <button type="button" class="link-btn" style="margin-top:16px;" onclick="showLoginFromForgot()">← Wapas Login pe jaao</button>
+        </div>
+
+        <!-- RESET PASSWORD FORM — sirf tab dikhta hai jab email wale link se aaye ho -->
+        <div id="reset-form" style="display:none;">
+          <div class="auth-sub" style="margin-bottom:20px;">Apna naya password set karo.</div>
+          <div class="form-group">
+            <label>Naya Password</label>
+            <div class="pass-wrap">
+              <input type="password" id="r-pass" placeholder="Naya password (6+ characters)" />
+              <button type="button" class="eye-btn" onclick="toggleEye('r-pass', this)" title="Password dikhao/chhupaao">
+                <svg id="r-pass-eye-open" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                <svg id="r-pass-eye-off" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:none;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="err" id="r-err"></div>
+          <button type="button" class="btn-main" style="margin-top:16px;" onclick="submitPasswordReset()">Password Reset Karo</button>
         </div>
 
         <!-- SIGNUP FORM — NO <form> tag -->
@@ -1258,6 +1291,7 @@
     : '';
   let currentUser = JSON.parse(localStorage.getItem('pastepro_user') || 'null');
   let authToken = localStorage.getItem('pastepro_token');
+  let pendingResetToken = null; // ?resetToken=... se aaya token — forgot-password flow
 
   // ════════════════════════════════
   //  LIGHT / DARK MODE
@@ -1312,13 +1346,98 @@
   // ════════════════════════════════
   if (currentUser && authToken) showApp(currentUser);
   else showAuth();
- 
+
+  // Email wale reset-password link se aaya ho (?resetToken=...) — chahe
+  // login ho ya na ho, seedha reset-password form dikhao.
+  {
+    const resetTokenFromUrl = new URLSearchParams(window.location.search).get('resetToken');
+    if (resetTokenFromUrl) showResetForm(resetTokenFromUrl);
+  }
+
   // Tab switch
   window.switchTab = (tab, el) => {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     el.classList.add('active');
+    document.querySelector('.tabs').style.display = 'flex';
     document.getElementById('login-form').style.display  = tab==='login'  ? 'block' : 'none';
     document.getElementById('signup-form').style.display = tab==='signup' ? 'block' : 'none';
+    document.getElementById('forgot-form').style.display = 'none';
+    document.getElementById('reset-form').style.display  = 'none';
+  };
+
+  // Forgot/reset password — tabs ki jagah ye do forms dikhte hain
+  window.showForgotForm = () => {
+    document.querySelector('.tabs').style.display = 'none';
+    document.getElementById('login-form').style.display  = 'none';
+    document.getElementById('signup-form').style.display = 'none';
+    document.getElementById('reset-form').style.display   = 'none';
+    document.getElementById('forgot-form').style.display  = 'block';
+    document.getElementById('f-err').style.display = 'none';
+    document.getElementById('f-success').style.display = 'none';
+  };
+
+  window.showLoginFromForgot = () => {
+    switchTab('login', document.querySelector('.tab'));
+  };
+
+  function showResetForm(token) {
+    pendingResetToken = token;
+    document.getElementById('auth-view').style.display = 'block';
+    document.getElementById('app-view').style.display  = 'none';
+    document.querySelector('.tabs').style.display = 'none';
+    document.getElementById('login-form').style.display  = 'none';
+    document.getElementById('signup-form').style.display = 'none';
+    document.getElementById('forgot-form').style.display  = 'none';
+    document.getElementById('reset-form').style.display   = 'block';
+    document.getElementById('r-err').style.display = 'none';
+  }
+
+  window.requestPasswordReset = async () => {
+    const email   = document.getElementById('f-email').value.trim();
+    const err     = document.getElementById('f-err');
+    const success = document.getElementById('f-success');
+    err.style.display = 'none';
+    success.style.display = 'none';
+    if (!email) { err.textContent = 'Email daalo'; err.style.display = 'block'; return; }
+    try {
+      const res = await fetch(`${BACKEND}/api/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Kuch error aa gaya');
+      success.textContent = 'Agar ye email registered hai, reset link bhej diya gaya hai — apna inbox (aur spam folder) check karo. Link sirf 10 minute valid hai.';
+      success.style.display = 'block';
+    } catch (ex) {
+      err.textContent = ex.message; err.style.display = 'block';
+    }
+  };
+
+  window.submitPasswordReset = async () => {
+    const pass = document.getElementById('r-pass').value;
+    const err  = document.getElementById('r-err');
+    err.style.display = 'none';
+    if (!pass || pass.length < 6) { err.textContent = 'Password 6+ characters ka hona chahiye'; err.style.display = 'block'; return; }
+    if (!pendingResetToken) { err.textContent = 'Reset link invalid hai'; err.style.display = 'block'; return; }
+    try {
+      const res = await fetch(`${BACKEND}/api/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: pendingResetToken, newPassword: pass }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Link invalid ya expire ho chuka hai');
+      pendingResetToken = null;
+      // URL se ?resetToken hata do taaki reload/refresh par dobara reset form na khule
+      const cleanUrl = new URL(window.location.href);
+      cleanUrl.searchParams.delete('resetToken');
+      window.history.replaceState({}, '', cleanUrl);
+      showToast('Password reset ho gaya! Ab naye password se login karo ✓', 'success');
+      switchTab('login', document.querySelector('.tab'));
+    } catch (ex) {
+      err.textContent = ex.message; err.style.display = 'block';
+    }
   };
  
   // Email login — FIX: pure button click, koi form submit nahi

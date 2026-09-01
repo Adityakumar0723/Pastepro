@@ -14,6 +14,8 @@ const os        = require('os');
 const mongoose  = require('mongoose');
 const bcrypt    = require('bcryptjs');
 const jwt       = require('jsonwebtoken');
+const crypto    = require('crypto');
+const nodemailer = require('nodemailer');
 const pdfParse  = require('pdf-parse');
 const mammoth   = require('mammoth');
 const XLSX      = require('xlsx');
@@ -52,7 +54,12 @@ const OPENROUTER_BASE_URL      = 'https://openrouter.ai/api/v1';
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true, maxlength: 80 },
   email: { type: String, required: true, trim: true, lowercase: true, unique: true },
-  password: { type: String, required: true }
+  password: { type: String, required: true },
+  // Forgot-password: sirf hashed token store hota hai (raw token kabhi nahi,
+  // password ki tarah hi) — email mein jo link jaata hai wahi raw token
+  // le jaata hai, yahan sirf uska SHA-256 hash match karne ke liye rakha hai.
+  resetPasswordTokenHash: { type: String, default: null },
+  resetPasswordExpires:   { type: Date,   default: null }
 }, { timestamps: true });
 
 const downloadSchema = new mongoose.Schema({
@@ -264,6 +271,104 @@ app.post('/api/auth/login', async (req, res) => {
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Login nahi ho saka. Dobara try karo' });
+  }
+});
+
+const RESET_TOKEN_TTL_MS = 10 * 60 * 1000; // 10 minute — jitna user ne maanga
+const APP_URL = (process.env.APP_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
+
+const mailTransporter = (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD)
+  ? nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD },
+    })
+  : null;
+
+async function sendPasswordResetEmail(toEmail, resetUrl) {
+  if (!mailTransporter) {
+    // Local dev / credentials na set hone par — link console mein taaki
+    // pura flow bina real email ke bhi test ho sake.
+    console.log(`[password-reset] GMAIL_USER/GMAIL_APP_PASSWORD set nahi hain — link: ${resetUrl}`);
+    return;
+  }
+  await mailTransporter.sendMail({
+    from: `"PastePro" <${process.env.GMAIL_USER}>`,
+    to: toEmail,
+    subject: 'PastePro — Password Reset Karo',
+    html: `
+      <div style="font-family:sans-serif; max-width:480px; margin:0 auto;">
+        <h2 style="color:#e63946;">PastePro Password Reset</h2>
+        <p>Aapne apna PastePro password reset karne ke liye request kiya hai. Neeche wale button se naya password set karo:</p>
+        <p style="margin:24px 0;">
+          <a href="${resetUrl}" style="background:linear-gradient(135deg,#e63946,#f4a261); color:#fff; padding:12px 24px; border-radius:8px; text-decoration:none; font-weight:bold;">Password Reset Karo</a>
+        </p>
+        <p style="color:#666; font-size:13px;">Ye link sirf <strong>10 minute</strong> ke liye valid hai. Agar aapne ye request nahi kiya, toh is email ko ignore kar do — aapka password nahi badlega.</p>
+        <p style="color:#999; font-size:12px;">Agar button kaam na kare, ye link copy karke browser mein paste karo:<br>${resetUrl}</p>
+      </div>
+    `,
+  });
+}
+
+app.post('/api/auth/forgot-password', async (req, res) => {
+  try {
+    const email = String(req.body.email || '').trim().toLowerCase();
+    if (!/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ error: 'Valid email daalo' });
+
+    // User exist karta hai ya nahi — kisi bhi case mein response same rehta
+    // hai (generic success), warna ye endpoint attacker ko bata deta ki
+    // koi email PastePro par registered hai ya nahi (user enumeration).
+    const user = await User.findOne({ email });
+    if (user) {
+      const rawToken  = crypto.randomBytes(32).toString('hex');
+      const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+      user.resetPasswordTokenHash = tokenHash;
+      user.resetPasswordExpires   = new Date(Date.now() + RESET_TOKEN_TTL_MS);
+      await user.save();
+
+      const resetUrl = `${APP_URL}/?resetToken=${rawToken}`;
+      try {
+        await sendPasswordResetEmail(user.email, resetUrl);
+      } catch (mailErr) {
+        console.error('Password reset email send failed:', mailErr.message);
+        // Email fail hone par bhi client ko generic success hi milta hai —
+        // par server logs mein asli wajah dikhti hai diagnose karne ke liye.
+      }
+      req.user = { id: user._id.toString() };
+      logActivity(req, 'forgot_password_requested', { email: user.email });
+    }
+
+    res.json({ success: true, message: 'Agar ye email registered hai, reset link bhej diya gaya hai' });
+  } catch (error) {
+    console.error('Forgot-password error:', error);
+    res.status(500).json({ error: 'Kuch error aa gaya. Dobara try karo' });
+  }
+});
+
+app.post('/api/auth/reset-password', async (req, res) => {
+  try {
+    const token       = String(req.body.token || '').trim();
+    const newPassword = String(req.body.newPassword || '');
+    if (!token) return res.status(400).json({ error: 'Reset link invalid hai' });
+    if (newPassword.length < 6) return res.status(400).json({ error: 'Password 6+ characters ka hona chahiye' });
+
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const user = await User.findOne({
+      resetPasswordTokenHash: tokenHash,
+      resetPasswordExpires: { $gt: new Date() },
+    });
+    if (!user) return res.status(400).json({ error: 'Ye link invalid ya expire ho chuka hai (10 minute ke baad expire hota hai) — dobara reset request karo' });
+
+    user.password = await bcrypt.hash(newPassword, 12);
+    user.resetPasswordTokenHash = null;
+    user.resetPasswordExpires   = null;
+    await user.save();
+
+    req.user = { id: user._id.toString() };
+    logActivity(req, 'password_reset_completed', { email: user.email });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Reset-password error:', error);
+    res.status(500).json({ error: 'Password reset nahi ho saka. Dobara try karo' });
   }
 });
 
