@@ -328,11 +328,14 @@ function quoteIfPath(value) {
 function testYtdlpCommand(candidate) {
   return new Promise(resolve => {
     const command = `${quoteIfPath(candidate)} --version`;
-    exec(command, { shell: true, timeout: 10000 }, (err) => {
+    exec(command, { shell: true, timeout: 10000 }, (err, stdout, stderr) => {
+      if (err) console.log(`[yt-dlp resolve] "${candidate}" failed: ${(stderr || err.message || '').trim().slice(0, 200)}`);
       resolve(!err);
     });
   });
 }
+
+let ytdlpResolveLoggedOnce = false;
 
 async function resolveYtdlpCommand() {
   const localExe = path.join(__dirname, 'yt-dlp.exe');
@@ -352,6 +355,13 @@ async function resolveYtdlpCommand() {
     } catch (e) {
       // ignore and try next candidate
     }
+  }
+  // Har request par dobara na chhape (search/download dono is function ko
+  // baar-baar call karte hain) — sirf pehli baar, taaki logs mein spam na ho,
+  // par diagnosis ke liye PATH aur candidate list saaf dikh jaaye.
+  if (!ytdlpResolveLoggedOnce) {
+    ytdlpResolveLoggedOnce = true;
+    console.error(`[yt-dlp resolve] koi bhi candidate kaam nahi kiya. Tried: ${JSON.stringify(candidates)} | PATH=${process.env.PATH}`);
   }
   return null;
 }
