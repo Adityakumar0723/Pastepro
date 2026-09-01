@@ -49,7 +49,17 @@
     body::before { content:''; position:fixed; inset:0; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E"); pointer-events:none; z-index:0; opacity:0.4; }
     body::after { content:''; position:fixed; inset:0; background-image: linear-gradient(var(--noise-line) 1px, transparent 1px), linear-gradient(90deg, var(--noise-line) 1px, transparent 1px); background-size: 60px 60px; pointer-events:none; z-index:0; }
  
-    header { position: sticky; top:0; z-index:50; display: flex; align-items:center; justify-content:space-between; padding: 20px 48px; background: rgba(12,12,14,0.85); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
+    .sticky-top-group { position: sticky; top:0; z-index:50; }
+    header { display: flex; align-items:center; justify-content:space-between; padding: 20px 48px; background: rgba(12,12,14,0.85); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
+    .dl-active-bar { background: var(--card); border-bottom: 1px solid var(--border); }
+    .dl-active-bar-inner { max-width: 860px; margin: 0 auto; padding: 10px 24px; display:flex; align-items:center; gap:12px; }
+    .dl-active-bar-spinner { width:15px; height:15px; border-radius:50%; border:2px solid var(--border); border-top-color: var(--accent); flex-shrink:0; animation: dlActiveBarSpin 0.8s linear infinite; }
+    @keyframes dlActiveBarSpin { to { transform: rotate(360deg); } }
+    .dl-active-bar-text { flex:1; min-width:0; }
+    .dl-active-bar-title { font-size:13px; font-weight:700; color:var(--text); }
+    .dl-active-bar-sub { font-size:12px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .dl-active-bar-cancel { flex-shrink:0; padding:6px 14px; border:1px solid var(--border); border-radius:50px; background:transparent; color:var(--muted); font-family:'Space Grotesk',sans-serif; font-size:12px; font-weight:600; cursor:pointer; transition:all 0.2s; }
+    .dl-active-bar-cancel:hover { border-color:var(--accent); color:var(--accent); }
     .logo { display:flex; align-items:center; gap:10px; font-family: 'Syne', sans-serif; font-size: 26px; font-weight:800; letter-spacing: -1px; background: linear-gradient(90deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; cursor: pointer; }
     .logo-icon { width:28px; height:28px; flex-shrink:0; }
     .sidebar-logo { display:flex; align-items:center; gap:8px; }
@@ -529,6 +539,7 @@
 </head>
 <body>
  
+<div class="sticky-top-group">
 <header>
   <div class="header-left">
     <button class="hamburger-btn" onclick="toggleSidebar()" aria-label="Menu kholo">
@@ -558,6 +569,21 @@
     </div>
   </div>
 </header>
+
+<!-- Active-download notification — jab tak koi download/process chal raha
+     hai, ye header ke neeche chipka rehta hai, page par kahin bhi ho —
+     yahan se hi seedha cancel bhi ho sakta hai. -->
+<div class="dl-active-bar" id="dl-active-bar" style="display:none;">
+  <div class="dl-active-bar-inner">
+    <span class="dl-active-bar-spinner"></span>
+    <div class="dl-active-bar-text">
+      <div class="dl-active-bar-title" id="dl-active-bar-title">Download ho raha hai...</div>
+      <div class="dl-active-bar-sub" id="dl-active-bar-sub"></div>
+    </div>
+    <button type="button" class="dl-active-bar-cancel" onclick="cancelDownload()">✕ Cancel</button>
+  </div>
+</div>
+</div>
 
 <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
 <aside class="sidebar" id="sidebar">
@@ -3176,6 +3202,18 @@
     if (on) document.getElementById('load-msg').textContent =
       type === 'audio' ? 'Audio extract ho rahi hai, thoda wait karo...' : 'Video download ho rahi hai, thoda wait karo...';
     document.getElementById('btn-download').disabled = on;
+
+    // Top notification bar — page par kahin bhi ho, dikhta rehta hai ki
+    // koi download chal raha hai, kaunsa URL, aur wahin se cancel bhi.
+    const activeBar = document.getElementById('dl-active-bar');
+    if (on) {
+      document.getElementById('dl-active-bar-title').textContent =
+        type === 'audio' ? '🎵 Audio download ho raha hai...' : '🎬 Video download ho raha hai...';
+      document.getElementById('dl-active-bar-sub').textContent = document.getElementById('vid-url').value.trim();
+      activeBar.style.display = 'block';
+    } else {
+      activeBar.style.display = 'none';
+    }
   }
  
   // URL validation
