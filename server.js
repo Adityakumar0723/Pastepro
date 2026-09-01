@@ -15,6 +15,9 @@ const mongoose  = require('mongoose');
 const bcrypt    = require('bcryptjs');
 const jwt       = require('jsonwebtoken');
 const pdfParse  = require('pdf-parse');
+const mammoth   = require('mammoth');
+const XLSX      = require('xlsx');
+const AdmZip    = require('adm-zip');
 require('dotenv').config();
 
 const app  = express();
@@ -862,8 +865,91 @@ function queryOpenRouter(model, content) {
   });
 }
 
-const MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024; // base64 decoded size
-const MAX_PDF_TEXT_CHARS   = 15000; // itna hi prompt mein bhejte hain, poora PDF nahi — bahut lambi PDF se query hi itni badi ho jaati ki free model reject/timeout kar de
+const MAX_ATTACHMENT_BYTES     = 15 * 1024 * 1024; // base64 decoded size
+const MAX_EXTRACTED_TEXT_CHARS = 15000; // itna hi prompt mein bhejte hain, poora document nahi — bahut lambi file se query hi itni badi ho jaati ki free model reject/timeout kar de
+const SUPPORTED_DOC_FORMATS    = ['docx', 'xlsx', 'pptx', 'md', 'html', 'odt', 'rtf', 'epub', 'txt'];
+
+// Zip-based Office/ODF/EPUB formats me sirf plain text nikaalne ke liye —
+// koi bhi tag hata ke saadi text reh jaati hai, entities decode ho jaate
+// hain. Layout/formatting kho jaata hai, par AI ke liye content kaafi hai.
+function stripXmlTags(xml) {
+  return xml
+    .replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n\s*\n+/g, '\n\n')
+    .trim();
+}
+
+// RTF ek plain-text format hai jisme control words ({\rtf1... \par \b ...})
+// hote hain — koi standalone parser add karne ke bajaye ek simple regex
+// strip se kaam chal jaata hai (formatting kho jaati hai, text reh jaata hai).
+function stripRtf(rtf) {
+  return rtf
+    .replace(/\\par[d]?/g, '\n')
+    .replace(/\{\\[^}]*\}/g, '')
+    .replace(/\\[a-zA-Z]+-?\d*\s?/g, '')
+    .replace(/[{}]/g, '')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n\s*\n+/g, '\n\n')
+    .trim();
+}
+
+// Sab non-PDF document formats (Playground attachment) ke liye ek hi jagah
+// se text extraction — har format ka apna tarika hai kyunki koi bhi free AI
+// model in files ko "as-is" accept nahi karta, sabko plain text banana
+// padta hai jo phir prompt mein context ki tarah fold hota hai.
+async function extractDocText(buffer, format) {
+  switch (format) {
+    case 'docx': {
+      const result = await mammoth.extractRawText({ buffer });
+      return (result.value || '').trim();
+    }
+    case 'xlsx': {
+      const wb = XLSX.read(buffer, { type: 'buffer' });
+      return wb.SheetNames.map(name => {
+        const csv = XLSX.utils.sheet_to_csv(wb.Sheets[name]);
+        return `--- Sheet: ${name} ---\n${csv}`.trim();
+      }).join('\n\n').trim();
+    }
+    case 'pptx': {
+      const zip = new AdmZip(buffer);
+      const slideEntries = zip.getEntries()
+        .filter(e => /^ppt\/slides\/slide\d+\.xml$/.test(e.entryName))
+        .sort((a, b) => parseInt(a.entryName.match(/(\d+)/)[1], 10) - parseInt(b.entryName.match(/(\d+)/)[1], 10));
+      return slideEntries.map((e, i) => {
+        const xml = e.getData().toString('utf8');
+        const texts = [...xml.matchAll(/<a:t>([^<]*)<\/a:t>/g)].map(m => m[1]);
+        return `--- Slide ${i + 1} ---\n${texts.join(' ')}`;
+      }).join('\n\n').trim();
+    }
+    case 'odt': {
+      const zip = new AdmZip(buffer);
+      const entry = zip.getEntry('content.xml');
+      return entry ? stripXmlTags(entry.getData().toString('utf8')) : '';
+    }
+    case 'epub': {
+      const zip = new AdmZip(buffer);
+      const htmlEntries = zip.getEntries().filter(e => /\.(x?html|htm)$/i.test(e.entryName));
+      return htmlEntries.map(e => stripXmlTags(e.getData().toString('utf8'))).join('\n\n').trim();
+    }
+    case 'rtf':
+      return stripRtf(buffer.toString('utf8'));
+    case 'html':
+      return stripXmlTags(buffer.toString('utf8'));
+    case 'md':
+    case 'txt':
+      return buffer.toString('utf8').trim();
+    default:
+      return '';
+  }
+}
 
 app.post('/api/query', requireAuth, async (req, res) => {
   const query = String(req.body.query || '').trim();
@@ -871,6 +957,9 @@ app.post('/api/query', requireAuth, async (req, res) => {
   const pdfBase64     = typeof req.body.pdfBase64 === 'string' ? req.body.pdfBase64 : null;
   const pdfName       = String(req.body.pdfName || 'document.pdf');
   const videoName     = typeof req.body.videoName === 'string' ? req.body.videoName.trim().slice(0, 200) : null;
+  const docBase64     = typeof req.body.docBase64 === 'string' ? req.body.docBase64 : null;
+  const docName       = String(req.body.docName || 'document');
+  const docFormat     = typeof req.body.docFormat === 'string' ? req.body.docFormat : null;
 
   if (!query) return res.status(400).json({ error: 'Pehle kuch likho' });
   if (query.length > 4000) return res.status(400).json({ error: 'Query bahut lambi hai (max 4000 characters)' });
@@ -887,13 +976,20 @@ app.post('/api/query', requireAuth, async (req, res) => {
     const approxBytes = imageDataUrl.length * 0.75;
     if (approxBytes > MAX_ATTACHMENT_BYTES) return res.status(400).json({ error: 'Image bahut badi hai (max 15MB)' });
   }
+  if (docBase64) {
+    if (!docFormat || !SUPPORTED_DOC_FORMATS.includes(docFormat)) {
+      return res.status(400).json({ error: 'Ye file format support nahi hai' });
+    }
+    const approxBytes = docBase64.length * 0.75;
+    if (approxBytes > MAX_ATTACHMENT_BYTES) return res.status(400).json({ error: 'File bahut badi hai (max 15MB)' });
+  }
 
   const uid = req.user.id;
   if (activeQueries.has(uid)) {
     return res.status(429).json({ error: 'Pehli query abhi process ho rahi hai, thoda ruko' });
   }
   activeQueries.add(uid);
-  logActivity(req, 'playground_query', { query, hasImage: !!imageDataUrl, hasPdf: !!pdfBase64, hasVideo: !!videoName });
+  logActivity(req, 'playground_query', { query, hasImage: !!imageDataUrl, hasPdf: !!pdfBase64, hasVideo: !!videoName, hasDoc: !!docBase64 });
 
   try {
     // PDF attachment: extract its text server-side and fold it into the
@@ -911,7 +1007,7 @@ app.post('/api/query', requireAuth, async (req, res) => {
       try {
         const pdfBuffer = Buffer.from(pdfBase64, 'base64');
         const parsed = await pdfParse(pdfBuffer);
-        const extracted = (parsed.text || '').trim().slice(0, MAX_PDF_TEXT_CHARS);
+        const extracted = (parsed.text || '').trim().slice(0, MAX_EXTRACTED_TEXT_CHARS);
         if (extracted) {
           finalQuery = `Yeh ek PDF ("${pdfName}") ka content hai:\n\n${extracted}\n\n---\n\nUpar wale PDF content ke baare mein sawaal: ${query}`;
         } else {
@@ -921,6 +1017,24 @@ app.post('/api/query', requireAuth, async (req, res) => {
         console.error('PDF parse error:', e.message);
         activeQueries.delete(uid);
         return res.status(400).json({ error: 'PDF read nahi ho payi. Kya ye ek valid PDF file hai?' });
+      }
+    }
+
+    // Non-PDF document attachment (DOCX/XLSX/PPTX/MD/HTML/ODT/RTF/EPUB/TXT):
+    // same idea as PDF — extract plain text server-side, fold into prompt.
+    if (docBase64 && docFormat) {
+      try {
+        const docBuffer = Buffer.from(docBase64, 'base64');
+        const extracted = (await extractDocText(docBuffer, docFormat)).trim().slice(0, MAX_EXTRACTED_TEXT_CHARS);
+        if (extracted) {
+          finalQuery = `Yeh ek ${docFormat.toUpperCase()} file ("${docName}") ka content hai:\n\n${extracted}\n\n---\n\nUpar wale file content ke baare mein sawaal: ${query}`;
+        } else {
+          finalQuery = `(File "${docName}" se koi readable text nahi mila.)\n\n${query}`;
+        }
+      } catch (e) {
+        console.error('Doc parse error:', e.message);
+        activeQueries.delete(uid);
+        return res.status(400).json({ error: 'File read nahi ho payi. Kya ye ek valid file hai?' });
       }
     }
 
@@ -1006,6 +1120,29 @@ app.post('/api/query', requireAuth, async (req, res) => {
     }
   } finally {
     activeQueries.delete(uid);
+  }
+});
+
+// Browsers can't natively render DOCX/XLSX/PPTX/ODT/RTF/EPUB (unlike
+// images/video/PDF/HTML, which iframe/img/video already handle) — this
+// on-demand endpoint lets the Playground attachment modal show the same
+// extracted plain text as a readable preview when the user clicks the chip.
+// No OpenRouter call here, so it doesn't touch activeQueries/rate limits.
+app.post('/api/extract-doc-text', requireAuth, async (req, res) => {
+  const docBase64 = typeof req.body.docBase64 === 'string' ? req.body.docBase64 : null;
+  const docFormat = typeof req.body.docFormat === 'string' ? req.body.docFormat : null;
+  if (!docBase64 || !docFormat) return res.status(400).json({ error: 'File data missing' });
+  if (!SUPPORTED_DOC_FORMATS.includes(docFormat)) return res.status(400).json({ error: 'Ye file format support nahi hai' });
+  const approxBytes = docBase64.length * 0.75;
+  if (approxBytes > MAX_ATTACHMENT_BYTES) return res.status(400).json({ error: 'File bahut badi hai (max 15MB)' });
+
+  try {
+    const buffer = Buffer.from(docBase64, 'base64');
+    const text = await extractDocText(buffer, docFormat);
+    res.json({ text: text.slice(0, 50000) }); // AI-context cap se zyada, preview ke liye — phir bhi bounded
+  } catch (e) {
+    console.error('Doc preview extract error:', e.message);
+    res.status(400).json({ error: 'File read nahi ho payi. Kya ye ek valid file hai?' });
   }
 });
 
