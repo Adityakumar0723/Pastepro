@@ -559,14 +559,18 @@ function fetchWhisperCaptions(mediaPath, ffmpegCmd) {
     const vttPath = `${base}.vtt`;
     const extractCmd = `${quoteIfPath(ffmpegCmd)} -y -i "${mediaPath}" -vn -ar 16000 -ac 1 -c:a pcm_s16le "${wavPath}"`;
 
-    exec(extractCmd, { timeout: 60 * 1000, shell: true, cwd: DOWNLOADS_DIR }, (ffErr, ffStdout, ffStderr) => {
+    exec(extractCmd, { timeout: 40 * 1000, shell: true, cwd: DOWNLOADS_DIR }, (ffErr, ffStdout, ffStderr) => {
       if (ffErr || !fs.existsSync(wavPath)) {
         console.error(`[whisper] ffmpeg audio-extract failed for ${mediaPath}:`, (ffStderr || ffErr?.message || '').slice(0, 300));
         return resolve([]);
       }
 
+      // Client (fetchAndRenderDownloadCaptions) gives up after 150s total —
+      // keep ffmpeg+whisper's combined budget comfortably under that so a
+      // real timeout here always reaches the client as "not available"
+      // instead of racing the client's own abort.
       const whisperCmd = `${quoteIfPath(WHISPER_BIN)} -m "${WHISPER_MODEL}" -f "${wavPath}" -ml 2 -ovtt -of "${base}" -np`;
-      exec(whisperCmd, { timeout: 120 * 1000, shell: true, cwd: DOWNLOADS_DIR, env: { ...process.env, LD_LIBRARY_PATH: path.dirname(WHISPER_BIN) } }, (wErr, wStdout, wStderr) => {
+      exec(whisperCmd, { timeout: 90 * 1000, shell: true, cwd: DOWNLOADS_DIR, env: { ...process.env, LD_LIBRARY_PATH: path.dirname(WHISPER_BIN) } }, (wErr, wStdout, wStderr) => {
         try { fs.unlinkSync(wavPath); } catch (e) {}
         if (wErr || !fs.existsSync(vttPath)) {
           console.error(`[whisper] transcription failed for ${mediaPath}:`, (wStderr || wErr?.message || '').slice(0, 300));

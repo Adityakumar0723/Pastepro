@@ -2904,16 +2904,25 @@
     const myToken = ++dlCaptionsToken;
     showDownloadCaptionsLoading();
     let captions = [];
+    // Safety net: whisper transcription (server-side) has its own timeouts,
+    // but if the connection itself ever just hangs (network hiccup, a proxy
+    // silently sitting on the request), the "loading..." state must NOT be
+    // stuck forever — abort and show "not available" instead.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 150 * 1000);
     try {
       const res = await fetch(`${BACKEND}/api/download-captions`, {
         method: 'POST',
         headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${authToken}` },
-        body: JSON.stringify({ url: sourceUrl, filename })
+        body: JSON.stringify({ url: sourceUrl, filename }),
+        signal: controller.signal
       });
       const data = await res.json().catch(() => ({}));
       captions = data.captions || [];
     } catch (e) {
       captions = [];
+    } finally {
+      clearTimeout(timeoutId);
     }
     // User itni der mein doosri file download kar chuka ho sakta hai — stale response ignore karo.
     if (dlCaptionsToken !== myToken) return;
