@@ -498,15 +498,19 @@ function fetchAutoCaptions(url, ytdlpCmd, safeId) {
   return new Promise((resolve) => {
     const subBase = path.join(DOWNLOADS_DIR, safeId);
     const command  = `${quoteIfPath(ytdlpCmd)} --write-auto-sub --sub-lang en --skip-download --sub-format vtt ${cookiesFlag()} ${proxyFlag()} --paths "temp:${DOWNLOADS_DIR}" --output "${subBase}.%(ext)s" "${url}"`;
-    exec(command, { timeout: 30 * 1000, shell: true, cwd: DOWNLOADS_DIR }, (error) => {
+    exec(command, { timeout: 30 * 1000, shell: true, cwd: DOWNLOADS_DIR }, (error, stdout, stderr) => {
       const vttPath = `${subBase}.en.vtt`;
-      if (error || !fs.existsSync(vttPath)) return resolve([]);
+      if (error || !fs.existsSync(vttPath)) {
+        console.log(`[captions] no auto-sub for ${url}${error ? ` (${(stderr || error.message || '').slice(0, 200)})` : ''}`);
+        return resolve([]);
+      }
       try {
         const raw   = fs.readFileSync(vttPath, 'utf8');
         const words = parseVttWords(raw);
         fs.unlinkSync(vttPath);
         resolve(words);
       } catch (e) {
+        console.error('[captions] auto-sub VTT parse failed:', e.message);
         resolve([]);
       }
     });
@@ -523,13 +527,20 @@ function fetchAutoCaptions(url, ytdlpCmd, safeId) {
 // touching the download response.
 function fetchWhisperCaptions(mediaPath, ffmpegCmd) {
   return new Promise((resolve) => {
-    if (!WHISPER_READY) return resolve([]);
+    if (!WHISPER_READY) {
+      console.log(`[whisper] skipped — WHISPER_READY is false (bin exists: ${fs.existsSync(WHISPER_BIN)}, model exists: ${fs.existsSync(WHISPER_MODEL)})`);
+      return resolve([]);
+    }
     try {
       const stat = fs.statSync(mediaPath);
       // Rough proxy for "too long to transcribe in a reasonable time" on a
       // free-tier CPU — skip rather than risk a very long-running process.
-      if (stat.size > 150 * 1024 * 1024) return resolve([]);
+      if (stat.size > 150 * 1024 * 1024) {
+        console.log(`[whisper] skipped — ${mediaPath} too large (${Math.round(stat.size / 1024 / 1024)}MB)`);
+        return resolve([]);
+      }
     } catch (e) {
+      console.error(`[whisper] media file missing: ${mediaPath}`);
       return resolve([]);
     }
 
@@ -538,19 +549,27 @@ function fetchWhisperCaptions(mediaPath, ffmpegCmd) {
     const vttPath = `${base}.vtt`;
     const extractCmd = `${quoteIfPath(ffmpegCmd)} -y -i "${mediaPath}" -vn -ar 16000 -ac 1 -c:a pcm_s16le "${wavPath}"`;
 
-    exec(extractCmd, { timeout: 60 * 1000, shell: true, cwd: DOWNLOADS_DIR }, (ffErr) => {
-      if (ffErr || !fs.existsSync(wavPath)) return resolve([]);
+    exec(extractCmd, { timeout: 60 * 1000, shell: true, cwd: DOWNLOADS_DIR }, (ffErr, ffStdout, ffStderr) => {
+      if (ffErr || !fs.existsSync(wavPath)) {
+        console.error(`[whisper] ffmpeg audio-extract failed for ${mediaPath}:`, (ffStderr || ffErr?.message || '').slice(0, 300));
+        return resolve([]);
+      }
 
       const whisperCmd = `${quoteIfPath(WHISPER_BIN)} -m "${WHISPER_MODEL}" -f "${wavPath}" -ml 2 -ovtt -of "${base}" -np`;
-      exec(whisperCmd, { timeout: 120 * 1000, shell: true, cwd: DOWNLOADS_DIR, env: { ...process.env, LD_LIBRARY_PATH: path.dirname(WHISPER_BIN) } }, (wErr) => {
+      exec(whisperCmd, { timeout: 120 * 1000, shell: true, cwd: DOWNLOADS_DIR, env: { ...process.env, LD_LIBRARY_PATH: path.dirname(WHISPER_BIN) } }, (wErr, wStdout, wStderr) => {
         try { fs.unlinkSync(wavPath); } catch (e) {}
-        if (wErr || !fs.existsSync(vttPath)) return resolve([]);
+        if (wErr || !fs.existsSync(vttPath)) {
+          console.error(`[whisper] transcription failed for ${mediaPath}:`, (wStderr || wErr?.message || '').slice(0, 300));
+          return resolve([]);
+        }
         try {
           const raw   = fs.readFileSync(vttPath, 'utf8');
           const words = parseVttWords(raw);
           fs.unlinkSync(vttPath);
+          console.log(`[whisper] transcribed ${mediaPath}: ${words.length} words`);
           resolve(words);
         } catch (e) {
+          console.error('[whisper] VTT parse failed:', e.message);
           resolve([]);
         }
       });
