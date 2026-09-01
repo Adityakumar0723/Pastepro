@@ -381,7 +381,18 @@
     .pg-attachment-chip-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .pg-attachment-remove { background:none; border:none; color:var(--muted); cursor:pointer; font-size:14px; padding:0 2px; flex-shrink:0; }
     .pg-attachment-remove:hover { color:var(--accent); }
-    .pg-msg-attachment-chip { display:flex; align-items:center; gap:6px; background:rgba(255,255,255,0.15); border-radius:6px; padding:4px 8px; font-size:12px; margin-bottom:6px; width:fit-content; }
+    .pg-msg-attachment-chip { display:flex; align-items:center; gap:6px; background:rgba(255,255,255,0.15); border-radius:6px; padding:4px 8px; font-size:12px; margin-bottom:6px; width:fit-content; transition:background 0.15s; }
+    .pg-msg-attachment-chip:hover { background:rgba(255,255,255,0.25); }
+
+    /* Attachment viewer modal */
+    .pg-attach-modal { position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:1000; display:flex; align-items:center; justify-content:center; padding:32px; }
+    .pg-attach-modal-inner { position:relative; width:100%; max-width:960px; max-height:88vh; background:var(--card); border:1px solid var(--border); border-radius:16px; overflow:hidden; display:flex; flex-direction:column; }
+    .pg-attach-modal-header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 18px; border-bottom:1px solid var(--border); font-size:13.5px; font-weight:700; }
+    .pg-attach-modal-close { flex-shrink:0; width:32px; height:32px; border-radius:50%; background:var(--surface); border:1px solid var(--border); color:var(--text); font-size:14px; cursor:pointer; }
+    .pg-attach-modal-close:hover { border-color:var(--accent); color:var(--accent); }
+    .pg-attach-modal-body { flex:1; min-height:0; overflow:auto; display:flex; align-items:center; justify-content:center; background:var(--surface); }
+    .pg-attach-modal-body img { max-width:100%; max-height:80vh; display:block; }
+    .pg-attach-modal-body iframe { width:100%; height:80vh; border:none; }
     .pg-send-btn { width:44px; height:44px; flex-shrink:0; border-radius:12px; background:linear-gradient(135deg,var(--accent),var(--accent2)); border:none; color:#fff; font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:opacity 0.2s; }
     .pg-send-btn:hover { opacity:0.9; }
     .pg-send-btn:disabled { opacity:0.5; cursor:not-allowed; }
@@ -1000,6 +1011,18 @@
 
       </div>
     </div>
+
+    <!-- Attachment viewer — click any 📎/🖼️ chip (pre-send preview ya
+         chat history dono) to open the actual file bade "canvas" mein. -->
+    <div class="pg-attach-modal" id="pg-attach-modal" style="display:none;" onclick="if(event.target===this) closePgAttachmentModal()">
+      <div class="pg-attach-modal-inner">
+        <div class="pg-attach-modal-header">
+          <span id="pg-attach-modal-title"></span>
+          <button type="button" class="pg-attach-modal-close" onclick="closePgAttachmentModal()">✕</button>
+        </div>
+        <div class="pg-attach-modal-body" id="pg-attach-modal-body"></div>
+      </div>
+    </div>
   </div>
 
   <!-- YOUTUBE SEARCH PAGE — full-width, YouTube watch-page style layout -->
@@ -1470,7 +1493,57 @@
   // ════════════════════════════════
   let pgSessions = [];
   let currentPgSessionId = null;
-  let pgAttachment = null; // { kind:'image'|'pdf', name, dataUrl } — cleared after sending, never persisted to localStorage
+  let pgAttachment = null; // { kind:'image'|'pdf', name, dataUrl, id } — id points into IndexedDB
+
+  // Attachment ki poori file data localStorage mein NAHI jaati (session
+  // history wahi hai, aur ek hi file ka base64 uska quota bhar sakta hai) —
+  // uske bajaye IndexedDB mein (jiski limit bohot zyada badi hoti hai)
+  // save hota hai, sirf uska chhota sa `id` session message mein reh jaata
+  // hai. Isse purani bheji hui file ko baad mein click karke dobara dekha
+  // ja sakta hai, bina localStorage ke quota ka risk liye.
+  const PG_ATTACH_DB_NAME = 'pastepro_pg_attachments';
+  const PG_ATTACH_STORE   = 'attachments';
+
+  function openPgAttachDB() {
+    return new Promise((resolve, reject) => {
+      if (!window.indexedDB) { reject(new Error('IndexedDB not available')); return; }
+      const req = indexedDB.open(PG_ATTACH_DB_NAME, 1);
+      req.onupgradeneeded = () => { req.result.createObjectStore(PG_ATTACH_STORE); };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror   = () => reject(req.error);
+    });
+  }
+
+  async function savePgAttachmentBlob(id, dataUrl) {
+    try {
+      const db = await openPgAttachDB();
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(PG_ATTACH_STORE, 'readwrite');
+        tx.objectStore(PG_ATTACH_STORE).put(dataUrl, id);
+        tx.oncomplete = () => resolve();
+        tx.onerror    = () => reject(tx.error);
+      });
+    } catch (e) {
+      // Best-effort — agar IndexedDB fail ho (private browsing wagera),
+      // toh bhejna to phir bhi kaam karega, sirf baad mein "dekho" wala
+      // option available nahi hoga is attachment ke liye.
+      console.error('Attachment save failed:', e.message);
+    }
+  }
+
+  async function loadPgAttachmentBlob(id) {
+    try {
+      const db = await openPgAttachDB();
+      return await new Promise((resolve, reject) => {
+        const tx  = db.transaction(PG_ATTACH_STORE, 'readonly');
+        const req = tx.objectStore(PG_ATTACH_STORE).get(id);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror   = () => reject(req.error);
+      });
+    } catch (e) {
+      return null;
+    }
+  }
 
   function loadPgSessions() {
     try { pgSessions = JSON.parse(localStorage.getItem('pastepro_pg_sessions') || '[]'); }
@@ -1510,7 +1583,7 @@
     box.innerHTML = session.messages.map((m, i) => {
       if (m.role === 'user') {
         const attachChip = m.attachment
-          ? `<div class="pg-msg-attachment-chip">${m.attachment.kind === 'image' ? '🖼️' : '📄'} ${escapeHtml(m.attachment.name)}</div>`
+          ? `<div class="pg-msg-attachment-chip" onclick="viewPgMessageAttachment(${i})" style="cursor:pointer;" title="Dekhne ke liye click karo">${m.attachment.kind === 'image' ? '🖼️' : '📄'} ${escapeHtml(m.attachment.name)}</div>`
           : '';
         return `
           <div class="pg-msg-wrap pg-msg-wrap-user">
@@ -1605,6 +1678,31 @@
     input.focus();
   };
 
+  // Pehle se bheji hui koi attachment click karke dobara dekhna — IndexedDB
+  // se uski asal file uthaate hain (session mein sirf id save hota hai).
+  window.viewPgMessageAttachment = async (i) => {
+    const session = getCurrentPgSession();
+    const msg = session && session.messages[i];
+    if (!msg || !msg.attachment) return;
+    const dataUrl = await loadPgAttachmentBlob(msg.attachment.id);
+    if (!dataUrl) { showToast('Ye file ab available nahi hai', 'error'); return; }
+    showPgAttachmentModal(msg.attachment.kind, msg.attachment.name, dataUrl);
+  };
+
+  window.showPgAttachmentModal = (kind, name, dataUrl) => {
+    const body = document.getElementById('pg-attach-modal-body');
+    body.innerHTML = kind === 'image'
+      ? `<img src="${dataUrl}" alt="${escapeHtml(name)}" />`
+      : `<iframe src="${dataUrl}" title="${escapeHtml(name)}"></iframe>`;
+    document.getElementById('pg-attach-modal-title').textContent = name;
+    document.getElementById('pg-attach-modal').style.display = 'flex';
+  };
+
+  window.closePgAttachmentModal = () => {
+    document.getElementById('pg-attach-modal').style.display = 'none';
+    document.getElementById('pg-attach-modal-body').innerHTML = '';
+  };
+
   window.clearPlaygroundChat = () => {
     const session = getCurrentPgSession();
     if (!session) return;
@@ -1677,7 +1775,9 @@
         reader.onerror = () => reject(new Error('File read nahi ho payi'));
         reader.readAsDataURL(file);
       });
-      pgAttachment = { kind: isImage ? 'image' : 'pdf', name: file.name, dataUrl };
+      const id = `att_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      await savePgAttachmentBlob(id, dataUrl);
+      pgAttachment = { kind: isImage ? 'image' : 'pdf', name: file.name, dataUrl, id };
       renderPgAttachmentPreview();
     } catch (e) {
       showToast(e.message || 'File attach nahi ho payi', 'error');
@@ -1691,10 +1791,10 @@
       ? `<img src="${pgAttachment.dataUrl}" alt="" />`
       : `<span style="font-size:18px;">📄</span>`;
     box.innerHTML = `
-      <div class="pg-attachment-chip">
+      <div class="pg-attachment-chip" onclick="showPgAttachmentModal(pgAttachment.kind, pgAttachment.name, pgAttachment.dataUrl)" style="cursor:pointer;" title="Dekhne ke liye click karo">
         ${thumb}
         <span class="pg-attachment-chip-name">${escapeHtml(pgAttachment.name)}</span>
-        <button type="button" class="pg-attachment-remove" onclick="removePgAttachment()" title="Hatao">✕</button>
+        <button type="button" class="pg-attachment-remove" onclick="event.stopPropagation(); removePgAttachment()" title="Hatao">✕</button>
       </div>`;
     box.style.display = 'flex';
   }
@@ -1746,7 +1846,7 @@
       session.messages.push({
         role: 'user',
         text: query,
-        attachment: attachment ? { kind: attachment.kind, name: attachment.name } : undefined
+        attachment: attachment ? { kind: attachment.kind, name: attachment.name, id: attachment.id } : undefined
       });
       if (session.messages.filter(m => m.role === 'user').length === 1) {
         session.title = query.length > 40 ? query.slice(0, 40) + '…' : query;
