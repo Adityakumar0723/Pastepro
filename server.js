@@ -504,14 +504,44 @@ function fetchCaptionsViaYtdlpLang(ytdlpCmd, videoId, langCode) {
   });
 }
 
+// Download page's transcript box: try the platform's own auto-sub track
+// first (YouTube almost always has one; most other platforms don't expose
+// any via yt-dlp at all) before falling back to whisper below.
+function fetchAutoCaptions(url, ytdlpCmd, safeId) {
+  return new Promise((resolve) => {
+    const subBase = path.join(DOWNLOADS_DIR, safeId);
+    const command  = `${quoteIfPath(ytdlpCmd)} --write-auto-sub --sub-lang en --skip-download --sub-format vtt ${cookiesFlag()} ${proxyFlag()} --paths "temp:${DOWNLOADS_DIR}" --output "${subBase}.%(ext)s" "${url}"`;
+    exec(command, { timeout: 30 * 1000, shell: true, cwd: DOWNLOADS_DIR }, (error, stdout, stderr) => {
+      const vttPath = `${subBase}.en.vtt`;
+      if (error || !fs.existsSync(vttPath)) {
+        console.log(`[captions] no auto-sub for ${url}${error ? ` (${(stderr || error.message || '').slice(0, 200)})` : ''}`);
+        return resolve([]);
+      }
+      try {
+        const raw   = fs.readFileSync(vttPath, 'utf8');
+        const words = parseVttWords(raw);
+        fs.unlinkSync(vttPath);
+        resolve(words);
+      } catch (e) {
+        console.error('[captions] auto-sub VTT parse failed:', e.message);
+        resolve([]);
+      }
+    });
+  });
+}
+
 // Search page's fallback when a video has no real caption data of its own:
 // transcribe its audio ourselves with a local whisper.cpp model (called via
 // fetchWhisperCaptionsForSearch below, on just the audio track — no full
-// video download needed for a preview). `-ml 2` caps each VTT cue at ~2
-// words so the existing parseVttWords() (built for YouTube's word-timed
-// cues) gets near-word-level timing here too, instead of one giant
-// per-sentence cue. Bounded and best-effort: any failure (missing binary,
-// ffmpeg hiccup, timeout) just resolves to [] rather than breaking the preview.
+// video download needed for a preview). Also reused directly by the
+// download page's transcript box (below) on the already-downloaded file,
+// for every platform that doesn't expose caption data of its own — the
+// multilingual tiny model transcribes in whatever language is actually
+// spoken, it doesn't translate. `-ml 2` caps each VTT cue at ~2 words so
+// the existing parseVttWords() (built for YouTube's word-timed cues) gets
+// near-word-level timing here too, instead of one giant per-sentence cue.
+// Bounded and best-effort: any failure (missing binary, ffmpeg hiccup,
+// timeout) just resolves to [] rather than breaking the preview/download.
 function fetchWhisperCaptions(mediaPath, ffmpegCmd) {
   return new Promise((resolve) => {
     if (!WHISPER_READY) {
@@ -793,6 +823,33 @@ app.post('/api/download/cancel', requireAuth, (req, res) => {
   try { fs.unlinkSync(activeFile); } catch (e) {}
   logActivity(req, 'download_cancelled', {});
   res.json({ success: true });
+});
+
+// Download page's transcript box: file ready hote hi /api/download turant
+// respond kar deta hai (waveform bhi turant dikhta hai — koi fetch nahi),
+// aur ye route alag se, background mein, asli word-by-word text laata hai
+// — best-effort, fail ho jaaye ya na milein toh bhi [] hi resolve hota hai.
+app.post('/api/download-captions', requireAuth, async (req, res) => {
+  const url      = String(req.body.url || '').trim();
+  const filename = String(req.body.filename || '').trim();
+  if (!url || !filename) return res.json({ captions: [] });
+
+  const uid = req.user.id;
+  const safeName = path.basename(filename); // path traversal guard
+  if (!safeName.startsWith(`${uid.slice(0,8)}_`)) {
+    return res.status(403).json({ error: 'Yeh file aapki nahi hai' });
+  }
+  const finalFile = path.join(DOWNLOADS_DIR, safeName);
+  if (!fs.existsSync(finalFile)) return res.json({ captions: [] });
+
+  const safeId   = safeName.replace(/\.[^/.]+$/, '');
+  const ytdlpCmd = await resolveYtdlpCommand();
+  let captions = ytdlpCmd ? await fetchAutoCaptions(url, ytdlpCmd, safeId) : [];
+  if (!captions.length && WHISPER_READY) {
+    const ffmpegCmd = await resolveFfmpegCommand();
+    if (ffmpegCmd) captions = await fetchWhisperCaptions(finalFile, ffmpegCmd);
+  }
+  res.json({ captions });
 });
 
 // ─── CONVERT ROUTE — already-downloaded file ko doosre format mein badlo ──

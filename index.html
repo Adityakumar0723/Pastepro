@@ -212,6 +212,7 @@
     .dl-preview-box audio::-webkit-media-controls-play-button { transform:scale(1.4); }
     .dl-captions-box { margin-top:12px; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px 16px; }
     .dl-captions-box canvas { display:block; width:100%; }
+    .dl-transcript-box { margin-top:12px; max-height:170px; overflow-y:auto; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px; font-size:15px; line-height:2; }
     .cap-word { display:inline-block; padding:1px 4px; margin:1px; border-radius:5px; color:var(--muted); transition:color 0.15s, background 0.15s; }
     .cap-status { color:var(--muted); font-size:13px; }
     .cap-word.active { color:#0c0c0e; background:var(--green); font-weight:700; }
@@ -817,6 +818,7 @@
               <audio id="dl-preview-audio" controls preload="metadata" style="display:none;"></audio>
             </div>
             <div class="dl-captions-box" id="dl-captions-box" style="display:none;"></div>
+            <div class="dl-transcript-box" id="dl-transcript-box" style="display:none;"></div>
           </div>
         </div>
 
@@ -1265,6 +1267,7 @@
   let selectedSearchPlatform = 'youtube';
   let currentDownloadController = null;
   let downloadCancelledByUser = false;
+  let dlCaptionsToken = 0; // download-captions fetch stale ho gaya hai kya, check karne ke liye
   let currentSearchCaptionWords = [];
   let searchCaptionsEnabled = true;
   let searchCaptionLang = 'orig'; // 'orig' | 'en'
@@ -1398,6 +1401,8 @@
     stopMedia(document.getElementById('dl-preview-video'));
     stopMedia(document.getElementById('dl-preview-audio'));
     stopDlWaveform();
+    dlCaptionsToken++; // koi bhi pending /api/download-captions fetch ab stale hai
+    renderCaptions([]);
     currentDownloadedFilename = null;
     document.getElementById('convert-results').innerHTML = '';
     if (currentUser && authToken) {
@@ -2673,6 +2678,10 @@
         showDownloadPage(data, fullUrl, type, quality);
         addToHistory(data, withDl(fullUrl), type, quality);
         showToast('File ready hai! ✓','success');
+        // Transcript (asli bola hua text) /api/download se decouple hai —
+        // file turant ready dikh jaati hai, text background mein alag se
+        // aata hai (search page jaisa hi pattern).
+        fetchAndRenderDownloadCaptions(url, data.filename);
       } else {
         showToast(data.error || 'Kuch error aa gaya','error');
       }
@@ -2758,6 +2767,10 @@
     stopDlWaveform();
     document.getElementById('dl-captions-box').style.display = 'none';
     document.getElementById('dl-captions-box').innerHTML = '';
+
+    // Word-by-word transcript — background mein fetch hota hai, yahan bas reset.
+    document.getElementById('dl-transcript-box').style.display = 'none';
+    document.getElementById('dl-transcript-box').innerHTML = '';
 
     // Convert section — video-format options sirf tab jab downloaded file khud video ho
     currentDownloadedFilename = data.filename;
@@ -2963,7 +2976,96 @@
   dlWaveformAudioEl.addEventListener('play',  () => startDlWaveform(dlWaveformAudioEl));
   dlWaveformAudioEl.addEventListener('pause', stopDlWaveform);
   dlWaveformAudioEl.addEventListener('ended', stopDlWaveform);
- 
+
+  // ════════════════════════════════
+  //  WORD-BY-WORD TRANSCRIPT — asli bola hua text, playback ke saath sync
+  //  highlight. Waveform ke bilkul ulat — isme actual speech-to-text lagta
+  //  hai (server-side, YouTube ke apne auto-sub se ya whisper se), isliye
+  //  ye background mein thoda time leta hai jab tak platform ka apna
+  //  caption data na ho.
+  // ════════════════════════════════
+  let currentCaptionWords = [];
+
+  function showDownloadCaptionsLoading() {
+    const box = document.getElementById('dl-transcript-box');
+    box.innerHTML = `<span class="cap-status">⏳ Text taiyaar ho raha hai (thoda time lag sakta hai)...</span>`;
+    box.style.display = 'block';
+  }
+
+  function showDownloadCaptionsUnavailable() {
+    const box = document.getElementById('dl-transcript-box');
+    box.innerHTML = `<span class="cap-status">Is video ke liye text available nahi hai.</span>`;
+    box.style.display = 'block';
+  }
+
+  // YouTube ke alawa har platform (Instagram/TikTok/Twitter/Facebook/Vimeo/
+  // Dailymotion/Reddit) ke paas apna caption data hota hi nahi, isliye unke
+  // liye whisper (multilingual model — jo bhi language bola gaya ho, usi
+  // mein transcribe karta hai, translate nahi karta) transcribe chalta hai.
+  async function fetchAndRenderDownloadCaptions(sourceUrl, filename) {
+    const myToken = ++dlCaptionsToken;
+    showDownloadCaptionsLoading();
+    let captions = [];
+    // Safety net: agar connection hi kabhi hang ho jaaye, "loading..." state
+    // hamesha ke liye atki nahi rehni chahiye.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 150 * 1000);
+    try {
+      const res = await fetch(`${BACKEND}/api/download-captions`, {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${authToken}` },
+        body: JSON.stringify({ url: sourceUrl, filename }),
+        signal: controller.signal
+      });
+      const data = await res.json().catch(() => ({}));
+      captions = data.captions || [];
+    } catch (e) {
+      captions = [];
+    } finally {
+      clearTimeout(timeoutId);
+    }
+    // User itni der mein doosri file download kar chuka ho sakta hai — stale response ignore karo.
+    if (dlCaptionsToken !== myToken) return;
+    if (!captions.length) { showDownloadCaptionsUnavailable(); currentCaptionWords = []; return; }
+    renderCaptions(captions);
+  }
+
+  function renderCaptions(words) {
+    const box = document.getElementById('dl-transcript-box');
+    currentCaptionWords = words || [];
+    if (!currentCaptionWords.length) {
+      box.style.display = 'none';
+      box.innerHTML = '';
+      return;
+    }
+    box.innerHTML = currentCaptionWords
+      .map((w, i) => `<span class="cap-word" data-i="${i}">${escapeHtml(w.text)}</span>`)
+      .join(' ');
+    box.style.display = 'block';
+  }
+
+  function updateCaptionHighlight(currentTime) {
+    if (!currentCaptionWords.length) return;
+    let activeIdx = -1;
+    for (let i = 0; i < currentCaptionWords.length; i++) {
+      if (currentCaptionWords[i].time <= currentTime) activeIdx = i; else break;
+    }
+    const box = document.getElementById('dl-transcript-box');
+    const prevActive = box.querySelector('.cap-word.active');
+    if (prevActive) prevActive.classList.remove('active');
+    if (activeIdx >= 0) {
+      const el = box.querySelector(`.cap-word[data-i="${activeIdx}"]`);
+      if (el) {
+        el.classList.add('active');
+        el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    }
+  }
+
+  // Ek hi baar attach — har download par listener stack nahi hoga
+  document.getElementById('dl-preview-video').addEventListener('timeupdate', (e) => updateCaptionHighlight(e.target.currentTime));
+  document.getElementById('dl-preview-audio').addEventListener('timeupdate', (e) => updateCaptionHighlight(e.target.currentTime));
+
   // Download button click — try direct download with fetch, fallback to new tab
  window.handleDirectDownload = async (e) => {
   e.preventDefault();
