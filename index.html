@@ -1264,6 +1264,7 @@
   let selectedSearchPlatform = 'youtube';
   let currentDownloadController = null;
   let downloadCancelledByUser = false;
+  let dlCaptionsToken = 0; // download-captions fetch stale ho gaya hai kya, check karne ke liye
   let currentSearchCaptionWords = [];
   let searchCaptionsEnabled = true;
   let searchCaptionLang = 'orig'; // 'orig' | 'en'
@@ -1396,6 +1397,7 @@
     stopSearchPlayer();
     stopMedia(document.getElementById('dl-preview-video'));
     stopMedia(document.getElementById('dl-preview-audio'));
+    dlCaptionsToken++; // koi bhi pending /api/download-captions fetch ab stale hai
     renderCaptions([]);
     currentDownloadedFilename = null;
     document.getElementById('convert-results').innerHTML = '';
@@ -2672,6 +2674,10 @@
         showDownloadPage(data, fullUrl, type, quality);
         addToHistory(data, withDl(fullUrl), type, quality);
         showToast('File ready hai! ✓','success');
+        // Captions /api/download se decouple hain (dekho server.js ka comment) —
+        // file ab turant ready dikhti hai, captions background mein alag se
+        // aate hain (search page jaisa hi pattern).
+        fetchAndRenderDownloadCaptions(url, data.filename);
       } else {
         showToast(data.error || 'Kuch error aa gaya','error');
       }
@@ -2873,6 +2879,35 @@
     html = html.replace(/ CB(\d+) /g, (m, i) => `<pre class="pg-code-block"><code>${codeBlocks[Number(i)]}</code></pre>`);
 
     return html;
+  }
+
+  function showDownloadCaptionsLoading() {
+    const box = document.getElementById('dl-captions-box');
+    box.innerHTML = `<span class="cap-status">⏳ Captions load ho rahe hain...</span>`;
+    box.style.display = 'block';
+  }
+
+  // Video/download response se decouple — file ready hote hi turant dikh
+  // jaati hai, captions (auto-sub ya whisper transcribe) alag se background
+  // mein aate hain, jaise search page mein pehle se ho raha hai.
+  async function fetchAndRenderDownloadCaptions(sourceUrl, filename) {
+    const myToken = ++dlCaptionsToken;
+    showDownloadCaptionsLoading();
+    let captions = [];
+    try {
+      const res = await fetch(`${BACKEND}/api/download-captions`, {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${authToken}` },
+        body: JSON.stringify({ url: sourceUrl, filename })
+      });
+      const data = await res.json().catch(() => ({}));
+      captions = data.captions || [];
+    } catch (e) {
+      captions = [];
+    }
+    // User itni der mein doosri file download kar chuka ho sakta hai — stale response ignore karo.
+    if (dlCaptionsToken !== myToken) return;
+    renderCaptions(captions);
   }
 
   function renderCaptions(words) {

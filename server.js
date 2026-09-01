@@ -714,20 +714,18 @@ app.post('/api/download', requireAuth, async (req, res) => {
     }
     logActivity(req, 'download', { url, type, quality, format: ext, filename });
 
-    // Best-effort: pehle platform ke apne auto-captions try karo (YouTube
-    // ke paas hamesha hote hain, TikTok/Twitter ke paas kabhi-kabhi). Agar
-    // kuch na mile (Instagram — jiske paas ye data kabhi hota hi nahi), toh
-    // downloaded file ko khud transcribe karo (whisper.cpp) — is tarah
-    // captions kisi bhi platform ke video par kaam karte hain, na ki sirf
-    // unpar jo apna caption data expose karte hain. Dono step best-effort
-    // hain — fail ho jaaye toh chup-chaap [] — caption na hona download ko
-    // fail nahi karta.
-    let captions = await fetchAutoCaptions(url, ytdlpCmd, safeId);
-    if (!captions.length && WHISPER_READY) {
-      const ffmpegCmd = await resolveFfmpegCommand();
-      if (ffmpegCmd) captions = await fetchWhisperCaptions(finalFile, ffmpegCmd);
-    }
-
+    // Captions ab yahan block nahi karte — pehle inline hi fetch karte the
+    // (auto-subs, phir na milne par whisper.cpp transcribe), jisme YouTube
+    // ke alawa har platform (Instagram/TikTok/Twitter/Facebook/Vimeo/
+    // Dailymotion/Reddit — inke paas apna caption data kabhi hota hi nahi)
+    // whisper fallback tak pahunch jaata tha: ffmpeg extract (60s timeout)
+    // + whisper transcribe (120s timeout), sab kuch download response se
+    // PEHLE khatam hone ka intezaar karte hue — isi wajah se in platforms
+    // par "download" bahut slow lagta tha, jabki asli file kabhi ki taiyaar
+    // ho chuki hoti thi. Ab file ready hote hi turant respond karte hain;
+    // frontend captions ko alag se /api/download-captions se, video already
+    // dikhne ke baad, background mein maangta hai (search page mein bhi
+    // yahi pattern already istemaal ho raha hai).
     res.json({
       success:  true,
       fileUrl,
@@ -736,7 +734,7 @@ app.post('/api/download', requireAuth, async (req, res) => {
       type,
       quality,
       format: ext,
-      captions
+      captions: []
     });
   };
 
@@ -797,6 +795,33 @@ app.post('/api/download/cancel', requireAuth, (req, res) => {
   try { fs.unlinkSync(activeFile); } catch (e) {}
   logActivity(req, 'download_cancelled', {});
   res.json({ success: true });
+});
+
+// Captions ko /api/download se decouple kar diya gaya (wahan blocking tha —
+// dekho us route ke comment mein wajah). Frontend video dikhne ke baad,
+// background mein, is route se caption maangta hai — best-effort, fail ho
+// jaaye ya na milein toh bhi [] hi resolve hota hai.
+app.post('/api/download-captions', requireAuth, async (req, res) => {
+  const url      = String(req.body.url || '').trim();
+  const filename = String(req.body.filename || '').trim();
+  if (!url || !filename) return res.json({ captions: [] });
+
+  const uid = req.user.id;
+  const safeName = path.basename(filename); // path traversal guard
+  if (!safeName.startsWith(`${uid.slice(0,8)}_`)) {
+    return res.status(403).json({ error: 'Yeh file aapki nahi hai' });
+  }
+  const finalFile = path.join(DOWNLOADS_DIR, safeName);
+  if (!fs.existsSync(finalFile)) return res.json({ captions: [] });
+
+  const safeId   = safeName.replace(/\.[^/.]+$/, '');
+  const ytdlpCmd = await resolveYtdlpCommand();
+  let captions = ytdlpCmd ? await fetchAutoCaptions(url, ytdlpCmd, safeId) : [];
+  if (!captions.length && WHISPER_READY) {
+    const ffmpegCmd = await resolveFfmpegCommand();
+    if (ffmpegCmd) captions = await fetchWhisperCaptions(finalFile, ffmpegCmd);
+  }
+  res.json({ captions });
 });
 
 // ─── CONVERT ROUTE — already-downloaded file ko doosre format mein badlo ──
