@@ -1860,7 +1860,42 @@
     const ytTab = document.querySelector('.splat-tab[data-plat="youtube"]');
     if (ytTab) setSearchPlatform('youtube', ytTab);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    setupSearchColumnSync();
   };
+
+  // Results list ki height ko player column ki ASAL (real, live-rendered)
+  // height se match karte hain — sirf ek "100vh - X" jaisa fixed formula
+  // kaam nahi karta, kyunki player column ki height khud badalti rehti hai
+  // (video load hone par, captions box khulne par, lambi title wrap hone
+  // par). Verified directly (real deployed site ka screenshot dekh kar):
+  // fixed formula wale approach mein results box player se chhota reh jaata
+  // tha, neeche khaali gap chhod deta tha. Ab ResizeObserver se jab bhi
+  // player column ki height badle, results list turant usi height tak
+  // (max-height se) sync ho jaati hai — andar hi scroll karti hai agar
+  // results us height se zyada ho.
+  let searchColResizeObserver = null;
+  function syncSearchColumnsHeight() {
+    const playerCol    = document.querySelector('.search-player-col');
+    const resultsList  = document.getElementById('search-results');
+    if (!playerCol || !resultsList) return;
+    // Mobile par columns stack ho jaate hain (single column) — wahan is
+    // sync ka koi matlab nahi, CSS ka apna max-height:none rule chalta hai.
+    if (!window.matchMedia('(min-width: 901px)').matches) {
+      resultsList.style.maxHeight = '';
+      return;
+    }
+    const h = playerCol.getBoundingClientRect().height;
+    if (h > 0) resultsList.style.maxHeight = `${h}px`;
+  }
+
+  function setupSearchColumnSync() {
+    if (searchColResizeObserver || typeof ResizeObserver === 'undefined') return;
+    const playerCol = document.querySelector('.search-player-col');
+    if (!playerCol) return;
+    searchColResizeObserver = new ResizeObserver(() => syncSearchColumnsHeight());
+    searchColResizeObserver.observe(playerCol);
+    window.addEventListener('resize', syncSearchColumnsHeight);
+  }
 
   // YouTube IFrame Player API — raw <iframe src> ki jagah isse asli error
   // (jaise "embedding disabled") detect kar sakte hain aur apna fallback
