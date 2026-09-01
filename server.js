@@ -677,8 +677,16 @@ function fetchWhisperCaptions(mediaPath, ffmpegCmd) {
         return resolve([]);
       }
 
+      // 180s (not the earlier 90s) — a free-tier/shared-CPU server can take
+      // a while on even a few minutes of audio once you add the tiny
+      // model's own load time on every invocation (no persistent process),
+      // and real videos are routinely 3-5+ minutes long. The download
+      // page's client-side abort (fetchAndRenderDownloadCaptions) waits up
+      // to 240s specifically to stay comfortably above this + ffmpeg's own
+      // 40s, so a real timeout here still reaches the client as a normal
+      // "not available" response instead of racing the client's own abort.
       const whisperCmd = `${quoteIfPath(WHISPER_BIN)} -m "${WHISPER_MODEL}" -f "${wavPath}" -ml 2 -ovtt -of "${base}" -np`;
-      exec(whisperCmd, { timeout: 90 * 1000, shell: true, cwd: DOWNLOADS_DIR, env: { ...process.env, LD_LIBRARY_PATH: path.dirname(WHISPER_BIN) } }, (wErr, wStdout, wStderr) => {
+      exec(whisperCmd, { timeout: 180 * 1000, shell: true, cwd: DOWNLOADS_DIR, env: { ...process.env, LD_LIBRARY_PATH: path.dirname(WHISPER_BIN) } }, (wErr, wStdout, wStderr) => {
         try { fs.unlinkSync(wavPath); } catch (e) {}
         if (wErr || !fs.existsSync(vttPath)) {
           console.error(`[whisper] transcription failed for ${mediaPath}:`, (wStderr || wErr?.message || '').slice(0, 300));

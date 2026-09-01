@@ -3152,9 +3152,10 @@
     showDownloadCaptionsLoading();
     let captions = [];
     // Safety net: agar connection hi kabhi hang ho jaaye, "loading..." state
-    // hamesha ke liye atki nahi rehni chahiye.
+    // hamesha ke liye atki nahi rehni chahiye. 240s — server ka apna budget
+    // (ffmpeg 40s + whisper 180s) 220s tak jaata hai, isse thoda zyada.
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 150 * 1000);
+    const timeoutId = setTimeout(() => controller.abort(), 240 * 1000);
     try {
       const res = await fetch(`${BACKEND}/api/download-captions`, {
         method: 'POST',
