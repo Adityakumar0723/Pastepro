@@ -57,7 +57,7 @@
  
     main { position: relative; z-index:1; max-width: 860px; margin: 0 auto; padding: 80px 24px 120px; transition: max-width 0.2s ease; }
     main:has(#download-page.show) { max-width: 1180px; }
-    main:has(#search-page.show) { max-width: 1320px; padding-top: 24px; padding-bottom: 24px; }
+    main:has(#search-page.show) { max-width: 1600px; padding-top: 24px; padding-bottom: 24px; }
     main:has(#search-page.show) .hero { display: none; }
     main:has(#docs-page.show) { max-width: 1180px; }
     main:has(#settings-page.show) { max-width: 1180px; }
@@ -423,31 +423,41 @@
     .cap-lang-btn.active { background:var(--green); border-color:transparent; color:#0c0c0e; }
     .cap-source-label { font-size:11px; color:var(--muted); font-style:italic; }
 
-    /* Two-column: player left, scrollable results list right (YouTube watch-page style).
-       height is an explicit viewport calc (not just align-items:stretch) —
-       without a real height reference, a flex:1 child has nothing to fill
-       against and just grows to fit however many results there are
-       (verified directly: 40 results made the whole section ~4900px tall
-       instead of staying contained). min-height:0 on the flex column is
-       needed for the same reason .pg-main needed it — a flex item won't
-       shrink below its content's size otherwise, so the results list would
-       overflow the fixed height instead of scrolling inside it. */
-    /* Player column ki natural height (video + title + captions + button,
-       no forced sizing) ab grid row ka real height-reference hai — results
-       column usi height tak stretch hoke andar hi scroll karta hai. Isse
-       koi bhi ancestor (.dl-card ka overflow:hidden, border-radius ke liye)
-       download button ko clip nahi karta, kyunki ab kuch bhi apni di gayi
-       height se overflow nahi hota — sab apni jagah, poora dikhta hai. */
-    .search-body { display:grid; grid-template-columns: minmax(280px, 1fr) minmax(260px, 340px); gap:0; align-items:stretch; }
-    .search-player-col { min-width:0; padding:24px 32px 32px; }
-    .search-list-col { min-width:0; min-height:0; padding:24px 20px 32px; background:var(--surface); border-left:1px solid var(--border); display:flex; flex-direction:column; }
-    @media (max-width:760px) {
+    /* YouTube-style search bar — pill input + attached round search button,
+       no card wrapper (page content sits directly on the page background,
+       like YouTube's own watch/search pages do). */
+    .yt-searchbar-row { display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:16px; }
+    .yt-searchbar { display:flex; flex:1; min-width:260px; max-width:600px; }
+    .yt-search-input { flex:1; min-width:0; padding:11px 18px; background:var(--surface); border:1px solid var(--border); border-right:none; border-radius:24px 0 0 24px; color:var(--text); font-family:'Space Grotesk',sans-serif; font-size:15px; outline:none; transition:border-color 0.2s; }
+    .yt-search-input:focus { border-color:var(--green); }
+    .yt-search-btn { padding:0 22px; background:var(--card); border:1px solid var(--border); border-radius:0 24px 24px 0; color:var(--text); font-size:16px; cursor:pointer; transition:background 0.2s; flex-shrink:0; }
+    .yt-search-btn:hover { background:var(--surface); }
+
+    /* Two-column: player left, scrollable results list right. Independent
+       sizing (align-items:start, no stretch) — each column sizes to its
+       own natural content, so the video's real height never depends on
+       how many search results there are, and vice versa. Verified this
+       avoids the earlier circular-sizing bugs (a flex:1 list with nothing
+       real to fill against just grows to fit all its content instead of
+       staying contained). */
+    .search-body { display:grid; grid-template-columns: minmax(280px, 1fr) minmax(300px, 380px); gap:28px; align-items:start; }
+    .search-player-col { min-width:0; }
+    .search-list-col { min-width:0; min-height:0; display:flex; flex-direction:column; }
+    @media (max-width:900px) {
       .search-body { grid-template-columns: 1fr; }
-      .search-list-col { border-left:none; border-top:1px solid var(--border); }
-      .search-results-list { flex:none; max-height:70vh; }
     }
 
-    .search-results-list { display:flex; flex-direction:column; gap:10px; flex:1; max-height:700px; overflow-y:auto; padding-right:6px; margin-top:12px; }
+    /* Video info block below the player, YouTube-watch-page style. */
+    .yt-video-info { padding:16px 0; border-bottom:1px solid var(--border); margin-bottom:16px; }
+    .yt-video-title { font-family:'Syne',sans-serif; font-size:20px; font-weight:800; letter-spacing:normal; line-height:1.35; margin-bottom:16px; }
+    .yt-video-meta-row { display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+    .yt-channel-block { display:flex; align-items:center; gap:12px; }
+    .yt-channel-avatar { width:42px; height:42px; border-radius:50%; background:linear-gradient(135deg,var(--accent),var(--accent2)); display:flex; align-items:center; justify-content:center; font-weight:800; color:#fff; font-size:17px; flex-shrink:0; }
+    .yt-channel-name { font-size:14.5px; font-weight:700; }
+    .yt-channel-views { font-size:12.5px; color:var(--muted); margin-top:2px; }
+    .yt-download-btn { width:auto !important; padding:11px 24px !important; }
+
+    .search-results-list { display:flex; flex-direction:column; gap:10px; max-height:calc(100vh - 220px); min-height:400px; overflow-y:auto; padding-right:6px; margin-top:12px; }
     .search-result-row { display:flex; gap:10px; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:8px; cursor:pointer; transition:border-color 0.2s, background 0.2s; }
     .search-result-row:hover { border-color:var(--border-hover); }
     .search-result-row.active { border-color:var(--green); background:rgba(46,196,182,0.07); }
@@ -979,85 +989,80 @@
     </div>
   </div>
 
-  <!-- YOUTUBE SEARCH PAGE -->
+  <!-- YOUTUBE SEARCH PAGE — full-width, YouTube watch-page style layout -->
   <div id="search-page" class="download-page">
 
     <button class="back-btn" onclick="goHome()">← Wapas Jaao</button>
 
-    <div class="dl-card">
+    <div class="yt-searchbar-row">
+      <div class="yt-searchbar">
+        <input class="yt-search-input" id="search-query" type="text" placeholder="Kya dhundna hai? (e.g. lofi music, cooking recipe...)" onkeydown="if(event.key==='Enter') doSearch()" />
+        <button type="button" class="yt-search-btn" id="search-btn" onclick="doSearch()" title="Search karo">🔍</button>
+      </div>
+      <div class="splat-tabs" id="search-platform-tabs">
+        <button type="button" class="splat-tab active" data-plat="youtube" onclick="setSearchPlatform('youtube', this)">▶️ YouTube</button>
+        <button type="button" class="splat-tab" data-plat="reddit" onclick="setSearchPlatform('reddit', this)">👽 Reddit</button>
+        <button type="button" class="splat-tab" data-plat="instagram" onclick="setSearchPlatform('instagram', this)">📸 Instagram</button>
+        <button type="button" class="splat-tab" data-plat="twitter" onclick="setSearchPlatform('twitter', this)">✖️ Twitter / X</button>
+      </div>
+    </div>
 
-      <div class="dl-banner">
-        <div class="dl-banner-icon">🔍</div>
-        <div>
-          <h2 id="search-banner-title">YouTube Search</h2>
-          <p id="search-banner-sub">Video dhundo, play karo, aur seedha download karo</p>
+    <div class="search-linkonly-note" id="search-linkonly-note">
+      ℹ️ Reddit, Instagram aur Twitter/X apni policy ki wajah se pura profile list karne ki ijazat anonymously nahi dete — bas us profile ke kisi bhi post/reel/tweet ka link yahan paste karo, hum seedha wahi download kar denge.
+    </div>
+
+    <div class="pg-thinking" id="search-thinking">
+      <span class="pg-dot"></span><span class="pg-dot"></span><span class="pg-dot"></span>
+      Search ho raha hai...
+    </div>
+
+    <!-- Player (left) + Results list (right) — YouTube watch-page style -->
+    <div class="search-body" id="search-body" style="display:none;">
+
+      <!-- Now Playing -->
+      <div class="search-player-col">
+        <div class="search-player-wrap">
+          <div id="search-player-target"></div>
+          <div class="search-player-error" id="search-player-error">
+            <div style="font-size:32px;">🚫</div>
+            <p>Ye video yahan embed nahi ho sakta — uploader ne embedding disable ki hai ya video age-restricted hai.</p>
+            <a id="search-player-watch-link" href="#" target="_blank" class="dl-btn dl-btn-gray" style="display:inline-flex; width:auto; padding:10px 20px;">🌐 YouTube par dekho →</a>
+          </div>
         </div>
+
+        <div class="yt-video-info">
+          <h2 class="yt-video-title" id="search-player-title"></h2>
+          <div class="yt-video-meta-row">
+            <div class="yt-channel-block">
+              <div class="yt-channel-avatar" id="search-player-avatar"></div>
+              <div>
+                <div class="yt-channel-name" id="search-player-channel"></div>
+                <div class="yt-channel-views" id="search-player-views"></div>
+              </div>
+            </div>
+            <button class="dl-btn dl-btn-green yt-download-btn" id="search-player-dl-btn" onclick="downloadCurrentSearchResult()">⬇ Download Karo</button>
+          </div>
+        </div>
+
+        <div class="search-cap-controls">
+          <label class="cap-toggle-switch">
+            <input type="checkbox" id="search-cap-enabled" checked onchange="toggleSearchCaptions(this.checked)" />
+            <span class="cap-toggle-slider"></span>
+            <span class="cap-toggle-label">📝 Captions</span>
+          </label>
+          <div class="cap-lang-tabs" id="search-cap-lang-tabs" style="display:none;">
+            <button type="button" class="cap-lang-btn active" id="search-cap-lang-orig" onclick="setSearchCaptionLang('orig')">Original</button>
+            <button type="button" class="cap-lang-btn" id="search-cap-lang-en" onclick="setSearchCaptionLang('en')">English</button>
+          </div>
+          <span class="cap-source-label" id="search-cap-source-label" style="display:none;">🤖 AI se auto-transcribe kiya gaya</span>
+        </div>
+        <div class="dl-captions-box" id="search-captions-box" style="display:none;"></div>
       </div>
 
-      <div class="dl-section">
-        <div class="splat-tabs" id="search-platform-tabs">
-          <button type="button" class="splat-tab active" data-plat="youtube" onclick="setSearchPlatform('youtube', this)">▶️ YouTube</button>
-          <button type="button" class="splat-tab" data-plat="reddit" onclick="setSearchPlatform('reddit', this)">👽 Reddit</button>
-          <button type="button" class="splat-tab" data-plat="instagram" onclick="setSearchPlatform('instagram', this)">📸 Instagram</button>
-          <button type="button" class="splat-tab" data-plat="twitter" onclick="setSearchPlatform('twitter', this)">✖️ Twitter / X</button>
-        </div>
-
-        <div class="search-linkonly-note" id="search-linkonly-note">
-          ℹ️ Reddit, Instagram aur Twitter/X apni policy ki wajah se pura profile list karne ki ijazat anonymously nahi dete — bas us profile ke kisi bhi post/reel/tweet ka link yahan paste karo, hum seedha wahi download kar denge.
-        </div>
-
-        <div class="url-wrap" style="margin-bottom:0;">
-          <input class="url-input" id="search-query" type="text" placeholder="Kya dhundna hai? (e.g. lofi music, cooking recipe...)" onkeydown="if(event.key==='Enter') doSearch()" />
-        </div>
-        <button type="button" class="btn-dl btn-video" id="search-btn" style="width:100%; margin-top:14px;" onclick="doSearch()">🔍 Search Karo</button>
-
-        <div class="pg-thinking" id="search-thinking">
-          <span class="pg-dot"></span><span class="pg-dot"></span><span class="pg-dot"></span>
-          Search ho raha hai...
-        </div>
-      </div>
-
-      <!-- Player (left) + Results list (right) — YouTube watch-page style -->
-      <div class="search-body" id="search-body" style="display:none;">
-
-        <!-- Now Playing -->
-        <div class="search-player-col">
-          <div class="dl-section-label">▶ Ab Chal Raha Hai</div>
-          <div class="search-player-wrap">
-            <div id="search-player-target"></div>
-            <div class="search-player-error" id="search-player-error">
-              <div style="font-size:32px;">🚫</div>
-              <p>Ye video yahan embed nahi ho sakta — uploader ne embedding disable ki hai ya video age-restricted hai.</p>
-              <a id="search-player-watch-link" href="#" target="_blank" class="dl-btn dl-btn-gray" style="display:inline-flex; width:auto; padding:10px 20px;">🌐 YouTube par dekho →</a>
-            </div>
-          </div>
-          <div class="search-player-title" id="search-player-title"></div>
-
-          <div class="search-cap-controls">
-            <label class="cap-toggle-switch">
-              <input type="checkbox" id="search-cap-enabled" checked onchange="toggleSearchCaptions(this.checked)" />
-              <span class="cap-toggle-slider"></span>
-              <span class="cap-toggle-label">📝 Captions</span>
-            </label>
-            <div class="cap-lang-tabs" id="search-cap-lang-tabs" style="display:none;">
-              <button type="button" class="cap-lang-btn active" id="search-cap-lang-orig" onclick="setSearchCaptionLang('orig')">Original</button>
-              <button type="button" class="cap-lang-btn" id="search-cap-lang-en" onclick="setSearchCaptionLang('en')">English</button>
-            </div>
-            <span class="cap-source-label" id="search-cap-source-label" style="display:none;">🤖 AI se auto-transcribe kiya gaya</span>
-          </div>
-          <div class="dl-captions-box" id="search-captions-box" style="display:none;"></div>
-
-          <div class="dl-actions" style="padding:16px 0 0; grid-template-columns:1fr;">
-            <button class="dl-btn dl-btn-green" id="search-player-dl-btn" onclick="downloadCurrentSearchResult()">⬇ Isko Download Karo</button>
-          </div>
-        </div>
-
-        <!-- Suggestions / results list -->
-        <div class="search-list-col">
-          <div class="dl-section-label">📃 Results</div>
-          <div id="search-results" class="search-results-list"></div>
-        </div>
-
+      <!-- Suggestions / results list -->
+      <div class="search-list-col">
+        <div class="dl-section-label">📃 Results</div>
+        <div id="search-results" class="search-results-list"></div>
       </div>
 
     </div>
@@ -1897,14 +1902,11 @@
     const input   = document.getElementById('search-query');
     const btnEl   = document.getElementById('search-btn');
     const note    = document.getElementById('search-linkonly-note');
-    const title   = document.getElementById('search-banner-title');
-    const sub     = document.getElementById('search-banner-sub');
 
     if (plat === 'youtube') {
-      title.textContent = 'YouTube Search';
-      sub.textContent = 'Video dhundo, play karo, aur seedha download karo';
       input.placeholder = 'Kya dhundna hai? (e.g. lofi music, cooking recipe...)';
-      btnEl.textContent = '🔍 Search Karo';
+      btnEl.textContent = '🔍';
+      btnEl.title = 'Search karo';
       note.style.display = 'none';
     } else {
       // Reddit/Instagram/Twitter: koi bhi platform ab anonymous "puri profile
@@ -1912,11 +1914,9 @@
       // logged-out requests par login-wall ya bot-block aata hai, YouTube
       // jaisa hi IP-reputation issue). Isliye teeno platforms ke liye
       // honest, hamesha-kaam-karne-wala flow: seedha post ka link do.
-      const names = { reddit: 'Reddit', instagram: 'Instagram', twitter: 'Twitter / X' };
-      title.textContent = `${names[plat]} Download`;
-      sub.textContent = 'Post/Reel/Tweet ka link paste karke seedha download karo';
       input.placeholder = 'Post/Reel/Tweet ka link yahan paste karo';
-      btnEl.textContent = '⬇ Isse Download Karo';
+      btnEl.textContent = '⬇';
+      btnEl.title = 'Isse download karo';
       note.style.display = 'block';
     }
   };
@@ -2152,6 +2152,9 @@
     currentPlayingIndex = i;
     document.getElementById('search-player-title').textContent = r.title;
     document.getElementById('search-player-watch-link').href = r.url;
+    document.getElementById('search-player-channel').textContent = r.channel || '';
+    document.getElementById('search-player-views').textContent = `${formatViews(r.views)} views`;
+    document.getElementById('search-player-avatar').textContent = (r.channel || '?').trim().charAt(0).toUpperCase();
     showSearchPlayerError(false);
 
     document.querySelectorAll('.search-result-row').forEach(el => el.classList.remove('active'));
