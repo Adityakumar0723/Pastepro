@@ -103,10 +103,11 @@ app.use(cors({
   methods: ['GET', 'POST'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
-// Default express.json() limit is 100kb — way too small for a base64-encoded
-// image/PDF attachment on the Playground Query. 20mb comfortably covers a
-// ~15MB file once base64's ~33% size overhead is added.
-app.use(express.json({ limit: '20mb' }));
+// Default express.json() limit is 100kb — way too small for base64-encoded
+// attachments on the Playground Query. Multiple files can now be attached
+// to one message (combined cap 20MB raw, enforced in /api/query) — 30mb
+// comfortably covers that once base64's ~33% size overhead is added.
+app.use(express.json({ limit: '30mb' }));
 
 // Downloads folder — files yahan save honge.
 // Kept OUTSIDE the project directory on purpose: if index.html is opened via
@@ -901,87 +902,141 @@ function stripRtf(rtf) {
     .trim();
 }
 
+function escapeHtmlServer(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// Raw <a:t> text nikaalte waqt XML entities (&amp; &lt; wagera) decode
+// nahi hote — isse pehle "&amp;" jaisa literal text hi reh jaata tha, aur
+// baad mein client-side escapeHtml() usse dobara escape kar deta tha
+// (&amp;amp; ban jaata). Yahan decode karke asli character wapas milta hai.
+function decodeXmlEntities(s) {
+  return String(s ?? '')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&');
+}
+
 // Sab non-PDF document formats (Playground attachment) ke liye ek hi jagah
 // se text extraction — har format ka apna tarika hai kyunki koi bhi free AI
 // model in files ko "as-is" accept nahi karta, sabko plain text banana
-// padta hai jo phir prompt mein context ki tarah fold hota hai.
+// padta hai jo phir prompt mein context ki tarah fold hota hai. XLSX/PPTX
+// ke liye ek extra "preview" shape (html/slides) bhi dete hain — browser
+// inhe natively render nahi kar sakta, isliye attachment modal mein plain
+// CSV/paragraph text ke bajaye asli table/slide jaisa dikhta hai.
 async function extractDocText(buffer, format) {
   switch (format) {
     case 'docx': {
       const result = await mammoth.extractRawText({ buffer });
-      return (result.value || '').trim();
+      return { text: (result.value || '').trim() };
     }
     case 'xlsx': {
       const wb = XLSX.read(buffer, { type: 'buffer' });
-      return wb.SheetNames.map(name => {
+      const text = wb.SheetNames.map(name => {
         const csv = XLSX.utils.sheet_to_csv(wb.Sheets[name]);
         return `--- Sheet: ${name} ---\n${csv}`.trim();
       }).join('\n\n').trim();
+      // Apna khud ka escaping karte hain (SheetJS ke built-in sheet_to_html
+      // par bharosa karne ke bajaye) taaki koi bhi cell value HTML mein
+      // safely render ho, chahe usme "<"/"&" jaise characters hi kyun na hon.
+      const html = wb.SheetNames.map(name => {
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: false, defval: '' });
+        const rowsHtml = rows.slice(0, 500).map(row =>
+          `<tr>${row.map(cell => `<td>${escapeHtmlServer(cell)}</td>`).join('')}</tr>`
+        ).join('');
+        const truncNote = rows.length > 500 ? `<div class="pg-doc-sheet-note">(pehli 500 rows dikh rahi hain, sheet mein ${rows.length} hain)</div>` : '';
+        return `<div class="pg-doc-sheet"><div class="pg-doc-sheet-name">${escapeHtmlServer(name)}</div><table>${rowsHtml}</table>${truncNote}</div>`;
+      }).join('');
+      return { text, html };
     }
     case 'pptx': {
       const zip = new AdmZip(buffer);
       const slideEntries = zip.getEntries()
         .filter(e => /^ppt\/slides\/slide\d+\.xml$/.test(e.entryName))
         .sort((a, b) => parseInt(a.entryName.match(/(\d+)/)[1], 10) - parseInt(b.entryName.match(/(\d+)/)[1], 10));
-      return slideEntries.map((e, i) => {
+      // Har <a:p> (paragraph/bullet) apni line par — pehle poore slide ke
+      // <a:t> ko ek saath jod dete the jisse text bina line-breaks ke ek
+      // hi paragraph mein jumble ho jaata tha, ab har bullet alag dikhta hai.
+      const slides = slideEntries.map((e, i) => {
         const xml = e.getData().toString('utf8');
-        const texts = [...xml.matchAll(/<a:t>([^<]*)<\/a:t>/g)].map(m => m[1]);
-        return `--- Slide ${i + 1} ---\n${texts.join(' ')}`;
-      }).join('\n\n').trim();
+        const lines = [...xml.matchAll(/<a:p>([\s\S]*?)<\/a:p>/g)]
+          .map(p => [...p[1].matchAll(/<a:t>([^<]*)<\/a:t>/g)].map(m => decodeXmlEntities(m[1])).join(''))
+          .filter(line => line.trim());
+        return { number: i + 1, lines };
+      });
+      const text = slides.map(s => `--- Slide ${s.number} ---\n${s.lines.join('\n')}`).join('\n\n').trim();
+      return { text, slides };
     }
     case 'odt': {
       const zip = new AdmZip(buffer);
       const entry = zip.getEntry('content.xml');
-      return entry ? stripXmlTags(entry.getData().toString('utf8')) : '';
+      return { text: entry ? stripXmlTags(entry.getData().toString('utf8')) : '' };
     }
     case 'epub': {
       const zip = new AdmZip(buffer);
       const htmlEntries = zip.getEntries().filter(e => /\.(x?html|htm)$/i.test(e.entryName));
-      return htmlEntries.map(e => stripXmlTags(e.getData().toString('utf8'))).join('\n\n').trim();
+      return { text: htmlEntries.map(e => stripXmlTags(e.getData().toString('utf8'))).join('\n\n').trim() };
     }
     case 'rtf':
-      return stripRtf(buffer.toString('utf8'));
+      return { text: stripRtf(buffer.toString('utf8')) };
     case 'html':
-      return stripXmlTags(buffer.toString('utf8'));
+      return { text: stripXmlTags(buffer.toString('utf8')) };
     case 'md':
     case 'txt':
-      return buffer.toString('utf8').trim();
+      return { text: buffer.toString('utf8').trim() };
     default:
-      return '';
+      return { text: '' };
   }
 }
 
+const MAX_ATTACHMENTS_PER_QUERY   = 5;
+const MAX_TOTAL_ATTACHMENT_BYTES  = 20 * 1024 * 1024; // sab non-video attachments combined (base64 decoded)
+
 app.post('/api/query', requireAuth, async (req, res) => {
   const query = String(req.body.query || '').trim();
-  const imageDataUrl = typeof req.body.image === 'string' ? req.body.image : null;
-  const pdfBase64     = typeof req.body.pdfBase64 === 'string' ? req.body.pdfBase64 : null;
-  const pdfName       = String(req.body.pdfName || 'document.pdf');
-  const videoName     = typeof req.body.videoName === 'string' ? req.body.videoName.trim().slice(0, 200) : null;
-  const docBase64     = typeof req.body.docBase64 === 'string' ? req.body.docBase64 : null;
-  const docName       = String(req.body.docName || 'document');
-  const docFormat     = typeof req.body.docFormat === 'string' ? req.body.docFormat : null;
+  const attachments = Array.isArray(req.body.attachments) ? req.body.attachments : [];
 
   if (!query) return res.status(400).json({ error: 'Pehle kuch likho' });
   if (query.length > 4000) return res.status(400).json({ error: 'Query bahut lambi hai (max 4000 characters)' });
   if (!OPENROUTER_API_KEY) return res.status(500).json({ error: 'OpenRouter API key server par configure nahi hai' });
+  if (attachments.length > MAX_ATTACHMENTS_PER_QUERY) {
+    return res.status(400).json({ error: `Ek saath max ${MAX_ATTACHMENTS_PER_QUERY} files attach kar sakte ho` });
+  }
 
-  if (imageDataUrl && !/^data:image\/(png|jpe?g|webp|gif);base64,/.test(imageDataUrl)) {
-    return res.status(400).json({ error: 'Sirf PNG/JPEG/WEBP/GIF images support hain' });
-  }
-  if (pdfBase64) {
-    const approxBytes = pdfBase64.length * 0.75;
-    if (approxBytes > MAX_ATTACHMENT_BYTES) return res.status(400).json({ error: 'PDF bahut badi hai (max 15MB)' });
-  }
-  if (imageDataUrl) {
-    const approxBytes = imageDataUrl.length * 0.75;
-    if (approxBytes > MAX_ATTACHMENT_BYTES) return res.status(400).json({ error: 'Image bahut badi hai (max 15MB)' });
-  }
-  if (docBase64) {
-    if (!docFormat || !SUPPORTED_DOC_FORMATS.includes(docFormat)) {
-      return res.status(400).json({ error: 'Ye file format support nahi hai' });
+  // Pehle hi sab attachments ko validate kar lete hain (format/size) taaki
+  // koi bhi OpenRouter call ya text-extraction shuru hone se pehle hi galat
+  // input reject ho jaaye.
+  let totalBytes = 0;
+  for (const att of attachments) {
+    if (!att || typeof att !== 'object') return res.status(400).json({ error: 'Attachment data galat hai' });
+    if (att.kind === 'image') {
+      if (typeof att.dataUrl !== 'string' || !/^data:image\/(png|jpe?g|webp|gif);base64,/.test(att.dataUrl)) {
+        return res.status(400).json({ error: 'Sirf PNG/JPEG/WEBP/GIF images support hain' });
+      }
+      const bytes = att.dataUrl.length * 0.75;
+      if (bytes > MAX_ATTACHMENT_BYTES) return res.status(400).json({ error: 'Image bahut badi hai (max 15MB)' });
+      totalBytes += bytes;
+    } else if (att.kind === 'pdf') {
+      if (typeof att.base64 !== 'string') return res.status(400).json({ error: 'PDF data galat hai' });
+      const bytes = att.base64.length * 0.75;
+      if (bytes > MAX_ATTACHMENT_BYTES) return res.status(400).json({ error: 'PDF bahut badi hai (max 15MB)' });
+      totalBytes += bytes;
+    } else if (att.kind === 'doc') {
+      if (typeof att.base64 !== 'string' || !SUPPORTED_DOC_FORMATS.includes(att.format)) {
+        return res.status(400).json({ error: 'Ye file format support nahi hai' });
+      }
+      const bytes = att.base64.length * 0.75;
+      if (bytes > MAX_ATTACHMENT_BYTES) return res.status(400).json({ error: 'File bahut badi hai (max 15MB)' });
+      totalBytes += bytes;
+    } else if (att.kind !== 'video') {
+      return res.status(400).json({ error: 'Attachment type galat hai' });
     }
-    const approxBytes = docBase64.length * 0.75;
-    if (approxBytes > MAX_ATTACHMENT_BYTES) return res.status(400).json({ error: 'File bahut badi hai (max 15MB)' });
+  }
+  if (totalBytes > MAX_TOTAL_ATTACHMENT_BYTES) {
+    return res.status(400).json({ error: 'Sab files ka total size bahut zyada hai (max 20MB combined)' });
   }
 
   const uid = req.user.id;
@@ -989,63 +1044,70 @@ app.post('/api/query', requireAuth, async (req, res) => {
     return res.status(429).json({ error: 'Pehli query abhi process ho rahi hai, thoda ruko' });
   }
   activeQueries.add(uid);
-  logActivity(req, 'playground_query', { query, hasImage: !!imageDataUrl, hasPdf: !!pdfBase64, hasVideo: !!videoName, hasDoc: !!docBase64 });
+  logActivity(req, 'playground_query', { query, attachmentCount: attachments.length, kinds: attachments.map(a => a.kind) });
 
   try {
-    // PDF attachment: extract its text server-side and fold it into the
-    // prompt as plain context — no model here accepts a raw PDF as a
-    // "file", but every model already handles a longer text prompt fine.
-    let finalQuery = query;
-    // Video attachment: no free model here can actually watch a video, so
-    // the raw file never leaves the browser (only kept in IndexedDB for
-    // playback) — we just let the model know one was attached, by name,
-    // so it doesn't answer as if it's blind to the fact one exists.
-    if (videoName) {
-      finalQuery = `(User ne ek video file attach ki hai: "${videoName}". Video ka content dekhna abhi possible nahi hai, sirf filename pata hai — agar zaroori ho to user se pucho video mein kya hai.)\n\n${finalQuery}`;
-    }
-    if (pdfBase64) {
-      try {
-        const pdfBuffer = Buffer.from(pdfBase64, 'base64');
-        const parsed = await pdfParse(pdfBuffer);
-        const extracted = (parsed.text || '').trim().slice(0, MAX_EXTRACTED_TEXT_CHARS);
-        if (extracted) {
-          finalQuery = `Yeh ek PDF ("${pdfName}") ka content hai:\n\n${extracted}\n\n---\n\nUpar wale PDF content ke baare mein sawaal: ${query}`;
-        } else {
-          finalQuery = `(PDF "${pdfName}" se koi readable text nahi mila — shayad ye scanned/image-based PDF hai.)\n\n${query}`;
+    // Har attachment type ka apna extraction tarika hai kyunki koi bhi free
+    // AI model in files ko "as-is" accept nahi karta — PDF/doc/video sab
+    // plain text context ban ke prompt mein fold ho jaate hain, aur image
+    // (multiple bhi) seedha vision model ko multimodal content ki tarah
+    // jaate hain.
+    const imageDataUrls = [];
+    let extractedContext = '';
+
+    for (const att of attachments) {
+      if (att.kind === 'image') {
+        imageDataUrls.push(att.dataUrl);
+      } else if (att.kind === 'video') {
+        // No free model here can actually watch a video, so the raw file
+        // never leaves the browser (only kept in IndexedDB for playback)
+        // — we just let the model know one was attached, by name.
+        const name = String(att.name || 'video').slice(0, 200);
+        extractedContext += `\n\n(User ne ek video file attach ki hai: "${name}". Video ka content dekhna abhi possible nahi hai, sirf filename pata hai — agar zaroori ho to user se pucho video mein kya hai.)`;
+      } else if (att.kind === 'pdf') {
+        const name = String(att.name || 'document.pdf').slice(0, 200);
+        try {
+          const buffer = Buffer.from(att.base64, 'base64');
+          const parsed = await pdfParse(buffer);
+          const extracted = (parsed.text || '').trim().slice(0, MAX_EXTRACTED_TEXT_CHARS);
+          extractedContext += extracted
+            ? `\n\nYeh ek PDF ("${name}") ka content hai:\n\n${extracted}`
+            : `\n\n(PDF "${name}" se koi readable text nahi mila — shayad ye scanned/image-based PDF hai.)`;
+        } catch (e) {
+          console.error('PDF parse error:', e.message);
+          activeQueries.delete(uid);
+          return res.status(400).json({ error: `PDF "${name}" read nahi ho payi. Kya ye ek valid PDF file hai?` });
         }
-      } catch (e) {
-        console.error('PDF parse error:', e.message);
-        activeQueries.delete(uid);
-        return res.status(400).json({ error: 'PDF read nahi ho payi. Kya ye ek valid PDF file hai?' });
+      } else if (att.kind === 'doc') {
+        const name = String(att.name || 'document').slice(0, 200);
+        try {
+          const buffer = Buffer.from(att.base64, 'base64');
+          const { text } = await extractDocText(buffer, att.format);
+          const extracted = (text || '').trim().slice(0, MAX_EXTRACTED_TEXT_CHARS);
+          extractedContext += extracted
+            ? `\n\nYeh ek ${att.format.toUpperCase()} file ("${name}") ka content hai:\n\n${extracted}`
+            : `\n\n(File "${name}" se koi readable text nahi mila.)`;
+        } catch (e) {
+          console.error('Doc parse error:', e.message);
+          activeQueries.delete(uid);
+          return res.status(400).json({ error: `File "${name}" read nahi ho payi. Kya ye ek valid file hai?` });
+        }
       }
     }
 
-    // Non-PDF document attachment (DOCX/XLSX/PPTX/MD/HTML/ODT/RTF/EPUB/TXT):
-    // same idea as PDF — extract plain text server-side, fold into prompt.
-    if (docBase64 && docFormat) {
-      try {
-        const docBuffer = Buffer.from(docBase64, 'base64');
-        const extracted = (await extractDocText(docBuffer, docFormat)).trim().slice(0, MAX_EXTRACTED_TEXT_CHARS);
-        if (extracted) {
-          finalQuery = `Yeh ek ${docFormat.toUpperCase()} file ("${docName}") ka content hai:\n\n${extracted}\n\n---\n\nUpar wale file content ke baare mein sawaal: ${query}`;
-        } else {
-          finalQuery = `(File "${docName}" se koi readable text nahi mila.)\n\n${query}`;
-        }
-      } catch (e) {
-        console.error('Doc parse error:', e.message);
-        activeQueries.delete(uid);
-        return res.status(400).json({ error: 'File read nahi ho payi. Kya ye ek valid file hai?' });
-      }
-    }
+    const finalQuery = extractedContext
+      ? `${extractedContext.trim()}\n\n---\n\nUpar wale content ke baare mein sawaal: ${query}`
+      : query;
 
-    // Image attachment: needs a vision-capable model — verified directly,
+    // Image attachment(s): needs a vision-capable model — verified directly,
     // not every model listed as "vision-capable" on OpenRouter actually
     // handles image input correctly, so this is a fixed, separately-tested
-    // model rather than the usual text model + fallback pair.
-    const content = imageDataUrl
-      ? [{ type: 'text', text: finalQuery }, { type: 'image_url', image_url: { url: imageDataUrl } }]
+    // model rather than the usual text model + fallback pair. Multiple
+    // images can go in the same multimodal content array.
+    const content = imageDataUrls.length
+      ? [{ type: 'text', text: finalQuery }, ...imageDataUrls.map(url => ({ type: 'image_url', image_url: { url } }))]
       : finalQuery;
-    const primaryModel = imageDataUrl ? OPENROUTER_VISION_MODEL : OPENROUTER_MODEL;
+    const primaryModel = imageDataUrls.length ? OPENROUTER_VISION_MODEL : OPENROUTER_MODEL;
 
     let upstream = await queryOpenRouter(primaryModel, content);
 
@@ -1055,7 +1117,7 @@ app.post('/api/query', requireAuth, async (req, res) => {
     // covers most of those cases instead of failing the query outright.
     // No verified-working second vision model yet, so this retry only
     // applies to plain text queries.
-    if (upstream.status === 429 && !imageDataUrl && OPENROUTER_FALLBACK_MODEL !== OPENROUTER_MODEL) {
+    if (upstream.status === 429 && !imageDataUrls.length && OPENROUTER_FALLBACK_MODEL !== OPENROUTER_MODEL) {
       console.log('OpenRouter primary model rate-limited, retrying with fallback model...');
       upstream = await queryOpenRouter(OPENROUTER_FALLBACK_MODEL, content);
     }
@@ -1138,8 +1200,12 @@ app.post('/api/extract-doc-text', requireAuth, async (req, res) => {
 
   try {
     const buffer = Buffer.from(docBase64, 'base64');
-    const text = await extractDocText(buffer, docFormat);
-    res.json({ text: text.slice(0, 50000) }); // AI-context cap se zyada, preview ke liye — phir bhi bounded
+    const result = await extractDocText(buffer, docFormat);
+    res.json({
+      text: (result.text || '').slice(0, 50000), // AI-context cap se zyada, preview ke liye — phir bhi bounded
+      html: result.html,     // xlsx only — actual <table> markup for a real spreadsheet-like preview
+      slides: result.slides, // pptx only — per-slide paragraph lines for a readable outline-style preview
+    });
   } catch (e) {
     console.error('Doc preview extract error:', e.message);
     res.status(400).json({ error: 'File read nahi ho payi. Kya ye ek valid file hai?' });

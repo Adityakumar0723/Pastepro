@@ -408,6 +408,17 @@
     .pg-attach-modal-body iframe { width:100%; height:80vh; border:none; }
     .pg-attach-modal-body .pg-doc-preview-text { align-self:stretch; width:100%; max-height:80vh; overflow:auto; margin:0; padding:24px; box-sizing:border-box; white-space:pre-wrap; word-break:break-word; font-size:13.5px; line-height:1.6; color:var(--text); font-family:'Space Grotesk',sans-serif; text-align:left; }
     .pg-attach-modal-body .pg-doc-preview-loading { padding:40px; color:var(--muted); font-size:14px; text-align:center; }
+    .pg-attach-modal-body .pg-doc-preview-table { align-self:stretch; width:100%; max-height:80vh; overflow:auto; padding:20px; box-sizing:border-box; }
+    .pg-doc-preview-table .pg-doc-sheet + .pg-doc-sheet { margin-top:28px; }
+    .pg-doc-preview-table .pg-doc-sheet-name { font-size:13px; font-weight:700; color:var(--text); margin-bottom:8px; }
+    .pg-doc-preview-table .pg-doc-sheet-note { font-size:11.5px; color:var(--muted); margin-top:6px; }
+    .pg-doc-preview-table table { border-collapse:collapse; font-size:12.5px; font-family:'Space Grotesk',sans-serif; color:var(--text); }
+    .pg-doc-preview-table td { border:1px solid var(--border); padding:6px 10px; white-space:nowrap; }
+    .pg-doc-preview-table tr:first-child td { background:var(--surface); font-weight:700; }
+    .pg-attach-modal-body .pg-doc-preview-slides { align-self:stretch; width:100%; max-height:80vh; overflow:auto; padding:20px; box-sizing:border-box; display:flex; flex-direction:column; gap:14px; }
+    .pg-doc-slide { border:1px solid var(--border); border-radius:10px; padding:14px 16px; background:var(--surface); }
+    .pg-doc-slide-title { font-size:11.5px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; color:var(--muted); margin-bottom:8px; }
+    .pg-doc-slide-body { font-size:13.5px; line-height:1.7; color:var(--text); font-family:'Space Grotesk',sans-serif; }
     .pg-send-btn { width:44px; height:44px; flex-shrink:0; border-radius:12px; background:linear-gradient(135deg,var(--accent),var(--accent2)); border:none; color:#fff; font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:opacity 0.2s; }
     .pg-send-btn:hover { opacity:0.9; }
     .pg-send-btn:disabled { opacity:0.5; cursor:not-allowed; }
@@ -1017,8 +1028,8 @@
           <div class="pg-input-wrap">
             <div class="pg-attachment-preview" id="pg-attachment-preview" style="display:none;"></div>
             <div class="pg-input-bar">
-              <input type="file" id="pg-file-input" accept="image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm,video/quicktime,video/x-matroska,video/x-msvideo,.pdf,.docx,.xlsx,.pptx,.md,.html,.htm,.odt,.rtf,.epub,.txt" style="display:none;" onchange="handlePgFileSelect(event)" />
-              <button type="button" class="pg-attach-btn" onclick="document.getElementById('pg-file-input').click()" title="Image, video ya document (PDF/DOCX/XLSX/PPTX/MD/HTML/ODT/RTF/EPUB/TXT) attach karo">📎</button>
+              <input type="file" id="pg-file-input" accept="image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm,video/quicktime,video/x-matroska,video/x-msvideo,.pdf,.docx,.xlsx,.pptx,.md,.html,.htm,.odt,.rtf,.epub,.txt" multiple style="display:none;" onchange="handlePgFileSelect(event)" />
+              <button type="button" class="pg-attach-btn" onclick="document.getElementById('pg-file-input').click()" title="Image, video ya document (PDF/DOCX/XLSX/PPTX/MD/HTML/ODT/RTF/EPUB/TXT) attach karo — ek saath multiple bhi">📎</button>
               <textarea id="pg-query" class="pg-textarea" placeholder="Apna sawaal yahan likho..." rows="1" onkeydown="handlePgKeydown(event)" oninput="autoGrowPgTextarea(this)"></textarea>
               <button type="button" class="pg-send-btn" id="pg-ask-btn" onclick="askPlayground()">➤</button>
             </div>
@@ -1521,7 +1532,7 @@
   // ════════════════════════════════
   let pgSessions = [];
   let currentPgSessionId = null;
-  let pgAttachment = null; // { kind:'image'|'pdf', name, dataUrl, id } — id points into IndexedDB
+  let pgAttachments = []; // [{ kind:'image'|'video'|'pdf'|'doc', format?, name, dataUrl, id }, ...] — id points into IndexedDB
 
   // Attachment ki poori file data localStorage mein NAHI jaati (session
   // history wahi hai, aur ek hi file ka base64 uska quota bhar sakta hai) —
@@ -1613,12 +1624,15 @@
     }
     box.innerHTML = session.messages.map((m, i) => {
       if (m.role === 'user') {
-        const attachChip = m.attachment
-          ? `<div class="pg-msg-attachment-chip" onclick="viewPgMessageAttachment(${i})" style="cursor:pointer;" title="Dekhne ke liye click karo">${m.attachment.kind === 'image' ? '🖼️' : pgAttachmentIcon(m.attachment)} ${escapeHtml(m.attachment.name)}</div>`
-          : '';
+        // m.attachment (singular) purane saved sessions (localStorage) se
+        // aa sakta hai — naya format m.attachments (array) hai.
+        const atts = m.attachments || (m.attachment ? [m.attachment] : []);
+        const attachChips = atts.map((a, ai) =>
+          `<div class="pg-msg-attachment-chip" onclick="viewPgMessageAttachment(${i}, ${ai})" style="cursor:pointer;" title="Dekhne ke liye click karo">${a.kind === 'image' ? '🖼️' : pgAttachmentIcon(a)} ${escapeHtml(a.name)}</div>`
+        ).join('');
         return `
           <div class="pg-msg-wrap pg-msg-wrap-user">
-            <div class="pg-msg pg-msg-user">${attachChip}${escapeHtml(m.text)}</div>
+            <div class="pg-msg pg-msg-user">${attachChips}${escapeHtml(m.text)}</div>
             <div class="pg-msg-actions">
               <button type="button" class="pg-msg-action-btn" onclick="copyPgMessage(${i})" title="Copy karo">📋 Copy</button>
               <button type="button" class="pg-msg-action-btn" onclick="editPgMessage(${i})" title="Edit karo">✏️ Edit</button>
@@ -1773,13 +1787,15 @@
 
   // Pehle se bheji hui koi attachment click karke dobara dekhna — IndexedDB
   // se uski asal file uthaate hain (session mein sirf id save hota hai).
-  window.viewPgMessageAttachment = async (i) => {
+  window.viewPgMessageAttachment = async (i, ai) => {
     const session = getCurrentPgSession();
     const msg = session && session.messages[i];
-    if (!msg || !msg.attachment) return;
-    const dataUrl = await loadPgAttachmentBlob(msg.attachment.id);
+    const atts = msg && (msg.attachments || (msg.attachment ? [msg.attachment] : []));
+    const att = atts && atts[ai];
+    if (!att) return;
+    const dataUrl = await loadPgAttachmentBlob(att.id);
     if (!dataUrl) { showToast('Ye file ab available nahi hai', 'error'); return; }
-    showPgAttachmentModal(msg.attachment.kind, msg.attachment.name, dataUrl, msg.attachment.format);
+    showPgAttachmentModal(att.kind, att.name, dataUrl, att.format);
   };
 
   // dataUrl ("data:...;base64,XXXX") ke base64 hisse ko decode karke UTF-8
@@ -1822,7 +1838,21 @@
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Preview load nahi ho paya');
-      body.innerHTML = `<pre class="pg-doc-preview-text">${escapeHtml(data.text && data.text.trim() ? data.text : '(Is file mein koi readable text nahi mila)')}</pre>`;
+
+      if (format === 'xlsx' && data.html) {
+        // Server ek asal <table> bhejta hai (khud escape karke) — CSV text
+        // dump se kahin zyada spreadsheet jaisa dikhta hai.
+        body.innerHTML = `<div class="pg-doc-preview-table">${data.html}</div>`;
+      } else if (format === 'pptx' && Array.isArray(data.slides) && data.slides.length) {
+        // Har slide apna card, har bullet/paragraph apni line par.
+        body.innerHTML = `<div class="pg-doc-preview-slides">${data.slides.map(s => `
+          <div class="pg-doc-slide">
+            <div class="pg-doc-slide-title">Slide ${s.number}</div>
+            <div class="pg-doc-slide-body">${s.lines.length ? s.lines.map(l => escapeHtml(l)).join('<br>') : '<em>(koi text nahi mila)</em>'}</div>
+          </div>`).join('')}</div>`;
+      } else {
+        body.innerHTML = `<pre class="pg-doc-preview-text">${escapeHtml(data.text && data.text.trim() ? data.text : '(Is file mein koi readable text nahi mila)')}</pre>`;
+      }
     } catch (e) {
       body.innerHTML = `<div class="pg-doc-preview-loading">Preview load nahi ho paya: ${escapeHtml(e.message || '')}</div>`;
     }
@@ -1907,37 +1937,46 @@
     txt:  { icon: '📄' },
   };
 
-  window.handlePgFileSelect = async (event) => {
-    const file = event.target.files[0];
-    event.target.value = ''; // taaki wahi file dobara select karne par bhi change event fire ho
-    if (!file) return;
+  const PG_MAX_ATTACHMENTS = 5;
 
-    const isImage = file.type.startsWith('image/');
-    const isVideo = file.type.startsWith('video/');
-    const ext = (file.name.split('.').pop() || '').toLowerCase();
-    const docInfo = !isImage && !isVideo ? PG_DOC_EXT_MAP[ext] : null;
-    if (!isImage && !isVideo && !docInfo) {
-      showToast('Ye file type support nahi hai (image, video, PDF/DOCX/XLSX/PPTX/MD/HTML/ODT/RTF/EPUB/TXT hi chalega)', 'error');
+  window.handlePgFileSelect = async (event) => {
+    const files = Array.from(event.target.files || []);
+    event.target.value = ''; // taaki wahi file(s) dobara select karne par bhi change event fire ho
+    if (!files.length) return;
+
+    if (pgAttachments.length + files.length > PG_MAX_ATTACHMENTS) {
+      showToast(`Ek saath max ${PG_MAX_ATTACHMENTS} files attach kar sakte ho`, 'error');
       return;
     }
-    if (isVideo && file.size > PG_MAX_VIDEO_BYTES) { showToast('Video bahut badi hai (max 60MB)', 'error'); return; }
-    if (!isVideo && file.size > PG_MAX_ATTACHMENT_BYTES) { showToast('File bahut badi hai (max 15MB)', 'error'); return; }
 
-    try {
-      const dataUrl = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload  = () => resolve(reader.result);
-        reader.onerror = () => reject(new Error('File read nahi ho payi'));
-        reader.readAsDataURL(file);
-      });
-      const id = `att_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      await savePgAttachmentBlob(id, dataUrl);
-      const kind = isImage ? 'image' : isVideo ? 'video' : ext === 'pdf' ? 'pdf' : 'doc';
-      pgAttachment = { kind, format: docInfo ? ext : undefined, name: file.name, dataUrl, id };
-      renderPgAttachmentPreview();
-    } catch (e) {
-      showToast(e.message || 'File attach nahi ho payi', 'error');
+    for (const file of files) {
+      const isImage = file.type.startsWith('image/');
+      const isVideo = file.type.startsWith('video/');
+      const ext = (file.name.split('.').pop() || '').toLowerCase();
+      const docInfo = !isImage && !isVideo ? PG_DOC_EXT_MAP[ext] : null;
+      if (!isImage && !isVideo && !docInfo) {
+        showToast(`"${file.name}" ka type support nahi hai (image, video, PDF/DOCX/XLSX/PPTX/MD/HTML/ODT/RTF/EPUB/TXT hi chalega)`, 'error');
+        continue;
+      }
+      if (isVideo && file.size > PG_MAX_VIDEO_BYTES) { showToast(`"${file.name}" bahut badi hai (max 60MB)`, 'error'); continue; }
+      if (!isVideo && file.size > PG_MAX_ATTACHMENT_BYTES) { showToast(`"${file.name}" bahut badi hai (max 15MB)`, 'error'); continue; }
+
+      try {
+        const dataUrl = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload  = () => resolve(reader.result);
+          reader.onerror = () => reject(new Error('File read nahi ho payi'));
+          reader.readAsDataURL(file);
+        });
+        const id = `att_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        await savePgAttachmentBlob(id, dataUrl);
+        const kind = isImage ? 'image' : isVideo ? 'video' : ext === 'pdf' ? 'pdf' : 'doc';
+        pgAttachments.push({ kind, format: docInfo ? ext : undefined, name: file.name, dataUrl, id });
+      } catch (e) {
+        showToast(e.message || `"${file.name}" attach nahi ho payi`, 'error');
+      }
     }
+    renderPgAttachmentPreview();
   };
 
   function pgAttachmentIcon(att) {
@@ -1948,41 +1987,44 @@
 
   function renderPgAttachmentPreview() {
     const box = document.getElementById('pg-attachment-preview');
-    if (!pgAttachment) { box.style.display = 'none'; box.innerHTML = ''; return; }
-    const thumb = pgAttachment.kind === 'image'
-      ? `<img src="${pgAttachment.dataUrl}" alt="" />`
-      : `<span style="font-size:18px;">${pgAttachmentIcon(pgAttachment)}</span>`;
-    box.innerHTML = `
-      <div class="pg-attachment-chip" onclick="showPgAttachmentModal(pgAttachment.kind, pgAttachment.name, pgAttachment.dataUrl, pgAttachment.format)" style="cursor:pointer;" title="Dekhne ke liye click karo">
+    if (!pgAttachments.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    box.innerHTML = pgAttachments.map((att, i) => {
+      const thumb = att.kind === 'image'
+        ? `<img src="${att.dataUrl}" alt="" />`
+        : `<span style="font-size:18px;">${pgAttachmentIcon(att)}</span>`;
+      return `
+      <div class="pg-attachment-chip" onclick="showPgAttachmentModal(pgAttachments[${i}].kind, pgAttachments[${i}].name, pgAttachments[${i}].dataUrl, pgAttachments[${i}].format)" style="cursor:pointer;" title="Dekhne ke liye click karo">
         ${thumb}
-        <span class="pg-attachment-chip-name">${escapeHtml(pgAttachment.name)}</span>
-        <button type="button" class="pg-attachment-remove" onclick="event.stopPropagation(); removePgAttachment()" title="Hatao">✕</button>
+        <span class="pg-attachment-chip-name">${escapeHtml(att.name)}</span>
+        <button type="button" class="pg-attachment-remove" onclick="event.stopPropagation(); removePgAttachment(${i})" title="Hatao">✕</button>
       </div>`;
+    }).join('');
     box.style.display = 'flex';
   }
 
-  window.removePgAttachment = () => {
-    pgAttachment = null;
+  window.removePgAttachment = (i) => {
+    pgAttachments.splice(i, 1);
     renderPgAttachmentPreview();
   };
 
   window.askPlayground = async () => {
     const input = document.getElementById('pg-query');
     const query = input.value.trim();
-    if (!query && !pgAttachment) { showToast('Pehle kuch likho!','error'); return; }
+    if (!query && !pgAttachments.length) { showToast('Pehle kuch likho!','error'); return; }
 
-    const attachment = pgAttachment;
+    const attachments = pgAttachments;
     const finalQuery = query || (
-      attachment.kind === 'image' ? 'Is image ke baare mein batao' :
-      attachment.kind === 'video' ? 'Is video ke baare mein batao' :
-      attachment.kind === 'pdf' ? 'Is PDF ke baare mein batao' :
+      attachments.length > 1 ? 'In files ke baare mein batao' :
+      attachments[0].kind === 'image' ? 'Is image ke baare mein batao' :
+      attachments[0].kind === 'video' ? 'Is video ke baare mein batao' :
+      attachments[0].kind === 'pdf' ? 'Is PDF ke baare mein batao' :
       'Is file ke baare mein batao'
     );
     input.value = '';
     autoGrowPgTextarea(input);
-    pgAttachment = null;
+    pgAttachments = [];
     renderPgAttachmentPreview();
-    await runPlaygroundQuery(finalQuery, false, attachment);
+    await runPlaygroundQuery(finalQuery, false, attachments);
   };
 
   window.regeneratePlayground = async () => {
@@ -1995,7 +2037,7 @@
     await runPlaygroundQuery(lastUserMsg.text, true);
   };
 
-  async function runPlaygroundQuery(query, isRegenerate, attachment) {
+  async function runPlaygroundQuery(query, isRegenerate, attachments) {
     if (!currentPgSessionId) window.startNewPlaygroundChat();
     let session = getCurrentPgSession();
     // Capture which session this specific query belongs to — user ke paas
@@ -2013,7 +2055,9 @@
       session.messages.push({
         role: 'user',
         text: query,
-        attachment: attachment ? { kind: attachment.kind, name: attachment.name, id: attachment.id } : undefined
+        attachments: attachments && attachments.length
+          ? attachments.map(a => ({ kind: a.kind, format: a.format, name: a.name, id: a.id }))
+          : undefined
       });
       if (session.messages.filter(m => m.role === 'user').length === 1) {
         session.title = query.length > 40 ? query.slice(0, 40) + '…' : query;
@@ -2047,25 +2091,19 @@
     const timeoutId  = setTimeout(() => controller.abort(), 3 * 60 * 1000);
 
     try {
-      const body = { query };
-      if (attachment?.kind === 'image') {
-        body.image = attachment.dataUrl;
-      } else if (attachment?.kind === 'pdf') {
-        body.pdfBase64 = attachment.dataUrl.split(',')[1] || ''; // "data:application/pdf;base64,XXXX" -> sirf XXXX
-        body.pdfName = attachment.name;
-      } else if (attachment?.kind === 'video') {
-        // Video ka actual content AI ko bheja nahi jaata (koi free vision
-        // model video samajh nahi sakta) — sirf naam bhejte hain taaki
-        // jawab mein us baare mein zikar ho sake. Video sirf user ke
-        // dekhne/play karne ke liye IndexedDB mein store rehta hai.
-        body.videoName = attachment.name;
-      } else if (attachment?.kind === 'doc') {
-        // DOCX/XLSX/PPTX/MD/HTML/ODT/RTF/EPUB/TXT — server text nikaal ke
-        // prompt mein fold kar dega, PDF ki tarah hi.
-        body.docBase64 = attachment.dataUrl.split(',')[1] || '';
-        body.docName = attachment.name;
-        body.docFormat = attachment.format;
-      }
+      // Har attachment kind ke liye server ko wahi shape bhejte hain jo
+      // /api/query ka `attachments` array expect karta hai — video ka
+      // sirf naam jaata hai (raw bytes kabhi nahi, koi free vision model
+      // usse samajh nahi sakta), baaki sabka base64/dataUrl.
+      const body = {
+        query,
+        attachments: (attachments || []).map(a => {
+          if (a.kind === 'image') return { kind: 'image', dataUrl: a.dataUrl };
+          if (a.kind === 'video') return { kind: 'video', name: a.name };
+          if (a.kind === 'pdf')   return { kind: 'pdf', base64: a.dataUrl.split(',')[1] || '', name: a.name };
+          return { kind: 'doc', base64: a.dataUrl.split(',')[1] || '', name: a.name, format: a.format }; // DOCX/XLSX/PPTX/MD/HTML/ODT/RTF/EPUB/TXT
+        }),
+      };
 
       const res = await fetch(`${BACKEND}/api/query`, {
         method: 'POST',
