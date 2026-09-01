@@ -458,6 +458,19 @@
     .yt-download-btn { width:auto !important; padding:11px 24px !important; }
 
     .search-results-list { display:flex; flex-direction:column; gap:10px; max-height:calc(100vh - 220px); min-height:400px; overflow-y:auto; padding-right:6px; margin-top:12px; }
+    /* Mobile par player aur results ek column mein stack hote hain — is
+       situation mein "100vh - X" wali height kaam nahi karti, kyunki
+       results section page mein kahin bhi scroll ho sakta hai, sirf top
+       par nahi (verified: isi wajah se box viewport se pehle hi khatam
+       ho jaata tha, neeche khaali jagah reh jaati thi). Ab list apni
+       poori content ke hisaab se hi lambi hoti hai, aur poora page hi
+       normal scroll karta hai — no nested scroll area. Media query is
+       specifically placed AFTER the base rule above (same specificity —
+       source order decides the winner, and it was losing before when
+       placed earlier in the file). */
+    @media (max-width:900px) {
+      .search-results-list { max-height:none; min-height:0; overflow-y:visible; }
+    }
     .search-result-row { display:flex; gap:10px; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:8px; cursor:pointer; transition:border-color 0.2s, background 0.2s; }
     .search-result-row:hover { border-color:var(--border-hover); }
     .search-result-row.active { border-color:var(--green); background:rgba(46,196,182,0.07); }
