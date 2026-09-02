@@ -53,8 +53,10 @@
     header { display: flex; align-items:center; justify-content:space-between; padding: 20px 48px; background: rgba(12,12,14,0.85); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
     .dl-bell-wrap { position: relative; }
     .dl-bell-badge { position:absolute; top:4px; right:4px; width:8px; height:8px; border-radius:50%; background:var(--accent); border:1.5px solid var(--bg); }
-    .dl-bell-panel { position:absolute; top:calc(100% + 10px); right:0; width:340px; max-height:460px; display:flex; flex-direction:column; background:var(--card); border:1px solid var(--border); border-radius:14px; box-shadow:0 16px 40px rgba(0,0,0,0.35); z-index:60; overflow:hidden; }
-    .dl-bell-panel-header { padding:14px 16px; font-size:13px; font-weight:700; border-bottom:1px solid var(--border); flex-shrink:0; }
+    .dl-bell-panel { position:absolute; top:calc(100% + 10px); right:0; width:360px; max-height:460px; display:flex; flex-direction:column; background:var(--card); border:1px solid var(--border); border-radius:14px; box-shadow:0 16px 40px rgba(0,0,0,0.35); z-index:60; overflow:hidden; }
+    .dl-bell-panel-header { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; font-size:14px; font-weight:700; border-bottom:1px solid var(--border); flex-shrink:0; }
+    .dl-bell-clear-all { background:none; border:none; color:var(--accent); font-family:'Space Grotesk',sans-serif; font-size:12.5px; font-weight:600; cursor:pointer; padding:0; }
+    .dl-bell-clear-all:hover { text-decoration:underline; }
     /* Header hamesha fixed rehta hai, sirf list apni jagah scroll karti hai —
        ~5 items bina scroll ke fit ho jaate hain, usse zyada aane par yahin
        ek clean thin scrollbar dikhta hai. */
@@ -64,18 +66,28 @@
     .dl-bell-panel-list::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
     .dl-bell-panel-list::-webkit-scrollbar-thumb:hover { background:var(--muted); }
     .dl-bell-empty { padding:24px 16px; text-align:center; color:var(--muted); font-size:13px; }
-    .dl-bell-item { display:flex; align-items:flex-start; gap:10px; padding:12px 16px; border-bottom:1px solid var(--border); }
+    .dl-bell-item { display:flex; align-items:flex-start; gap:12px; padding:14px 16px; border-bottom:1px solid var(--border); }
     .dl-bell-item:last-child { border-bottom:none; }
-    .dl-bell-item-icon { font-size:16px; flex-shrink:0; margin-top:1px; }
+    .dl-bell-item-icon { width:38px; height:38px; border-radius:10px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:16px; color:#fff; }
     .dl-bell-item-body { flex:1; min-width:0; }
-    .dl-bell-item-url { font-size:12px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .dl-bell-item-status { font-size:11.5px; color:var(--muted); margin-top:3px; }
-    .dl-bell-item-status.done { color:var(--green); }
-    .dl-bell-item-status.error { color:var(--accent); }
-    .dl-bell-progress-track { height:4px; border-radius:3px; background:var(--surface); margin-top:6px; overflow:hidden; }
-    .dl-bell-progress-fill { height:100%; background:linear-gradient(90deg,var(--accent),var(--accent2)); border-radius:3px; transition:width 0.3s ease; }
-    .dl-bell-item-dismiss { flex-shrink:0; background:none; border:none; color:var(--muted); cursor:pointer; font-size:13px; padding:2px 4px; }
+    .dl-bell-item-top { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
+    .dl-bell-item-title { font-size:13.5px; font-weight:700; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .dl-bell-item-sub { font-size:11.5px; color:var(--muted); margin-top:2px; }
+    .dl-bell-item-progress-row { display:flex; align-items:center; gap:8px; margin-top:8px; }
+    .dl-bell-progress-track { flex:1; height:5px; border-radius:3px; background:var(--surface); overflow:hidden; }
+    .dl-bell-progress-fill { height:100%; border-radius:3px; transition:width 0.3s ease; background:linear-gradient(90deg,var(--accent),var(--accent2)); }
+    .dl-bell-progress-fill.done { background:var(--green); }
+    .dl-bell-progress-fill.error { background:var(--accent); }
+    .dl-bell-progress-fill.cancelled, .dl-bell-progress-fill.waiting { background:var(--muted); opacity:0.4; }
+    .dl-bell-item-percent { flex-shrink:0; font-size:11.5px; font-weight:700; color:var(--muted); min-width:36px; text-align:right; }
+    .dl-bell-item-percent.done { color:var(--green); }
+    .dl-bell-item-percent.error { color:var(--accent); }
+    .dl-bell-item-error-detail { font-size:11px; color:var(--accent); margin-top:4px; line-height:1.4; }
+    .dl-bell-item-dismiss { flex-shrink:0; background:none; border:none; color:var(--muted); cursor:pointer; font-size:14px; padding:2px 4px; line-height:1; }
     .dl-bell-item-dismiss:hover { color:var(--accent); }
+    .dl-bell-panel-footer { flex-shrink:0; border-top:1px solid var(--border); }
+    .dl-bell-view-all { width:100%; padding:12px; background:none; border:none; color:var(--muted); font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:600; cursor:pointer; }
+    .dl-bell-view-all:hover { color:var(--accent); }
     @media (max-width:480px) {
       .dl-bell-panel { position:fixed; top:70px; right:12px; left:12px; width:auto; }
     }
@@ -627,8 +639,14 @@
         <span class="dl-bell-badge" id="dl-bell-badge" style="display:none;"></span>
       </button>
       <div class="dl-bell-panel" id="dl-bell-panel" style="display:none;">
-        <div class="dl-bell-panel-header">Downloads</div>
+        <div class="dl-bell-panel-header">
+          <span>Notifications</span>
+          <button type="button" class="dl-bell-clear-all" onclick="clearAllDlProcesses()">Clear All</button>
+        </div>
         <div class="dl-bell-panel-list" id="dl-bell-panel-list"></div>
+        <div class="dl-bell-panel-footer">
+          <button type="button" class="dl-bell-view-all" onclick="viewAllDlProcesses()">View All</button>
+        </div>
       </div>
     </div>
     <button class="hamburger-btn" id="theme-toggle-btn" onclick="toggleTheme()" aria-label="Theme badlo" title="Light/Dark mode">
@@ -2901,7 +2919,7 @@
     // hone/na-hone se — agar network issue se ye fetch hi fail ho jaaye,
     // tab bhi polling se pata chal jaata hai ki server par asal mein kya
     // hua (complete ho gaya, fail hua, ya abhi bhi chal raha hai).
-    const dlProc = { id: `dl_${Date.now()}`, url, type, quality, percent: 0, status: 'downloading', seen: true, startedAt: Date.now() };
+    const dlProc = { id: `dl_${Date.now()}`, url, type, quality, format, percent: 0, status: 'downloading', seen: true, startedAt: Date.now() };
     dlProcesses.push(dlProc);
     saveDlProcesses();
     renderDlBell();
@@ -3016,12 +3034,20 @@
     try { localStorage.setItem('pastepro_dl_processes', JSON.stringify(dlProcesses)); } catch (e) {}
   }
 
-  function dlStatusLabel(p) {
-    if (p.status === 'downloading') return `${Math.round(p.percent || 0)}% download ho raha hai...`;
-    if (p.status === 'done') return '✅ Download complete';
-    if (p.status === 'error') return `❌ ${p.error || 'Fail ho gaya'}`;
-    if (p.status === 'cancelled') return '🚫 Cancel kiya gaya';
-    return '';
+  // Platform ka naam + brand-ish color/icon, URL se pehchan ke — bell mein
+  // "kis platform ka link" turant dikhta hai, sirf raw URL text nahi.
+  const DL_PLATFORM_INFO = [
+    { key: 'youtube',     test: /youtube\.com|youtu\.be/,   name: 'YouTube',     icon: '▶',  bg: '#FF0000' },
+    { key: 'instagram',   test: /instagram\.com/,           name: 'Instagram',   icon: '📷', bg: 'linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)' },
+    { key: 'tiktok',      test: /tiktok\.com/,              name: 'TikTok',      icon: '🎵', bg: '#000000' },
+    { key: 'twitter',     test: /twitter\.com|x\.com/,      name: 'Twitter / X', icon: '✕',  bg: '#000000' },
+    { key: 'facebook',    test: /facebook\.com/,            name: 'Facebook',    icon: 'f',  bg: '#1877F2' },
+    { key: 'vimeo',       test: /vimeo\.com/,               name: 'Vimeo',       icon: '▶',  bg: '#1AB7EA' },
+    { key: 'dailymotion', test: /dailymotion\.com/,         name: 'Dailymotion', icon: 'D',  bg: '#00ADEF' },
+    { key: 'reddit',      test: /reddit\.com|redd\.it/,     name: 'Reddit',      icon: '👽', bg: '#FF4500' },
+  ];
+  function detectDlPlatform(url) {
+    return DL_PLATFORM_INFO.find(p => p.test.test(url || '')) || { name: 'Video', icon: '🔗', bg: 'var(--muted)' };
   }
 
   function renderDlBell() {
@@ -3037,23 +3063,62 @@
       return;
     }
     list.innerHTML = [...dlProcesses].reverse().map(p => {
-      const icon = p.type === 'audio' ? '🎵' : '🎬';
-      const statusClass = p.status === 'done' ? 'done' : p.status === 'error' ? 'error' : '';
-      const progressBar = p.status === 'downloading'
-        ? `<div class="dl-bell-progress-track"><div class="dl-bell-progress-fill" style="width:${Math.round(p.percent || 0)}%;"></div></div>`
-        : '';
+      const plat = detectDlPlatform(p.url);
+      const title = `${plat.name} ${p.type === 'audio' ? 'Audio' : 'Video'}`;
+      const sub = [p.quality, p.format ? p.format.toUpperCase() : null].filter(Boolean).join(' · ');
+
+      const barClass = p.status === 'done' ? 'done' : p.status === 'error' ? 'error' : p.status === 'cancelled' ? 'cancelled' : '';
+      const percentClass = p.status === 'done' ? 'done' : p.status === 'error' ? 'error' : '';
+      const barWidth = p.status === 'done' ? 100 : p.status === 'downloading' ? Math.round(p.percent || 0) : 100;
+      const percentText = p.status === 'downloading' ? `${Math.round(p.percent || 0)}%`
+                         : p.status === 'done'        ? 'Done'
+                         : p.status === 'error'        ? 'Failed'
+                         : p.status === 'cancelled'    ? 'Cancelled'
+                         : '';
+      const errorDetail = p.status === 'error' && p.error
+        ? `<div class="dl-bell-item-error-detail">${escapeHtml(p.error)}</div>` : '';
+
       return `
         <div class="dl-bell-item">
-          <span class="dl-bell-item-icon">${icon}</span>
+          <div class="dl-bell-item-icon" style="background:${plat.bg};">${plat.icon}</div>
           <div class="dl-bell-item-body">
-            <div class="dl-bell-item-url">${escapeHtml(p.url)}</div>
-            <div class="dl-bell-item-status ${statusClass}">${dlStatusLabel(p)}</div>
-            ${progressBar}
+            <div class="dl-bell-item-top">
+              <div class="dl-bell-item-title">${escapeHtml(title)}</div>
+            </div>
+            ${sub ? `<div class="dl-bell-item-sub">${escapeHtml(sub)}</div>` : ''}
+            <div class="dl-bell-item-progress-row">
+              <div class="dl-bell-progress-track"><div class="dl-bell-progress-fill ${barClass}" style="width:${barWidth}%;"></div></div>
+              <span class="dl-bell-item-percent ${percentClass}">${percentText}</span>
+            </div>
+            ${errorDetail}
           </div>
           <button type="button" class="dl-bell-item-dismiss" onclick="removeDlProcess('${p.id}')" title="Hatao">✕</button>
         </div>`;
     }).join('');
   }
+
+  // Clear All — jo abhi bhi chal raha hai use bhi cancel karke poori list
+  // khaali kar deta hai (har item ke apne ✕ jaisa hi behavior, bas ek saath).
+  window.clearAllDlProcesses = async () => {
+    const active = dlProcesses.find(p => p.status === 'downloading');
+    if (active) {
+      if (currentDownloadController) { downloadCancelledByUser = true; currentDownloadController.abort(); }
+      setLoading(false);
+      try {
+        await fetch(`${BACKEND}/api/download/cancel`, { method: 'POST', headers: { 'Authorization': `Bearer ${authToken}` } });
+      } catch (e) {}
+    }
+    dlProcesses = [];
+    saveDlProcesses();
+    renderDlBell();
+    stopDlPollingIfIdle();
+  };
+
+  // View All — poori history Settings page ke "Recent Downloads" mein hai.
+  window.viewAllDlProcesses = () => {
+    document.getElementById('dl-bell-panel').style.display = 'none';
+    showSettings();
+  };
 
   window.toggleDlBellPanel = () => {
     const panel = document.getElementById('dl-bell-panel');
