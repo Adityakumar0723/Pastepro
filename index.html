@@ -51,15 +51,27 @@
  
     .sticky-top-group { position: sticky; top:0; z-index:50; }
     header { display: flex; align-items:center; justify-content:space-between; padding: 20px 48px; background: rgba(12,12,14,0.85); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
-    .dl-active-bar { background: var(--card); border-bottom: 1px solid var(--border); }
-    .dl-active-bar-inner { max-width: 860px; margin: 0 auto; padding: 10px 24px; display:flex; align-items:center; gap:12px; }
-    .dl-active-bar-spinner { width:15px; height:15px; border-radius:50%; border:2px solid var(--border); border-top-color: var(--accent); flex-shrink:0; animation: dlActiveBarSpin 0.8s linear infinite; }
-    @keyframes dlActiveBarSpin { to { transform: rotate(360deg); } }
-    .dl-active-bar-text { flex:1; min-width:0; }
-    .dl-active-bar-title { font-size:13px; font-weight:700; color:var(--text); }
-    .dl-active-bar-sub { font-size:12px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .dl-active-bar-cancel { flex-shrink:0; padding:6px 14px; border:1px solid var(--border); border-radius:50px; background:transparent; color:var(--muted); font-family:'Space Grotesk',sans-serif; font-size:12px; font-weight:600; cursor:pointer; transition:all 0.2s; }
-    .dl-active-bar-cancel:hover { border-color:var(--accent); color:var(--accent); }
+    .dl-bell-wrap { position: relative; }
+    .dl-bell-badge { position:absolute; top:4px; right:4px; width:8px; height:8px; border-radius:50%; background:var(--accent); border:1.5px solid var(--bg); }
+    .dl-bell-panel { position:absolute; top:calc(100% + 10px); right:0; width:340px; max-height:420px; overflow-y:auto; background:var(--card); border:1px solid var(--border); border-radius:14px; box-shadow:0 16px 40px rgba(0,0,0,0.35); z-index:60; }
+    .dl-bell-panel-header { padding:14px 16px; font-size:13px; font-weight:700; border-bottom:1px solid var(--border); }
+    .dl-bell-panel-list { display:flex; flex-direction:column; }
+    .dl-bell-empty { padding:24px 16px; text-align:center; color:var(--muted); font-size:13px; }
+    .dl-bell-item { display:flex; align-items:flex-start; gap:10px; padding:12px 16px; border-bottom:1px solid var(--border); }
+    .dl-bell-item:last-child { border-bottom:none; }
+    .dl-bell-item-icon { font-size:16px; flex-shrink:0; margin-top:1px; }
+    .dl-bell-item-body { flex:1; min-width:0; }
+    .dl-bell-item-url { font-size:12px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .dl-bell-item-status { font-size:11.5px; color:var(--muted); margin-top:3px; }
+    .dl-bell-item-status.done { color:var(--green); }
+    .dl-bell-item-status.error { color:var(--accent); }
+    .dl-bell-progress-track { height:4px; border-radius:3px; background:var(--surface); margin-top:6px; overflow:hidden; }
+    .dl-bell-progress-fill { height:100%; background:linear-gradient(90deg,var(--accent),var(--accent2)); border-radius:3px; transition:width 0.3s ease; }
+    .dl-bell-item-dismiss { flex-shrink:0; background:none; border:none; color:var(--muted); cursor:pointer; font-size:13px; padding:2px 4px; }
+    .dl-bell-item-dismiss:hover { color:var(--accent); }
+    @media (max-width:480px) {
+      .dl-bell-panel { position:fixed; top:70px; right:12px; left:12px; width:auto; }
+    }
     .logo { display:flex; align-items:center; gap:10px; font-family: 'Syne', sans-serif; font-size: 26px; font-weight:800; letter-spacing: -1px; background: linear-gradient(90deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; cursor: pointer; }
     .logo-icon { width:28px; height:28px; flex-shrink:0; }
     .sidebar-logo { display:flex; align-items:center; gap:8px; }
@@ -598,6 +610,20 @@
     </div>
   </div>
   <div class="header-right">
+    <!-- Download notifications bell — jab tak koi download chal raha ho ya
+         abhi-abhi khatam hua ho, badge dikhta hai; click karke poori list
+         (percent + status + cancel/dismiss) dekh sakte ho, page par kahin
+         bhi ho. -->
+    <div class="dl-bell-wrap" id="dl-bell-wrap">
+      <button class="hamburger-btn" id="dl-bell-btn" onclick="toggleDlBellPanel()" aria-label="Downloads" title="Downloads">
+        🔔
+        <span class="dl-bell-badge" id="dl-bell-badge" style="display:none;"></span>
+      </button>
+      <div class="dl-bell-panel" id="dl-bell-panel" style="display:none;">
+        <div class="dl-bell-panel-header">Downloads</div>
+        <div class="dl-bell-panel-list" id="dl-bell-panel-list"></div>
+      </div>
+    </div>
     <button class="hamburger-btn" id="theme-toggle-btn" onclick="toggleTheme()" aria-label="Theme badlo" title="Light/Dark mode">
       <span id="theme-toggle-icon">🌙</span>
     </button>
@@ -606,20 +632,6 @@
     </div>
   </div>
 </header>
-
-<!-- Active-download notification — jab tak koi download/process chal raha
-     hai, ye header ke neeche chipka rehta hai, page par kahin bhi ho —
-     yahan se hi seedha cancel bhi ho sakta hai. -->
-<div class="dl-active-bar" id="dl-active-bar" style="display:none;">
-  <div class="dl-active-bar-inner">
-    <span class="dl-active-bar-spinner"></span>
-    <div class="dl-active-bar-text">
-      <div class="dl-active-bar-title" id="dl-active-bar-title">Download ho raha hai...</div>
-      <div class="dl-active-bar-sub" id="dl-active-bar-sub"></div>
-    </div>
-    <button type="button" class="dl-active-bar-cancel" onclick="cancelDownload()">✕ Cancel</button>
-  </div>
-</div>
 </div>
 
 <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
@@ -1410,6 +1422,11 @@
   let currentDownloadController = null;
   let downloadCancelledByUser = false;
   let dlCaptionsToken = 0; // download-captions fetch stale ho gaya hai kya, check karne ke liye
+  // Bell-notification download tracking — localStorage mein persist hota hai
+  // taaki page reload/reconnect ke baad bhi purani entries dikhti rahein.
+  let dlProcesses = [];
+  try { dlProcesses = JSON.parse(localStorage.getItem('pastepro_dl_processes') || '[]'); } catch (e) { dlProcesses = []; }
+  let dlPollTimer = null;
   let currentSearchCaptionWords = [];
   let searchCaptionsEnabled = true;
   let searchCaptionLang = 'orig'; // 'orig' | 'en'
@@ -2870,6 +2887,17 @@
     const format  = type === 'audio' ? selectedAudioFormat  : selectedVideoFormat;
     setLoading(true, type);
 
+    // Bell notification — is process ko track karte hain (percent, status),
+    // aur polling se update karte hain independent of is fetch ke apne
+    // hone/na-hone se — agar network issue se ye fetch hi fail ho jaaye,
+    // tab bhi polling se pata chal jaata hai ki server par asal mein kya
+    // hua (complete ho gaya, fail hua, ya abhi bhi chal raha hai).
+    const dlProc = { id: `dl_${Date.now()}`, url, type, quality, percent: 0, status: 'downloading', seen: true, startedAt: Date.now() };
+    dlProcesses.push(dlProc);
+    saveDlProcesses();
+    renderDlBell();
+    startDlPolling();
+
     // Client-side safety net: agar backend kabhi hang ho jaaye (network issue,
     // ya server-side process kabhi stuck reh jaaye), toh UI hamesha recover
     // ho jaani chahiye — loading screen par hamesha ke liye atka nahi rehna chahiye.
@@ -2905,12 +2933,14 @@
         showDownloadPage(data, fullUrl, type, quality);
         addToHistory(data, withDl(fullUrl), type, quality);
         showToast('File ready hai! ✓','success');
+        markDlProcessDone(dlProc.id, data);
         // Transcript (asli bola hua text) /api/download se decouple hai —
         // file turant ready dikh jaati hai, text background mein alag se
         // aata hai (search page jaisa hi pattern).
         fetchAndRenderDownloadCaptions(url, data.filename);
       } else {
         showToast(data.error || 'Kuch error aa gaya','error');
+        markDlProcessError(dlProc.id, data.error);
       }
     } catch(ex) {
       clearTimeout(timeoutId);
@@ -2919,10 +2949,20 @@
       if (ex.name === 'AbortError') {
         if (!downloadCancelledByUser) {
           showToast('Download bahut time le raha hai (4 min+). Video bada hai ya server busy hai — dobara try karo.', 'error');
+          // Fetch abort ho gaya (client-side), par server par process abhi
+          // bhi chal sakta hai — status ko 'downloading' hi rehne do,
+          // background polling (jo doDownload se independent hai) ise
+          // track karta rahega jab tak asal result na mil jaaye.
         }
         // User-cancelled case ka toast cancelDownload() khud dikha chuka hai.
       } else {
         showToast('Backend se connect nahi ho pa raha. Server chalu hai?','error');
+        // Yahi wo "network issue" wala case hai — is fetch ka connection toot
+        // gaya, lekin server par yt-dlp abhi bhi chal raha ho sakta hai.
+        // Process ko 'downloading' hi chhod dete hain — bell ka background
+        // polling (startDlPolling se already chal raha hai) asal status
+        // pata karta rahega, aur user chahe to wahi se manually cancel bhi
+        // kar sakta hai.
       }
     } finally {
       currentDownloadController = null;
@@ -2938,6 +2978,8 @@
     if (currentDownloadController) currentDownloadController.abort();
     setLoading(false);
     showToast('Download cancel kar diya', 'success');
+    const active = dlProcesses.find(p => p.status === 'downloading');
+    if (active) { active.status = 'cancelled'; saveDlProcesses(); renderDlBell(); }
     try {
       await fetch(`${BACKEND}/api/download/cancel`, {
         method: 'POST',
@@ -2948,7 +2990,177 @@
       // stale-lock apne aap 6 minute mein clear ho jaayega.
     }
   };
- 
+
+  // ════════════════════════════════
+  //  BELL NOTIFICATION — download progress dropdown
+  //  Ek chhota client-side history (max 5) rakhte hain; sirf 'downloading'
+  //  status wali entry ko background polling (/api/download/progress) se
+  //  live update milta hai — server ke paas per-user ek hi slot hota hai,
+  //  isliye ye hamesha wahi single "abhi chal raha" download hoti hai.
+  // ════════════════════════════════
+  function saveDlProcesses() {
+    dlProcesses = dlProcesses.slice(-5);
+    try { localStorage.setItem('pastepro_dl_processes', JSON.stringify(dlProcesses)); } catch (e) {}
+  }
+
+  function dlStatusLabel(p) {
+    if (p.status === 'downloading') return `${Math.round(p.percent || 0)}% download ho raha hai...`;
+    if (p.status === 'done') return '✅ Download complete';
+    if (p.status === 'error') return `❌ ${p.error || 'Fail ho gaya'}`;
+    if (p.status === 'cancelled') return '🚫 Cancel kiya gaya';
+    return '';
+  }
+
+  function renderDlBell() {
+    const badge = document.getElementById('dl-bell-badge');
+    const list  = document.getElementById('dl-bell-panel-list');
+    if (!badge || !list) return;
+
+    const hasUnseen = dlProcesses.some(p => p.status === 'downloading' || !p.seen);
+    badge.style.display = hasUnseen ? 'block' : 'none';
+
+    if (!dlProcesses.length) {
+      list.innerHTML = `<div class="dl-bell-empty">Koi active ya recent download nahi hai</div>`;
+      return;
+    }
+    list.innerHTML = [...dlProcesses].reverse().map(p => {
+      const icon = p.type === 'audio' ? '🎵' : '🎬';
+      const statusClass = p.status === 'done' ? 'done' : p.status === 'error' ? 'error' : '';
+      const progressBar = p.status === 'downloading'
+        ? `<div class="dl-bell-progress-track"><div class="dl-bell-progress-fill" style="width:${Math.round(p.percent || 0)}%;"></div></div>`
+        : '';
+      return `
+        <div class="dl-bell-item">
+          <span class="dl-bell-item-icon">${icon}</span>
+          <div class="dl-bell-item-body">
+            <div class="dl-bell-item-url">${escapeHtml(p.url)}</div>
+            <div class="dl-bell-item-status ${statusClass}">${dlStatusLabel(p)}</div>
+            ${progressBar}
+          </div>
+          <button type="button" class="dl-bell-item-dismiss" onclick="removeDlProcess('${p.id}')" title="Hatao">✕</button>
+        </div>`;
+    }).join('');
+  }
+
+  window.toggleDlBellPanel = () => {
+    const panel = document.getElementById('dl-bell-panel');
+    const opening = panel.style.display === 'none';
+    panel.style.display = opening ? 'block' : 'none';
+    if (opening) {
+      dlProcesses.forEach(p => p.seen = true);
+      saveDlProcesses();
+      renderDlBell();
+    }
+  };
+
+  // Bell panel ke bahar click karne par band ho jaaye
+  document.addEventListener('click', (e) => {
+    const wrap  = document.getElementById('dl-bell-wrap');
+    const panel = document.getElementById('dl-bell-panel');
+    if (!wrap || !panel || panel.style.display === 'none') return;
+    if (!wrap.contains(e.target)) panel.style.display = 'none';
+  });
+
+  function markDlProcessDone(id, result) {
+    const p = dlProcesses.find(x => x.id === id);
+    if (!p) return;
+    p.status = 'done';
+    p.percent = 100;
+    p.result = result;
+    saveDlProcesses();
+    renderDlBell();
+    stopDlPollingIfIdle();
+  }
+
+  function markDlProcessError(id, error) {
+    const p = dlProcesses.find(x => x.id === id);
+    if (!p) return;
+    p.status = 'error';
+    p.error = error || 'Fail ho gaya';
+    saveDlProcesses();
+    renderDlBell();
+    stopDlPollingIfIdle();
+  }
+
+  function startDlPolling() {
+    if (dlPollTimer) return;
+    dlPollTimer = setInterval(pollDlProgress, 1500);
+    pollDlProgress();
+  }
+
+  function stopDlPollingIfIdle() {
+    const stillActive = dlProcesses.some(p => p.status === 'downloading');
+    if (!stillActive && dlPollTimer) { clearInterval(dlPollTimer); dlPollTimer = null; }
+  }
+
+  // Bell ka "asal source of truth" — /api/download ke apne response se
+  // bilkul independent. Ye isliye zaroori hai: agar network hiccup ki wajah
+  // se doDownload() ka apna fetch beech mein hi toot jaaye, server par
+  // yt-dlp phir bhi chalta rehta hai — ye polling wahi se seedha poochti
+  // rehti hai jab tak asal result (done/error/cancelled) na mil jaaye,
+  // taaki notification hamesha ke liye "in progress" dikhake atki na rahe.
+  async function pollDlProgress() {
+    if (!authToken) { stopDlPollingIfIdle(); return; }
+    const active = dlProcesses.find(p => p.status === 'downloading');
+    if (!active) { stopDlPollingIfIdle(); return; }
+    try {
+      const res = await fetch(`${BACKEND}/api/download/progress`, {
+        headers: { 'Authorization': `Bearer ${authToken}` }
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!data || data.status === 'none') return; // server par abhi start hi nahi hua ya already clear ho chuka
+      if (typeof data.percent === 'number') active.percent = data.percent;
+      if (data.status === 'done') {
+        active.status = 'done';
+        active.percent = 100;
+        active.result = data.result;
+        active.seen = false;
+        showToast('Download complete ho gaya! ✓', 'success');
+      } else if (data.status === 'error') {
+        active.status = 'error';
+        active.error = data.error;
+        active.seen = false;
+      } else if (data.status === 'cancelled') {
+        active.status = 'cancelled';
+        active.seen = false;
+      }
+      saveDlProcesses();
+      renderDlBell();
+      stopDlPollingIfIdle();
+    } catch (e) {
+      // Network abhi bhi kharab hai — agli poll try mein phir koshish hogi,
+      // process 'downloading' hi dikhta rahega (galat nahi hai, kyunki
+      // server-side abhi bhi chal raha ho sakta hai).
+    }
+  }
+
+  // Ek process ko list se hataana — agar abhi bhi chal raha hai to pehle
+  // backend ko cancel bhi bolte hain (warna wo chalta rahega aur agla
+  // download stale-lock ki wajah se atka rahega).
+  window.removeDlProcess = async (id) => {
+    const proc = dlProcesses.find(p => p.id === id);
+    if (proc && proc.status === 'downloading') {
+      if (currentDownloadController) { downloadCancelledByUser = true; currentDownloadController.abort(); }
+      setLoading(false);
+      try {
+        await fetch(`${BACKEND}/api/download/cancel`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+      } catch (e) {}
+    }
+    dlProcesses = dlProcesses.filter(p => p.id !== id);
+    saveDlProcesses();
+    renderDlBell();
+    stopDlPollingIfIdle();
+  };
+
+  // Page load par purani (localStorage se aayi) entries dikhao, aur agar
+  // koi 'downloading' status mein reh gayi thi (jaise reload ho gaya tha),
+  // to turant polling resume kar do.
+  renderDlBell();
+  if (dlProcesses.some(p => p.status === 'downloading')) startDlPolling();
+
   // ════════════════════════════════
   //  SHOW DOWNLOAD PAGE — FIX
   //  App view hide karo, download page show karo
@@ -3404,18 +3616,6 @@
     if (on) document.getElementById('load-msg').textContent =
       type === 'audio' ? 'Audio extract ho rahi hai, thoda wait karo...' : 'Video download ho rahi hai, thoda wait karo...';
     document.getElementById('btn-download').disabled = on;
-
-    // Top notification bar — page par kahin bhi ho, dikhta rehta hai ki
-    // koi download chal raha hai, kaunsa URL, aur wahin se cancel bhi.
-    const activeBar = document.getElementById('dl-active-bar');
-    if (on) {
-      document.getElementById('dl-active-bar-title').textContent =
-        type === 'audio' ? '🎵 Audio download ho raha hai...' : '🎬 Video download ho raha hai...';
-      document.getElementById('dl-active-bar-sub').textContent = document.getElementById('vid-url').value.trim();
-      activeBar.style.display = 'block';
-    } else {
-      activeBar.style.display = 'none';
-    }
   }
  
   // URL validation

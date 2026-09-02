@@ -750,6 +750,24 @@ function fetchWhisperCaptionsForSearch(videoId, durationSeconds, ytdlpCmd, ffmpe
 // instead of only dropping the frontend's own fetch.
 const activeDownloadProcesses = new Map();
 
+// uid -> { id, url, type, quality, percent, status, error, result, startedAt }
+// Tracked separately from the main /api/download request/response cycle so
+// the bell-notification UI can poll /api/download/progress for live percent
+// even if the ORIGINAL long-lived request's connection drops (a real network
+// hiccup on the client doesn't abort the server-side yt-dlp process) — the
+// frontend keeps polling this independently and still sees it through to
+// completion (or lets the user cancel it) instead of the notification being
+// stuck showing "in progress" forever with no way to resolve it.
+const downloadProgress = new Map();
+
+// yt-dlp prints progress like "[download]  45.2% of 10.00MiB at 1.2MiB/s"
+// with \r (not \n) between updates in a real terminal — a raw stdout chunk
+// can contain several of these squashed together, so take the LAST match.
+function parseDownloadPercent(chunk) {
+  const matches = [...chunk.matchAll(/\[download\]\s+(\d+(?:\.\d+)?)%/g)];
+  return matches.length ? parseFloat(matches[matches.length - 1][1]) : null;
+}
+
 app.post('/api/download', requireAuth, async (req, res) => {
   const { url, quality = '720p', type = 'video', format } = req.body;
   const ext = resolveDlFormat(type, format);
@@ -783,11 +801,13 @@ app.post('/api/download', requireAuth, async (req, res) => {
   // once the exec() below actually starts.
   const procEntry = { child: null, cancelled: false };
   activeDownloadProcesses.set(uid, procEntry);
+  downloadProgress.set(uid, { id: safeId, url, type, quality, percent: 0, status: 'downloading', startedAt: timestamp });
 
   const ytdlpCmd = await resolveYtdlpCommand();
   if (!ytdlpCmd) {
     try { fs.unlinkSync(activeFile); } catch {}
     activeDownloadProcesses.delete(uid);
+    downloadProgress.set(uid, { id: safeId, url, type, quality, percent: 0, status: 'error', error: 'yt-dlp install nahi hai. Install karo ya YTDLP_PATH set karo', startedAt: timestamp });
     return res.status(500).json({
       error: 'yt-dlp install nahi hai. Install karo ya YTDLP_PATH set karo',
       detail: 'Try `winget install yt-dlp`, download yt-dlp.exe into this folder, or `pip install yt-dlp` then set YTDLP_PATH.'
@@ -836,6 +856,7 @@ app.post('/api/download', requireAuth, async (req, res) => {
                   lowerErr.includes('not recognized')    ? 'yt-dlp install nahi hai ya PATH mein nahi hai' :
                   lowerErr.includes('enoent')            ? 'yt-dlp install nahi hai ya PATH mein nahi hai' :
                   'Download fail ho gaya. Dobara try karo';
+      downloadProgress.set(uid, { id: safeId, url, type, quality, percent: 0, status: 'error', error: msg, startedAt: timestamp });
       return res.status(500).json({ error: msg });
     }
 
@@ -871,15 +892,12 @@ app.post('/api/download', requireAuth, async (req, res) => {
     // page par khud ek live audio waveform dikhata hai (Web Audio API se,
     // koi fetch/server round-trip nahi), isliye file ready hote hi turant
     // respond kar dete hain, kisi bhi extra processing ka wait kiye bina.
-    res.json({
-      success:  true,
-      fileUrl,
-      filename,
-      title,
-      type,
-      quality,
-      format: ext
-    });
+    const resultPayload = { success: true, fileUrl, filename, title, type, quality, format: ext };
+    // Bell-notification polling (/api/download/progress) ke liye — agar
+    // original request ka connection beech mein hi toot gaya ho (network
+    // hiccup), tab bhi polling se yahi final result mil jaata hai.
+    downloadProgress.set(uid, { id: safeId, url, type, quality, percent: 100, status: 'done', result: resultPayload, startedAt: timestamp });
+    res.json(resultPayload);
   };
 
   // detached:true makes yt-dlp (and anything it spawns, like ffmpeg for
@@ -888,6 +906,20 @@ app.post('/api/download', requireAuth, async (req, res) => {
   // just the top-level shell exec() actually launches. Harmless no-op-ish
   // on Windows local dev, where cancel falls back to killing just the
   // direct child instead.
+  // exec() ka returned ChildProcess bhi ek real stream hai (spawn() jaisa
+  // hi) — is par apna khud ka 'data' listener laga sakte hain live percent
+  // parse karne ke liye, exec() ke apne internal buffering (jo callback ko
+  // poora stdout deta hai) se bilkul alag/independent.
+  function trackPercent(child) {
+    child.stdout?.on('data', (chunk) => {
+      const percent = parseDownloadPercent(chunk.toString());
+      if (percent !== null) {
+        const entry = downloadProgress.get(uid);
+        if (entry && entry.status === 'downloading') entry.percent = percent;
+      }
+    });
+  }
+
   const primaryChild = exec(primaryCommand, { timeout: 5 * 60 * 1000, shell: true, cwd: DOWNLOADS_DIR, detached: true }, (error, stdout, stderr) => {
     // Clean active lock
     try { fs.unlinkSync(activeFile); } catch{}
@@ -899,12 +931,14 @@ app.post('/api/download', requireAuth, async (req, res) => {
         activeDownloadProcesses.delete(uid);
         handleResult(error2, stdout2, stderr2);
       });
+      trackPercent(retryChild);
       procEntry.child = retryChild;
       return;
     }
     activeDownloadProcesses.delete(uid);
     handleResult(error, stdout, stderr);
   });
+  trackPercent(primaryChild);
   procEntry.child = primaryChild;
 });
 
@@ -937,8 +971,18 @@ app.post('/api/download/cancel', requireAuth, (req, res) => {
   }
 
   try { fs.unlinkSync(activeFile); } catch (e) {}
+  const prevProgress = downloadProgress.get(uid);
+  if (prevProgress) downloadProgress.set(uid, { ...prevProgress, status: 'cancelled' });
   logActivity(req, 'download_cancelled', {});
   res.json({ success: true });
+});
+
+// Bell-notification dropdown polls this — independent of the main
+// /api/download request, so it still reflects the true status even if that
+// original connection broke (client-side network hiccup) partway through.
+app.get('/api/download/progress', requireAuth, (req, res) => {
+  const entry = downloadProgress.get(req.user.id);
+  res.json(entry || { status: 'none' });
 });
 
 // Download page's transcript box: file ready hote hi /api/download turant
