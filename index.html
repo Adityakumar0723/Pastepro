@@ -71,7 +71,8 @@
     main:has(#search-page.show) .hero { display: none; }
     main:has(#docs-page.show) { max-width: 1400px; padding-top: 24px; padding-bottom: 24px; }
     main:has(#docs-page.show) .hero { display: none; }
-    main:has(#settings-page.show) { max-width: 1180px; }
+    main:has(#settings-page.show) { max-width: 1400px; padding-top: 24px; padding-bottom: 24px; }
+    main:has(#settings-page.show) .hero { display: none; }
     main:has(#playground-page.show) { max-width: 1800px; padding-top: 24px; padding-bottom: 24px; padding-left: 16px; padding-right: 16px; }
     main:has(#playground-page.show) .hero { display: none; }
     main:has(#auth-view:not([style*="none"])) { max-width: 1040px; }
@@ -266,6 +267,17 @@
     @media (max-width:800px) {
       .docs-body { padding:24px 20px 40px; }
       .docs-cols-2 { grid-template-columns:1fr; }
+    }
+
+    /* SETTINGS PAGE — full-width layout, same idea as docs-body */
+    .settings-body { padding:32px 40px 48px; display:flex; flex-direction:column; gap:28px; }
+    .settings-profile-row { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:24px; }
+    .settings-joined-text { font-size:12px; color:var(--muted); margin-top:4px; }
+    .settings-mini-label { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1.5px; color:var(--muted); margin-bottom:14px; }
+    .settings-downloads-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px,1fr)); gap:10px; margin-top:12px; max-height:460px; overflow-y:auto; padding-right:4px; }
+    @media (max-width:700px) {
+      .settings-body { padding:24px 20px 40px; }
+      .settings-profile-row { flex-direction:column; align-items:flex-start; }
     }
 
     /* Filename */
@@ -1300,53 +1312,47 @@
         </div>
       </div>
 
-      <div class="dl-body">
-        <div class="dl-left">
+      <div class="settings-body">
 
-          <div class="dl-section">
-            <div class="dl-section-label">Account</div>
-            <div class="settings-account-row">
-              <div class="avatar" id="settings-avatar"></div>
-              <div>
-                <div class="user-name-text" id="settings-name">—</div>
-                <div class="user-email-text" id="settings-email">—</div>
-              </div>
-            </div>
-            <div class="dl-info-grid" style="grid-template-columns:1fr; margin-top:16px;">
-              <div class="dl-info-item"><div class="lbl">Member Since</div><div class="val" style="font-size:14px;" id="settings-joined">—</div></div>
+        <div class="settings-profile-row">
+          <div class="settings-account-row">
+            <div class="avatar" id="settings-avatar"></div>
+            <div>
+              <div class="user-name-text" id="settings-name">—</div>
+              <div class="user-email-text" id="settings-email">—</div>
+              <div class="settings-joined-text">Member since <span id="settings-joined">—</span></div>
             </div>
           </div>
-
-          <div class="dl-section" style="border-bottom:none;">
-            <div class="dl-section-label">Appearance</div>
-            <div class="splat-tabs">
+          <div>
+            <div class="settings-mini-label" style="margin-bottom:8px;">Appearance</div>
+            <div class="splat-tabs" style="margin-bottom:0;">
               <button class="splat-tab" id="theme-btn-dark" onclick="setTheme('dark')">🌙 Dark</button>
               <button class="splat-tab" id="theme-btn-light" onclick="setTheme('light')">☀️ Light</button>
             </div>
           </div>
-
         </div>
 
-        <div class="dl-right">
+        <hr class="docs-divider" />
 
-          <div class="dl-section">
-            <div class="dl-section-label">Usage Stats</div>
-            <div class="dl-info-grid" id="settings-stats-grid">
-              <div class="dl-info-item"><div class="lbl">Total Downloads</div><div class="val" id="stat-downloads">—</div></div>
-              <div class="dl-info-item"><div class="lbl">Searches</div><div class="val" id="stat-searches">—</div></div>
-              <div class="dl-info-item"><div class="lbl">Playground Queries</div><div class="val" id="stat-playground">—</div></div>
-              <div class="dl-info-item"><div class="lbl">Conversions</div><div class="val" id="stat-converts">—</div></div>
-              <div class="dl-info-item"><div class="lbl">Page Visits</div><div class="val" id="stat-pageviews">—</div></div>
-              <div class="dl-info-item"><div class="lbl">Logins</div><div class="val" id="stat-logins">—</div></div>
-            </div>
+        <div>
+          <div class="dl-section-label">Usage Stats</div>
+          <div class="dl-info-grid" id="settings-stats-grid" style="grid-template-columns:repeat(auto-fit, minmax(170px,1fr));">
+            <div class="dl-info-item"><div class="lbl">Total Downloads</div><div class="val" id="stat-downloads">—</div></div>
+            <div class="dl-info-item"><div class="lbl">Searches</div><div class="val" id="stat-searches">—</div></div>
+            <div class="dl-info-item"><div class="lbl">Playground Queries</div><div class="val" id="stat-playground">—</div></div>
+            <div class="dl-info-item"><div class="lbl">Conversions</div><div class="val" id="stat-converts">—</div></div>
+            <div class="dl-info-item"><div class="lbl">Page Visits</div><div class="val" id="stat-pageviews">—</div></div>
+            <div class="dl-info-item"><div class="lbl">Logins</div><div class="val" id="stat-logins">—</div></div>
           </div>
-
-          <div class="dl-section" style="border-bottom:none;">
-            <div class="dl-section-label">Recent Downloads</div>
-            <div id="settings-recent-downloads" class="search-results-list" style="max-height:340px;"></div>
-          </div>
-
         </div>
+
+        <hr class="docs-divider" />
+
+        <div>
+          <div class="dl-section-label">Recent Downloads</div>
+          <div id="settings-recent-downloads" class="settings-downloads-grid"></div>
+        </div>
+
       </div>
 
     </div>
