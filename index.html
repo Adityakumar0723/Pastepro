@@ -69,7 +69,8 @@
     main:has(#download-page.show) { max-width: 1180px; }
     main:has(#search-page.show) { max-width: 1400px; padding-top: 24px; padding-bottom: 24px; }
     main:has(#search-page.show) .hero { display: none; }
-    main:has(#docs-page.show) { max-width: 1180px; }
+    main:has(#docs-page.show) { max-width: 1400px; padding-top: 24px; padding-bottom: 24px; }
+    main:has(#docs-page.show) .hero { display: none; }
     main:has(#settings-page.show) { max-width: 1180px; }
     main:has(#playground-page.show) { max-width: 1800px; padding-top: 24px; padding-bottom: 24px; padding-left: 16px; padding-right: 16px; }
     main:has(#playground-page.show) .hero { display: none; }
@@ -247,7 +248,26 @@
     .dl-info-item { background:var(--surface); border-radius:10px; padding:14px; }
     .dl-info-item .lbl { font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; }
     .dl-info-item .val { font-size:16px; font-weight:700; }
- 
+
+    /* DOCUMENTATION PAGE — full-width reference layout, not the split dl-body */
+    .docs-body { padding:32px 40px 56px; display:flex; flex-direction:column; gap:36px; }
+    .docs-section-title { font-family:'Syne',sans-serif; font-size:20px; font-weight:800; letter-spacing:normal; margin-bottom:8px; }
+    .docs-section-desc { color:var(--muted); font-size:14.5px; line-height:1.7; margin:0 0 14px; max-width:820px; }
+    .docs-feature-list { list-style:none; margin:0 0 18px; padding:0; display:grid; grid-template-columns:repeat(auto-fill, minmax(260px,1fr)); gap:8px 28px; }
+    .docs-feature-list li { font-size:13.5px; color:var(--text); line-height:1.6; padding-left:22px; position:relative; }
+    .docs-feature-list li::before { content:'✓'; position:absolute; left:0; top:0; color:var(--green); font-weight:700; }
+    .docs-shot-wrap { margin-top:4px; }
+    .docs-shot { display:block; width:100%; max-width:900px; border-radius:14px; border:1px solid var(--border); box-shadow:0 12px 32px rgba(0,0,0,0.28); }
+    .docs-shot-caption { font-size:12px; color:var(--muted); margin-top:10px; }
+    .docs-shot-row { display:flex; gap:24px; flex-wrap:wrap; margin-top:4px; }
+    .docs-shot-row > div { flex:1; min-width:280px; }
+    .docs-cols-2 { display:grid; grid-template-columns:1fr 1fr; gap:32px; }
+    .docs-divider { border:none; border-top:1px solid var(--border); margin:0; }
+    @media (max-width:800px) {
+      .docs-body { padding:24px 20px 40px; }
+      .docs-cols-2 { grid-template-columns:1fr; }
+    }
+
     /* Filename */
     .dl-file-row { display:flex; align-items:center; gap:14px; }
     .dl-file-icon { font-size:28px; flex-shrink:0; }
@@ -983,40 +1003,106 @@
         <div class="dl-banner-icon">📖</div>
         <div>
           <h2>Documentation</h2>
-          <p>PastePro kaise use karein — poora guide neeche</p>
+          <p>PastePro ke har feature ka poora guide — screenshots ke saath</p>
         </div>
       </div>
 
-      <div class="dl-body">
-        <div class="dl-left">
+      <div class="docs-body">
 
-          <div class="dl-section">
-            <div class="dl-section-label">Quick Start</div>
-            <div class="dl-info-grid" style="grid-template-columns:1fr;">
-              <div class="dl-info-item"><div class="lbl">Step 1</div><div class="val" style="font-size:14px;">Login ya Sign Up karo apne email se</div></div>
-              <div class="dl-info-item"><div class="lbl">Step 2</div><div class="val" style="font-size:14px;">Link copy karke "Video Download karo" box mein paste karo</div></div>
-              <div class="dl-info-item"><div class="lbl">Step 3</div><div class="val" style="font-size:14px;">Type (📹 Video / 🎵 Audio), Quality aur Format select karo</div></div>
-              <div class="dl-info-item"><div class="lbl">Step 4</div><div class="val" style="font-size:14px;">Download button dabao — kuch second mein file ready ho jaayegi</div></div>
-              <div class="dl-info-item"><div class="lbl">Step 5</div><div class="val" style="font-size:14px;">Ready page par preview karo, captions dekho, download karo</div></div>
-              <div class="dl-info-item"><div class="lbl">Step 6</div><div class="val" style="font-size:14px;">Chaho toh usi file ko ek aur format mein convert kar lo</div></div>
-            </div>
+        <div class="docs-section">
+          <div class="docs-section-title">🚀 Quick Start</div>
+          <div class="dl-info-grid" style="grid-template-columns:repeat(auto-fill, minmax(240px,1fr));">
+            <div class="dl-info-item"><div class="lbl">Step 1</div><div class="val" style="font-size:14px;">Login ya Sign Up karo apne email se</div></div>
+            <div class="dl-info-item"><div class="lbl">Step 2</div><div class="val" style="font-size:14px;">Link copy karke "Video Download karo" box mein paste karo</div></div>
+            <div class="dl-info-item"><div class="lbl">Step 3</div><div class="val" style="font-size:14px;">Type (📹 Video / 🎵 Audio), Quality aur Format select karo</div></div>
+            <div class="dl-info-item"><div class="lbl">Step 4</div><div class="val" style="font-size:14px;">Download button dabao — header ke neeche notification dikhega, chaho to wahin se cancel kar do</div></div>
+            <div class="dl-info-item"><div class="lbl">Step 5</div><div class="val" style="font-size:14px;">Ready page par preview + waveform + word-by-word transcript dekho</div></div>
+            <div class="dl-info-item"><div class="lbl">Step 6</div><div class="val" style="font-size:14px;">Chaho toh usi file ko ek aur format mein convert kar lo</div></div>
           </div>
-
-          <div class="dl-section" style="border-bottom:none;">
-            <div class="dl-section-label">Sidebar Tools</div>
-            <div class="dl-info-grid" style="grid-template-columns:1fr;">
-              <div class="dl-info-item"><div class="lbl">🔍 Search & Download</div><div class="val" style="font-size:14px;">YouTube par keyword se videos dhoondo aur preview karo; Reddit par username se unke posts dhoondo; Instagram/Twitter ka post link paste karo — sab yahin se download karo</div></div>
-              <div class="dl-info-item"><div class="lbl">💬 Playground Query</div><div class="val" style="font-size:14px;">PastePro Assistant se kuch bhi pucho — AI-powered chat, real-time streaming jawab ke saath</div></div>
-              <div class="dl-info-item"><div class="lbl">🗂️ Categories</div><div class="val" style="font-size:14px;">Sidebar se platform (YouTube, Instagram, etc.) seedha select karke download box khol lo</div></div>
-            </div>
-          </div>
-
         </div>
 
-        <div class="dl-right">
+        <hr class="docs-divider" />
 
-          <div class="dl-section">
-            <div class="dl-section-label">Supported Platforms</div>
+        <div class="docs-section">
+          <div class="docs-section-title">🔍 Search & Download</div>
+          <p class="docs-section-desc">YouTube par keyword se search karo, result seedha play karo, aur wahin se download karo. Reddit, Instagram, Twitter/X ka link seedha paste karke bhi download kar sakte ho.</p>
+          <ul class="docs-feature-list">
+            <li>YouTube search — 40 tak results, thumbnail/views/duration ke saath</li>
+            <li>Result click karte hi video seedha play, channel/views ke saath</li>
+            <li>Video play karte hi live audio waveform aur word-by-word transcript (jo bhi language bola gaya ho, usi mein)</li>
+            <li>Platform tabs — YouTube, Reddit, Instagram, Twitter/X</li>
+            <li>List se seedha kisi bhi result par "Download" button</li>
+          </ul>
+          <div class="docs-shot-wrap">
+            <img class="docs-shot" src="/docs-assets/search-download.png" alt="Search & Download page" loading="lazy" />
+            <div class="docs-shot-caption">Search & Download page — video play ho raha hai, results side mein</div>
+          </div>
+        </div>
+
+        <hr class="docs-divider" />
+
+        <div class="docs-section">
+          <div class="docs-section-title">💬 Playground Query (AI Assistant)</div>
+          <p class="docs-section-desc">PastePro Assistant se kuch bhi pucho — ChatGPT jaisa chat experience, purani chats sidebar mein save rehti hain.</p>
+          <ul class="docs-feature-list">
+            <li>Chat History — purani chats rename ya delete (confirmation popup ke saath) kar sakte ho</li>
+            <li>Ek saath 5 tak files attach karo</li>
+            <li>Image, video, PDF, DOCX, XLSX, PPTX, MD, HTML, ODT, RTF, EPUB, TXT — sab support hai</li>
+            <li>AI images ko "dekh" sakta hai (vision model), aur doc/PDF/spreadsheet ka content padh ke jawab deta hai</li>
+            <li>Jawab mein tables, code blocks, bullet points sab sahi se format ho ke dikhte hain</li>
+            <li>Har message par Copy / Edit / Regenerate</li>
+          </ul>
+          <div class="docs-shot-row">
+            <div>
+              <img class="docs-shot" src="/docs-assets/playground-attach-preview.png" alt="Multiple file attach preview" loading="lazy" />
+              <div class="docs-shot-caption">Send karne se pehle multiple files attach karke preview</div>
+            </div>
+            <div>
+              <img class="docs-shot" src="/docs-assets/playground-chat.png" alt="Playground chat with attachments and a markdown table" loading="lazy" />
+              <div class="docs-shot-caption">Attachments ke saath chat, AI ka table-formatted jawab</div>
+            </div>
+          </div>
+        </div>
+
+        <hr class="docs-divider" />
+
+        <div class="docs-section">
+          <div class="docs-section-title">⬇ Download Ready Page</div>
+          <p class="docs-section-desc">Download complete hone ke turant baad ye page dikhta hai.</p>
+          <ul class="docs-feature-list">
+            <li>Live audio waveform — video/audio play karte hi turant dikhta hai, koi wait nahi</li>
+            <li>Word-by-word transcript — jo bola ja raha hai wahi text sync ho ke highlight hota hai</li>
+            <li>Ek click mein doosre format mein convert (MP3, M4A, WAV, FLAC, OPUS ya MP4, MKV, WEBM, MOV, AVI)</li>
+            <li>Direct download URL — copy karke IDM/Download Manager ya kahin bhi use karo</li>
+            <li>Download shuru hote hi header ke neeche ek notification bar dikhta hai, jo kaunsi video download ho rahi hai bataata hai — wahin se cancel bhi kar sakte ho</li>
+          </ul>
+          <div class="docs-shot-wrap">
+            <img class="docs-shot" src="/docs-assets/download-ready.png" alt="Download Ready page with waveform and transcript" loading="lazy" />
+            <div class="docs-shot-caption">Waveform + live transcript + convert options + direct download URL</div>
+          </div>
+        </div>
+
+        <hr class="docs-divider" />
+
+        <div class="docs-section">
+          <div class="docs-section-title">🔐 Account & Security</div>
+          <p class="docs-section-desc">Apna email/password se account banao — password bhool jao toh email se reset kar sakte ho.</p>
+          <ul class="docs-feature-list">
+            <li>Login page par "Password bhool gaye?" link</li>
+            <li>Email pe reset link jaata hai (Gmail ke through)</li>
+            <li>Link sirf 10 minute valid hai, aur ek hi baar use ho sakta hai</li>
+          </ul>
+          <div class="docs-shot-wrap">
+            <img class="docs-shot" src="/docs-assets/forgot-password.png" alt="Forgot password form" loading="lazy" style="max-width:640px;" />
+            <div class="docs-shot-caption">Forgot Password form</div>
+          </div>
+        </div>
+
+        <hr class="docs-divider" />
+
+        <div class="docs-cols-2">
+          <div class="docs-section">
+            <div class="docs-section-title" style="font-size:17px;">Supported Platforms</div>
             <div class="platform-list">
               <span class="plat">YouTube</span><span class="plat">Instagram</span>
               <span class="plat">TikTok</span><span class="plat">Twitter / X</span>
@@ -1024,34 +1110,24 @@
               <span class="plat">Dailymotion</span><span class="plat">Reddit</span>
             </div>
           </div>
-
-          <div class="dl-section">
-            <div class="dl-section-label">Supported Formats</div>
+          <div class="docs-section">
+            <div class="docs-section-title" style="font-size:17px;">Supported Formats</div>
             <div class="dl-info-grid">
               <div class="dl-info-item"><div class="lbl">Video</div><div class="val" style="font-size:14px;">MP4, MKV, WEBM, MOV, AVI — 1080p tak</div></div>
               <div class="dl-info-item"><div class="lbl">Audio</div><div class="val" style="font-size:14px;">MP3, M4A, WAV, FLAC, OPUS</div></div>
             </div>
           </div>
-
-          <div class="dl-section">
-            <div class="dl-section-label">Extra Features</div>
-            <div class="dl-info-grid" style="grid-template-columns:1fr;">
-              <div class="dl-info-item"><div class="lbl">Preview Player</div><div class="val" style="font-size:14px;">Download se pehle hi video/audio play karke check kar sakte ho</div></div>
-              <div class="dl-info-item"><div class="lbl">Captions</div><div class="val" style="font-size:14px;">Preview ke saath word-by-word captions dikhte hain (jahan available ho)</div></div>
-              <div class="dl-info-item"><div class="lbl">Convert</div><div class="val" style="font-size:14px;">Ready page se ek click mein file ko doosre video/audio format mein convert karo</div></div>
-            </div>
-          </div>
-
-          <div class="dl-section" style="border-bottom:none;">
-            <div class="dl-section-label">Zaroori Baatein</div>
-            <div class="dl-info-grid" style="grid-template-columns:1fr;">
-              <div class="dl-info-item"><div class="lbl">File Size Limit</div><div class="val" style="font-size:14px;">200MB tak ek file</div></div>
-              <div class="dl-info-item"><div class="lbl">Auto Cleanup</div><div class="val" style="font-size:14px;">Files 30 minute ke baad server se automatically delete ho jaati hain — turant download/save kar lo</div></div>
-              <div class="dl-info-item"><div class="lbl">Account</div><div class="val" style="font-size:14px;">Har download aur search email se linked account mein safe rehta hai</div></div>
-            </div>
-          </div>
-
         </div>
+
+        <div class="docs-section">
+          <div class="docs-section-title" style="font-size:17px;">Zaroori Baatein</div>
+          <div class="dl-info-grid" style="grid-template-columns:repeat(auto-fill, minmax(240px,1fr));">
+            <div class="dl-info-item"><div class="lbl">File Size Limit</div><div class="val" style="font-size:14px;">200MB tak ek file (download); Playground attachments 15MB (video 60MB) tak</div></div>
+            <div class="dl-info-item"><div class="lbl">Auto Cleanup</div><div class="val" style="font-size:14px;">Files 30 minute ke baad server se automatically delete ho jaati hain — turant download/save kar lo</div></div>
+            <div class="dl-info-item"><div class="lbl">Account</div><div class="val" style="font-size:14px;">Har download aur search email se linked account mein safe rehta hai</div></div>
+          </div>
+        </div>
+
       </div>
 
     </div>

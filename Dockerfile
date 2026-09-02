@@ -80,6 +80,7 @@ RUN npm install --omit=dev
 # firebase-service-account.json, or the Windows yt-dlp.exe/ffmpeg.exe
 # (see .dockerignore).
 COPY server.js index.html ./
+COPY docs-assets ./docs-assets
 
 ENV PORT=3002
 EXPOSE 3002

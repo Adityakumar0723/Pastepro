@@ -206,6 +206,9 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+// Documentation page screenshots — plain static files, no auth needed.
+app.use('/docs-assets', express.static(path.join(__dirname, 'docs-assets')));
+
 // Static serve for downloaded files
 app.use('/files', (req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
