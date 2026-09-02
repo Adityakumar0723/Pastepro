@@ -53,9 +53,16 @@
     header { display: flex; align-items:center; justify-content:space-between; padding: 20px 48px; background: rgba(12,12,14,0.85); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
     .dl-bell-wrap { position: relative; }
     .dl-bell-badge { position:absolute; top:4px; right:4px; width:8px; height:8px; border-radius:50%; background:var(--accent); border:1.5px solid var(--bg); }
-    .dl-bell-panel { position:absolute; top:calc(100% + 10px); right:0; width:340px; max-height:420px; overflow-y:auto; background:var(--card); border:1px solid var(--border); border-radius:14px; box-shadow:0 16px 40px rgba(0,0,0,0.35); z-index:60; }
-    .dl-bell-panel-header { padding:14px 16px; font-size:13px; font-weight:700; border-bottom:1px solid var(--border); }
-    .dl-bell-panel-list { display:flex; flex-direction:column; }
+    .dl-bell-panel { position:absolute; top:calc(100% + 10px); right:0; width:340px; max-height:460px; display:flex; flex-direction:column; background:var(--card); border:1px solid var(--border); border-radius:14px; box-shadow:0 16px 40px rgba(0,0,0,0.35); z-index:60; overflow:hidden; }
+    .dl-bell-panel-header { padding:14px 16px; font-size:13px; font-weight:700; border-bottom:1px solid var(--border); flex-shrink:0; }
+    /* Header hamesha fixed rehta hai, sirf list apni jagah scroll karti hai —
+       ~5 items bina scroll ke fit ho jaate hain, usse zyada aane par yahin
+       ek clean thin scrollbar dikhta hai. */
+    .dl-bell-panel-list { display:flex; flex-direction:column; overflow-y:auto; flex:1; min-height:0; }
+    .dl-bell-panel-list::-webkit-scrollbar { width:6px; }
+    .dl-bell-panel-list::-webkit-scrollbar-track { background:transparent; }
+    .dl-bell-panel-list::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+    .dl-bell-panel-list::-webkit-scrollbar-thumb:hover { background:var(--muted); }
     .dl-bell-empty { padding:24px 16px; text-align:center; color:var(--muted); font-size:13px; }
     .dl-bell-item { display:flex; align-items:flex-start; gap:10px; padding:12px 16px; border-bottom:1px solid var(--border); }
     .dl-bell-item:last-child { border-bottom:none; }
@@ -2995,13 +3002,17 @@
 
   // ════════════════════════════════
   //  BELL NOTIFICATION — download progress dropdown
-  //  Ek chhota client-side history (max 5) rakhte hain; sirf 'downloading'
-  //  status wali entry ko background polling (/api/download/progress) se
-  //  live update milta hai — server ke paas per-user ek hi slot hota hai,
-  //  isliye ye hamesha wahi single "abhi chal raha" download hoti hai.
+  //  Ek client-side history (max 20) rakhte hain; sirf 'downloading' status
+  //  wali entry ko background polling (/api/download/progress) se live
+  //  update milta hai — server ke paas per-user ek hi slot hota hai, isliye
+  //  ye hamesha wahi single "abhi chal raha" download hoti hai. Panel mein
+  //  ~5 items bina scroll ke fit hote hain, usse zyada aane par list apni
+  //  jagah scroll karti hai (dl-bell-panel-list, CSS mein).
   // ════════════════════════════════
+  const DL_PROCESSES_MAX = 20;
+
   function saveDlProcesses() {
-    dlProcesses = dlProcesses.slice(-5);
+    dlProcesses = dlProcesses.slice(-DL_PROCESSES_MAX);
     try { localStorage.setItem('pastepro_dl_processes', JSON.stringify(dlProcesses)); } catch (e) {}
   }
 
@@ -3047,7 +3058,7 @@
   window.toggleDlBellPanel = () => {
     const panel = document.getElementById('dl-bell-panel');
     const opening = panel.style.display === 'none';
-    panel.style.display = opening ? 'block' : 'none';
+    panel.style.display = opening ? 'flex' : 'none';
     if (opening) {
       dlProcesses.forEach(p => p.seen = true);
       saveDlProcesses();
