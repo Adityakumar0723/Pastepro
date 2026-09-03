@@ -1316,7 +1316,7 @@
             <div class="pg-input-bar">
               <input type="file" id="pg-file-input" accept="image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm,video/quicktime,video/x-matroska,video/x-msvideo,.pdf,.docx,.xlsx,.pptx,.md,.html,.htm,.odt,.rtf,.epub,.txt" multiple style="display:none;" onchange="handlePgFileSelect(event)" />
               <button type="button" class="pg-attach-btn" onclick="document.getElementById('pg-file-input').click()" title="Image, video ya document (PDF/DOCX/XLSX/PPTX/MD/HTML/ODT/RTF/EPUB/TXT) attach karo — ek saath multiple bhi">📎</button>
-              <textarea id="pg-query" class="pg-textarea" placeholder="Apna sawaal yahan likho..." rows="1" onkeydown="handlePgKeydown(event)" oninput="autoGrowPgTextarea(this)"></textarea>
+              <textarea id="pg-query" class="pg-textarea" placeholder="Apna sawaal yahan likho... (screenshot/file bhi paste kar sakte ho)" rows="1" onkeydown="handlePgKeydown(event)" oninput="autoGrowPgTextarea(this)" onpaste="handlePgPaste(event)"></textarea>
               <button type="button" class="pg-send-btn" id="pg-ask-btn" onclick="askPlayground()">➤</button>
             </div>
           </div>
@@ -2524,9 +2524,9 @@
 
   const PG_MAX_ATTACHMENTS = 5;
 
-  window.handlePgFileSelect = async (event) => {
-    const files = Array.from(event.target.files || []);
-    event.target.value = ''; // taaki wahi file(s) dobara select karne par bhi change event fire ho
+  // Ek jagah se file input (📎 button) aur paste (Ctrl+V) dono use karte
+  // hain — same validation/limits/storage logic, bas source alag.
+  async function pgAttachFiles(files) {
     if (!files.length) return;
 
     if (pgAttachments.length + files.length > PG_MAX_ATTACHMENTS) {
@@ -2562,6 +2562,41 @@
       }
     }
     renderPgAttachmentPreview();
+  }
+
+  window.handlePgFileSelect = async (event) => {
+    const files = Array.from(event.target.files || []);
+    event.target.value = ''; // taaki wahi file(s) dobara select karne par bhi change event fire ho
+    await pgAttachFiles(files);
+  };
+
+  // Ctrl+V se screenshot/image ya explorer se copy ki hui file seedha
+  // attach ho jaaye — clipboard.items mein "file" kind wale hi uthaate hain,
+  // baaki (normal text paste) ko bina rokey textarea mein jaane dete hain.
+  // Screenshot tools (Snipping Tool, PrtScn) clipboard image ko bina naam
+  // ke dete hain, isliye khaali/generic naam par extension se ek proper
+  // filename bana dete hain — warna doc-type detection (jo naam ke
+  // extension par depend karta hai) confuse ho jaata.
+  window.handlePgPaste = async (event) => {
+    const items = event.clipboardData && event.clipboardData.items;
+    if (!items || !items.length) return;
+
+    const files = [];
+    for (const item of items) {
+      if (item.kind !== 'file') continue;
+      const file = item.getAsFile();
+      if (!file) continue;
+      if (!file.name || !file.name.includes('.')) {
+        const ext = (file.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+        files.push(new File([file], `pasted-${Date.now()}.${ext}`, { type: file.type }));
+      } else {
+        files.push(file);
+      }
+    }
+    if (!files.length) return; // normal text paste — textarea ko khud handle karne do
+
+    event.preventDefault();
+    await pgAttachFiles(files);
   };
 
   function pgAttachmentIcon(att) {
