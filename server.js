@@ -386,7 +386,8 @@ function isSupportedUrl(url) {
     /facebook\.com/,
     /vimeo\.com/,
     /dailymotion\.com/,
-    /reddit\.com/
+    /reddit\.com/,
+    /loom\.com/
   ];
   return patterns.some(p => p.test(url));
 }
