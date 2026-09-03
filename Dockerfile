@@ -3,10 +3,16 @@
 
 FROM node:20-bookworm-slim
 
-# ffmpeg: needed for audio extraction (-x) and video re-encode (--recode-video)
+# ffmpeg: needed for audio extraction (-x), video re-encode (--recode-video)
+# and the Video Editor (trim/effects/text overlay).
 # curl/ca-certificates/unzip: needed only to fetch the yt-dlp/deno binaries below
+# fontconfig + fonts-dejavu-core: the Video Editor's text-overlay feature uses
+# ffmpeg's drawtext filter with generic fontconfig family names (sans-serif/
+# serif/monospace/bold) — without an actual fontconfig + font package
+# installed, drawtext has nothing to resolve those names to and fails at
+# runtime even though the ffmpeg binary itself supports the filter.
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ffmpeg curl ca-certificates unzip && \
+    apt-get install -y --no-install-recommends ffmpeg curl ca-certificates unzip fontconfig fonts-dejavu-core && \
     rm -rf /var/lib/apt/lists/*
 
 # Deno — the JS runtime yt-dlp uses (auto-detected on PATH, no flag needed)

@@ -497,6 +497,38 @@ async function resolveFfmpegCommand() {
   return null;
 }
 
+// ─── ffprobe resolve (Video Editor mein fade/trim-duration maths ke liye) ──
+async function resolveFfprobeCommand() {
+  const localExe = path.join(__dirname, 'ffprobe.exe');
+  const candidates = [];
+
+  if (process.env.FFPROBE_PATH) candidates.push(process.env.FFPROBE_PATH);
+  if (fs.existsSync(localExe)) candidates.push(localExe);
+  candidates.push('ffprobe');
+
+  for (const candidate of candidates) {
+    try {
+      const works = await new Promise(resolve => {
+        exec(`${quoteIfPath(candidate)} -version`, { shell: true, timeout: 10000 }, (err) => resolve(!err));
+      });
+      if (works) return candidate;
+    } catch (e) {
+      // ignore and try next candidate
+    }
+  }
+  return null;
+}
+
+function getMediaDuration(ffprobeCmd, filePath) {
+  return new Promise((resolve) => {
+    const cmd = `${quoteIfPath(ffprobeCmd)} -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${filePath}"`;
+    exec(cmd, { shell: true, timeout: 15000 }, (error, stdout) => {
+      const val = parseFloat(stdout);
+      resolve(!error && Number.isFinite(val) ? val : null);
+    });
+  });
+}
+
 // ─── Convert ke liye supported formats ────────────────────
 const AUDIO_CONVERT_FORMATS = {
   mp3:  '-vn -codec:a libmp3lame -q:a 2',
@@ -1095,9 +1127,33 @@ app.post('/api/edit/upload', requireAuth, (req, res) => {
 // chain karna padta), aur speed dropdown isi range tak limited hai, isliye
 // yahan seedha ek hi atempo instance kaafi hai.
 const EDIT_ALLOWED_SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+const EDIT_ALLOWED_EFFECTS = ['none', 'grayscale', 'sepia', 'vignette', 'blur', 'sharpen'];
+const EDIT_EFFECT_FILTERS = {
+  grayscale: 'hue=s=0',
+  sepia: 'colorchannelmixer=.393:.769:.189:0:.349:.686:.168:0:.272:.534:.131',
+  vignette: 'vignette',
+  blur: 'boxblur=4:1',
+  sharpen: 'unsharp=5:5:1.0:5:5:0.0',
+};
+const EDIT_ALLOWED_FONTS = { sans: 'sans-serif', serif: 'serif', mono: 'monospace' };
+const EDIT_ALLOWED_POSITIONS = ['top', 'center', 'bottom'];
+const EDIT_MAX_TEXT_LEN = 300;
+
+// Filter-graph string mein path daalne se pehle: backslash -> forward slash
+// (Windows dev par C:\Users\... jaisa path bhi chal jaaye) aur ':' escape
+// karo (filter syntax mein ':' key=value separator hai, isliye drive-letter
+// wale colon ko '\:' banana zaroori hai — Linux/prod paths mein colon hota
+// hi nahi to wahan ye no-op rehta hai).
+function escapeFfmpegFilterPath(p) {
+  return p.replace(/\\/g, '/').replace(/:/g, '\\:');
+}
 
 app.post('/api/edit/process', requireAuth, async (req, res) => {
-  const { filename, trimStart, trimEnd, noiseReduction, volume, speed } = req.body;
+  const {
+    filename, trimStart, trimEnd, noiseReduction, volume, speed,
+    effect, brightness, contrast, saturation, fadeIn, fadeOut,
+    textEnabled, text, textFont, textSize, textColor, textPosition, textBox,
+  } = req.body;
   if (!filename) return res.status(400).json({ error: 'Filename zaroori hai' });
 
   const uid = req.user.id;
@@ -1120,6 +1176,28 @@ app.post('/api/edit/process', requireAuth, async (req, res) => {
   if (!EDIT_ALLOWED_SPEEDS.includes(spd)) return res.status(400).json({ error: 'Speed invalid hai' });
 
   const denoise = noiseReduction === true || noiseReduction === 'true';
+  const doFadeIn = fadeIn === true || fadeIn === 'true';
+  const doFadeOut = fadeOut === true || fadeOut === 'true';
+
+  const fx = effect && EDIT_ALLOWED_EFFECTS.includes(effect) ? effect : 'none';
+
+  const bright = brightness !== undefined && brightness !== null && brightness !== '' ? Number(brightness) : 0;
+  const contr  = contrast   !== undefined && contrast   !== null && contrast   !== '' ? Number(contrast)   : 1;
+  const satur  = saturation !== undefined && saturation !== null && saturation !== '' ? Number(saturation) : 1;
+  if (!Number.isFinite(bright) || bright < -1 || bright > 1) return res.status(400).json({ error: 'Brightness invalid hai (-1 se 1 ke beech)' });
+  if (!Number.isFinite(contr) || contr < 0 || contr > 3) return res.status(400).json({ error: 'Contrast invalid hai (0-3 ke beech)' });
+  if (!Number.isFinite(satur) || satur < 0 || satur > 3) return res.status(400).json({ error: 'Saturation invalid hai (0-3 ke beech)' });
+
+  const doText = textEnabled === true || textEnabled === 'true';
+  const textStr = typeof text === 'string' ? text : '';
+  if (doText && !textStr.trim()) return res.status(400).json({ error: 'Text daalo ya Text overlay disable karo' });
+  if (doText && textStr.length > EDIT_MAX_TEXT_LEN) return res.status(400).json({ error: `Text bahut lamba hai (max ${EDIT_MAX_TEXT_LEN} characters)` });
+  const fontKey = EDIT_ALLOWED_FONTS[textFont] ? textFont : 'sans';
+  const fSize = textSize !== undefined && textSize !== null && textSize !== '' ? Number(textSize) : 36;
+  if (!Number.isFinite(fSize) || fSize < 12 || fSize > 160) return res.status(400).json({ error: 'Font size invalid hai (12-160 ke beech)' });
+  const colorHex = /^#[0-9a-fA-F]{6}$/.test(textColor || '') ? textColor : '#ffffff';
+  const pos = EDIT_ALLOWED_POSITIONS.includes(textPosition) ? textPosition : 'bottom';
+  const withBox = textBox === true || textBox === 'true';
 
   const ffmpegCmd = await resolveFfmpegCommand();
   if (!ffmpegCmd) {
@@ -1131,16 +1209,67 @@ app.post('/api/edit/process', requireAuth, async (req, res) => {
 
   // Kam se kam ek edit zaroor select ho — warna ye sirf ek expensive no-op
   // re-encode hi ban jaata.
-  if (start === null && end === null && !denoise && vol === 1 && spd === 1) {
-    return res.status(400).json({ error: 'Kam se kam ek edit option choose karo (trim, noise reduction, volume, ya speed)' });
+  const hasAnyEdit = start !== null || end !== null || denoise || vol !== 1 || spd !== 1 ||
+    fx !== 'none' || bright !== 0 || contr !== 1 || satur !== 1 || doFadeIn || doFadeOut || doText;
+  if (!hasAnyEdit) {
+    return res.status(400).json({ error: 'Kam se kam ek edit option choose karo' });
+  }
+
+  // Fade in/out ke liye final (trim + speed apply hone ke baad wali) duration
+  // chahiye — isliye agar trim end nahi diya, to poore source ki duration
+  // ffprobe se nikaalte hain. Trim (-ss/-t) hamesha SOURCE timeline par hota
+  // hai (upar wale comment jaisa), par setpts/atempo pehle hi apply ho chuke
+  // filter-chain mein fade se pehle, isliye fade ka st= final/output timeline
+  // (jo already sped-up hai) ke against hi sahi baithta hai.
+  let fadeInDur = 0, fadeOutDur = 0, fadeOutStart = 0;
+  if (doFadeIn || doFadeOut) {
+    let sourceDur = null;
+    if (end !== null) {
+      sourceDur = end - (start || 0);
+    } else {
+      const ffprobeCmd = await resolveFfprobeCommand();
+      const totalDur = ffprobeCmd ? await getMediaDuration(ffprobeCmd, inputPath) : null;
+      if (totalDur !== null) sourceDur = totalDur - (start || 0);
+    }
+    const finalDur = sourceDur !== null && sourceDur > 0 ? sourceDur / spd : null;
+    if (finalDur !== null) {
+      const fd = Math.min(1, finalDur / 2.5);
+      if (doFadeIn) fadeInDur = fd;
+      if (doFadeOut) { fadeOutDur = fd; fadeOutStart = Math.max(0, finalDur - fd); }
+    }
+  }
+
+  // Text overlay: user ka text ek temp .txt file mein likh dete hain aur
+  // drawtext ke textfile= param se padhte hain (text= inline karne par
+  // quotes/colons/backslash sab manually escape karne padte — bahut fragile
+  // aur injection-prone). expansion=none zaroori hai warna text mein '%'
+  // (jaise "100% off") ko drawtext apna khud ka %{...} expression samajh kar
+  // "Stray %" error de deta (live test se confirm hua).
+  let textFilePath = null;
+  if (doText) {
+    textFilePath = path.join(DOWNLOADS_DIR, `${uid.slice(0,8)}_${Date.now()}_overlay.txt`);
+    fs.writeFileSync(textFilePath, textStr, 'utf8');
   }
 
   const audioFilters = [];
   if (denoise) audioFilters.push('afftdn');
   if (vol !== 1) audioFilters.push(`volume=${vol}`);
   if (spd !== 1) audioFilters.push(`atempo=${spd}`);
+  if (fadeInDur > 0) audioFilters.push(`afade=t=in:st=0:d=${fadeInDur.toFixed(2)}`);
+  if (fadeOutDur > 0) audioFilters.push(`afade=t=out:st=${fadeOutStart.toFixed(2)}:d=${fadeOutDur.toFixed(2)}`);
+
   const videoFilters = [];
+  if (fx !== 'none') videoFilters.push(EDIT_EFFECT_FILTERS[fx]);
+  if (bright !== 0 || contr !== 1 || satur !== 1) videoFilters.push(`eq=brightness=${bright}:contrast=${contr}:saturation=${satur}`);
+  if (doText) {
+    const escapedPath = escapeFfmpegFilterPath(textFilePath);
+    const yExpr = pos === 'top' ? '40' : pos === 'center' ? '(h-text_h)/2' : 'h-text_h-40';
+    const boxParts = withBox ? ':box=1:boxcolor=0x000000@0.45:boxborderw=12' : '';
+    videoFilters.push(`drawtext=textfile='${escapedPath}':reload=0:expansion=none:font=${EDIT_ALLOWED_FONTS[fontKey]}:fontsize=${fSize}:fontcolor=0x${colorHex.slice(1)}${boxParts}:x=(w-text_w)/2:y=${yExpr}`);
+  }
   if (spd !== 1) videoFilters.push(`setpts=PTS/${spd}`);
+  if (fadeInDur > 0) videoFilters.push(`fade=t=in:st=0:d=${fadeInDur.toFixed(2)}`);
+  if (fadeOutDur > 0) videoFilters.push(`fade=t=out:st=${fadeOutStart.toFixed(2)}:d=${fadeOutDur.toFixed(2)}`);
 
   const outName    = `${path.basename(safeName, path.extname(safeName))}_edited_${Date.now()}.mp4`;
   const outputPath = path.join(DOWNLOADS_DIR, outName);
@@ -1162,15 +1291,16 @@ app.post('/api/edit/process', requireAuth, async (req, res) => {
   argParts.push('-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', '-c:a', 'aac', `"${outputPath}"`);
   const command = argParts.join(' ');
 
-  console.log(`[${uid.slice(0,8)}] Editing video: ${safeName} -> ${outName}`, { start, end, denoise, vol, spd });
+  console.log(`[${uid.slice(0,8)}] Editing video: ${safeName} -> ${outName}`, { start, end, denoise, vol, spd, fx, doText });
 
   exec(command, { timeout: 5 * 60 * 1000, shell: true, cwd: DOWNLOADS_DIR }, (error, stdout, stderr) => {
+    if (textFilePath) fs.unlink(textFilePath, () => {}); // best-effort cleanup, temp file hai
     if (error || !fs.existsSync(outputPath)) {
       console.error('ffmpeg edit error:', stderr || (error && error.message));
       return res.status(500).json({ error: 'Edit fail ho gaya. Dobara try karo' });
     }
     console.log(`[${uid.slice(0,8)}] Edited: ${outName}`);
-    logActivity(req, 'video_edit', { sourceFilename: safeName, outName, start, end, denoise, vol, spd });
+    logActivity(req, 'video_edit', { sourceFilename: safeName, outName, start, end, denoise, vol, spd, fx, doText });
     res.json({ success: true, fileUrl: `/files/${outName}`, filename: outName });
   });
 });
