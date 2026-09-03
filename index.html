@@ -367,10 +367,10 @@
     .editor-upload-hint { font-size:13px; color:var(--muted); margin-top:6px; }
 
     .editor-studio { display:grid; grid-template-columns:1fr 440px; gap:20px; align-items:start; }
-    .editor-preview-col { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:20px; position:sticky; top:20px; }
+    .editor-preview-col { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:20px; position:sticky; top:20px; min-width:0; }
     .editor-preview-video { width:100%; border-radius:12px; background:#000; max-height:600px; }
 
-    .editor-panel { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:18px; display:flex; flex-direction:column; gap:16px; min-height:600px; }
+    .editor-panel { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:18px; display:flex; flex-direction:column; gap:16px; min-height:600px; min-width:0; overflow-x:hidden; }
     .editor-tabs { display:flex; gap:6px; background:var(--surface); padding:4px; border-radius:10px; flex-shrink:0; }
     .editor-tab-btn { flex:1; padding:10px 6px; border:none; background:transparent; border-radius:8px; color:var(--muted); font-family:'Space Grotesk',sans-serif; font-size:12px; font-weight:700; cursor:pointer; transition:all 0.2s; white-space:nowrap; }
     .editor-tab-btn:hover { color:var(--text); }
@@ -380,9 +380,9 @@
     .editor-tab-pane.active { display:flex; }
 
     .editor-control-group { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px 18px; }
-    .editor-inline-row { display:flex; gap:14px; }
-    .editor-inline-row label { flex:1; display:flex; flex-direction:column; gap:6px; font-size:12px; color:var(--muted); font-weight:600; }
-    .editor-inline-row input, .editor-inline-row select { padding:10px 12px; border-radius:8px; border:1px solid var(--border); background:var(--card); color:var(--text); font-family:'Space Grotesk',sans-serif; font-size:14px; }
+    .editor-inline-row { display:flex; gap:14px; min-width:0; }
+    .editor-inline-row label { flex:1; min-width:0; display:flex; flex-direction:column; gap:6px; font-size:12px; color:var(--muted); font-weight:600; }
+    .editor-inline-row input, .editor-inline-row select { width:100%; min-width:0; box-sizing:border-box; padding:10px 12px; border-radius:8px; border:1px solid var(--border); background:var(--card); color:var(--text); font-family:'Space Grotesk',sans-serif; font-size:14px; }
     .editor-toggle-row { display:flex; align-items:center; gap:10px; font-size:14px; font-weight:600; cursor:pointer; }
     .editor-checkbox { width:18px; height:18px; accent-color:var(--green); cursor:pointer; flex-shrink:0; }
     input[type=range].editor-slider { width:100%; accent-color:var(--green); margin-top:6px; }
