@@ -3947,6 +3947,12 @@
   // redownload option dikhao.
   function handleDlPreviewError(el) {
     el.style.display = 'none';
+    showDlExpiredMessage();
+  }
+
+  function showDlExpiredMessage() {
+    document.getElementById('dl-preview-video').style.display = 'none';
+    document.getElementById('dl-preview-audio').style.display = 'none';
     document.getElementById('dl-preview-expired').style.display = 'flex';
   }
 
@@ -4254,9 +4260,31 @@
 
   showToast('Download shuru ho raha hai...', 'success');
 
+  let response;
   try {
-    const response = await fetch(url, { mode: 'cors' });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    response = await fetch(url, { mode: 'cors' });
+  } catch (networkErr) {
+    console.error('File download network error:', networkErr);
+    // Ye sirf CORS/network-level fail hai (response mila hi nahi) — asli
+    // browser download flow try karo, jo blob-blocked cases mein kaam karta hai.
+    window.location.href = url;
+    return;
+  }
+
+  if (!response.ok) {
+    // File confirm missing hai (e.g. server restart ke baad ephemeral tmp
+    // dir se delete ho chuki) — is case mein raw URL par navigate NAHI karna
+    // chahiye: server 404 par bhi purane code mein Content-Disposition:
+    // attachment bhej deta tha, jisse Chrome tiny 404 HTML ko corrupt
+    // "download" samajh ke ERR_INVALID_RESPONSE dikha deta tha. Ab yahan
+    // seedha in-app "expired" message + retry dikhate hain.
+    console.error('File download HTTP error:', response.status);
+    showToast('Ye file ab available nahi hai — dobara download karo', 'error');
+    showDlExpiredMessage();
+    return;
+  }
+
+  try {
     const blob = await response.blob();
     const blobUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -4267,7 +4295,6 @@
     setTimeout(() => { a.remove(); URL.revokeObjectURL(blobUrl); }, 1000);
   } catch (error) {
     console.error('File download error:', error);
-    // Navigation fallback works even when Blob downloads are blocked by browser security.
     window.location.href = url;
   }
 };

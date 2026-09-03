@@ -217,7 +217,17 @@ app.use('/files', (req, res, next) => {
   res.setHeader('Access-Control-Expose-Headers', 'Content-Range, Content-Length, Accept-Ranges');
   // Only force a Save-As dialog for explicit downloads (?dl=1) — a bare
   // request (e.g. from a <video>/<audio> preview player) should play inline.
-  if (req.query.dl) res.setHeader('Content-Disposition', 'attachment');
+  // Crucially, only when the file actually exists: setting this header on a
+  // 404 (file expired/deleted, e.g. after a server restart wiped the tmp
+  // downloads dir) made Chrome treat the tiny 404 HTML page as a broken
+  // "attachment" download during a full-page navigation, surfacing as
+  // ERR_INVALID_RESPONSE instead of a normal 404 page.
+  if (req.query.dl) {
+    const resolved = path.normalize(path.join(DOWNLOADS_DIR, decodeURIComponent(req.path)));
+    if (resolved.startsWith(DOWNLOADS_DIR) && fs.existsSync(resolved) && fs.statSync(resolved).isFile()) {
+      res.setHeader('Content-Disposition', 'attachment');
+    }
+  }
   next();
 }, express.static(DOWNLOADS_DIR));
 
