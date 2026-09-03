@@ -104,6 +104,8 @@
     main:has(#docs-page.show) .hero { display: none; }
     main:has(#settings-page.show) { max-width: 1400px; padding-top: 24px; padding-bottom: 24px; }
     main:has(#settings-page.show) .hero { display: none; }
+    main:has(#video-editor-page.show) { max-width: 1400px; padding-top: 24px; padding-bottom: 24px; }
+    main:has(#video-editor-page.show) .hero { display: none; }
     main:has(#playground-page.show) { max-width: 1800px; padding-top: 24px; padding-bottom: 24px; padding-left: 16px; padding-right: 16px; }
     main:has(#playground-page.show) .hero { display: none; }
     main:has(#auth-view:not([style*="none"])) { max-width: 1040px; }
@@ -356,6 +358,27 @@
     .history-dl { padding:7px 14px; background:transparent; border:1px solid var(--border); border-radius:6px; color:var(--muted); font-family:'Space Grotesk',sans-serif; font-size:12px; font-weight:600; cursor:pointer; transition:all 0.2s; text-decoration:none; flex-shrink:0; }
     .history-dl:hover { border-color:var(--green); color:var(--green); }
  
+    /* VIDEO EDITOR */
+    .editor-upload-zone { border:2px dashed var(--border); border-radius:16px; padding:60px 20px; text-align:center; cursor:pointer; transition:all 0.2s; }
+    .editor-upload-zone:hover { border-color:var(--green); background:rgba(46,196,182,0.04); }
+    .editor-upload-icon { font-size:40px; margin-bottom:12px; }
+    .editor-upload-text { font-size:16px; font-weight:700; }
+    .editor-upload-hint { font-size:13px; color:var(--muted); margin-top:6px; }
+    .editor-body { display:grid; grid-template-columns:1.3fr 1fr; gap:32px; }
+    .editor-preview-video { width:100%; border-radius:12px; background:#000; max-height:420px; }
+    .editor-controls-col { display:flex; flex-direction:column; gap:20px; }
+    .editor-control-group { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px 18px; }
+    .editor-trim-row { display:flex; gap:14px; }
+    .editor-trim-row label { flex:1; display:flex; flex-direction:column; gap:6px; font-size:12px; color:var(--muted); font-weight:600; }
+    .editor-trim-row input { padding:10px 12px; border-radius:8px; border:1px solid var(--border); background:var(--card); color:var(--text); font-family:'Space Grotesk',sans-serif; font-size:14px; }
+    .editor-toggle-row { display:flex; align-items:center; gap:10px; font-size:14px; font-weight:600; cursor:pointer; }
+    .editor-checkbox { width:18px; height:18px; accent-color:var(--green); cursor:pointer; }
+    input[type=range].editor-slider { width:100%; accent-color:var(--green); margin-top:6px; }
+    .editor-speed-select { width:100%; padding:10px 12px; border-radius:8px; border:1px solid var(--border); background:var(--card); color:var(--text); font-family:'Space Grotesk',sans-serif; font-size:14px; }
+    .editor-apply-btn { width:100%; }
+    .editor-result { max-width:700px; margin:24px auto 0; }
+    @media(max-width:800px){ .editor-body { grid-template-columns:1fr; } }
+
     /* TOAST */
     .toast { position:fixed; bottom:32px; right:32px; padding:14px 22px; background:var(--card); border:1px solid var(--border); border-radius:12px; font-size:14px; font-weight:600; box-shadow:0 8px 32px rgba(0,0,0,0.4); transform:translateY(80px); opacity:0; transition:all 0.3s cubic-bezier(0.34,1.56,0.64,1); z-index:999; max-width:320px; }
     .toast.show { transform:translateY(0); opacity:1; }
@@ -705,6 +728,7 @@
     <div class="sidebar-list">
       <button class="sidebar-item" onclick="showSearch()">🔍 Search & Download</button>
       <button class="sidebar-item" onclick="showPlayground()">💬 Playground Query</button>
+      <button class="sidebar-item" onclick="showVideoEditor()">🎬 Video Editor</button>
     </div>
   </div>
 
@@ -1417,8 +1441,107 @@
     </div>
   </div>
 
+  <!-- VIDEO EDITOR PAGE -->
+  <div id="video-editor-page" class="download-page">
+
+    <button class="back-btn" onclick="goHome()">← Wapas Jaao</button>
+
+    <div class="dl-card">
+
+      <div class="dl-banner">
+        <div class="dl-banner-icon">🎬</div>
+        <div>
+          <h2>Video Editor</h2>
+          <p>Apni video upload karo — trim, noise reduction, volume aur speed adjust karo</p>
+        </div>
+      </div>
+
+      <div style="padding:32px;">
+
+        <!-- Upload zone (shown until a video is uploaded) -->
+        <div id="editor-upload-zone" class="editor-upload-zone" onclick="document.getElementById('editor-file-input').click()">
+          <input type="file" id="editor-file-input" accept="video/*" style="display:none;" onchange="handleEditorFileSelect(event)" />
+          <div class="editor-upload-icon">📤</div>
+          <p class="editor-upload-text">Video upload karne ke liye click karo</p>
+          <p class="editor-upload-hint">MP4, MOV, MKV, WebM — max 300MB</p>
+        </div>
+
+        <div class="pg-thinking" id="editor-upload-thinking">
+          <span class="pg-dot"></span><span class="pg-dot"></span><span class="pg-dot"></span>
+          Upload ho raha hai...
+        </div>
+
+        <!-- Editor body (shown after upload) -->
+        <div class="editor-body" id="editor-body" style="display:none;">
+
+          <div class="editor-preview-col">
+            <video id="editor-preview-video" class="editor-preview-video" controls></video>
+            <button type="button" class="dl-btn dl-btn-gray" style="margin-top:14px;" onclick="resetVideoEditor()">🔄 Doosri video upload karo</button>
+          </div>
+
+          <div class="editor-controls-col">
+
+            <div class="editor-control-group">
+              <div class="dl-section-label">✂️ Trim</div>
+              <div class="editor-trim-row">
+                <label>Start (sec)<input type="number" id="editor-trim-start" min="0" step="0.1" placeholder="0" /></label>
+                <label>End (sec)<input type="number" id="editor-trim-end" min="0" step="0.1" placeholder="poora video" /></label>
+              </div>
+            </div>
+
+            <div class="editor-control-group">
+              <label class="editor-toggle-row">
+                <input type="checkbox" id="editor-noise-reduction" class="editor-checkbox" />
+                <span>🔇 Noise Reduction (background noise kam karo)</span>
+              </label>
+            </div>
+
+            <div class="editor-control-group">
+              <div class="dl-section-label">🔊 Volume — <span id="editor-volume-label">1.0x</span></div>
+              <input type="range" id="editor-volume" class="editor-slider" min="0" max="3" step="0.1" value="1" oninput="document.getElementById('editor-volume-label').textContent = Number(this.value).toFixed(1) + 'x'" />
+            </div>
+
+            <div class="editor-control-group">
+              <div class="dl-section-label">⏩ Speed</div>
+              <select id="editor-speed" class="editor-speed-select">
+                <option value="0.5">0.5x</option>
+                <option value="0.75">0.75x</option>
+                <option value="1" selected>1x (Normal)</option>
+                <option value="1.25">1.25x</option>
+                <option value="1.5">1.5x</option>
+                <option value="1.75">1.75x</option>
+                <option value="2">2x</option>
+              </select>
+            </div>
+
+            <button type="button" class="dl-btn dl-btn-green editor-apply-btn" id="editor-apply-btn" onclick="applyVideoEdits()">✨ Apply Edits</button>
+
+            <div class="pg-thinking" id="editor-processing-thinking">
+              <span class="pg-dot"></span><span class="pg-dot"></span><span class="pg-dot"></span>
+              Edit ho raha hai... (thoda time lag sakta hai)
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- Result (shown after a successful edit) -->
+        <div class="editor-result" id="editor-result" style="display:none;">
+          <div class="dl-section-label">✅ Edit Ho Gaya!</div>
+          <video id="editor-result-video" class="editor-preview-video" controls></video>
+          <div style="display:flex; gap:12px; margin-top:16px;">
+            <a id="editor-download-link" href="#" class="dl-btn dl-btn-green" style="flex:1;">⬇ Download Karo</a>
+            <button type="button" class="dl-btn dl-btn-gray" onclick="resetVideoEditor()">🔄 Nayi Video Edit Karo</button>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
 </main>
- 
+
 <div class="toast" id="toast"></div>
  
 <script>
@@ -1665,6 +1788,7 @@
     document.getElementById('settings-page').classList.remove('show');
     document.getElementById('playground-page').classList.remove('show');
     document.getElementById('search-page').classList.remove('show');
+    document.getElementById('video-editor-page').classList.remove('show');
     stopSearchPlayer();
   }
 
@@ -1677,6 +1801,7 @@
     document.getElementById('settings-page').classList.remove('show');
     document.getElementById('playground-page').classList.remove('show');
     document.getElementById('search-page').classList.remove('show');
+    document.getElementById('video-editor-page').classList.remove('show');
     stopSearchPlayer();
     document.getElementById('header-user').style.display = 'none';
   }
@@ -1688,6 +1813,7 @@
     document.getElementById('settings-page').classList.remove('show');
     document.getElementById('playground-page').classList.remove('show');
     document.getElementById('search-page').classList.remove('show');
+    document.getElementById('video-editor-page').classList.remove('show');
     stopSearchPlayer();
     stopMedia(document.getElementById('dl-preview-video'));
     stopMedia(document.getElementById('dl-preview-audio'));
@@ -1736,6 +1862,7 @@
     document.getElementById('settings-page').classList.remove('show');
     document.getElementById('playground-page').classList.remove('show');
     document.getElementById('search-page').classList.remove('show');
+    document.getElementById('video-editor-page').classList.remove('show');
     stopSearchPlayer();
     document.getElementById('auth-view').style.display = 'none';
     document.getElementById('app-view').style.display = 'block';
@@ -1756,6 +1883,7 @@
     document.getElementById('playground-page').classList.remove('show');
     document.getElementById('search-page').classList.remove('show');
     document.getElementById('settings-page').classList.remove('show');
+    document.getElementById('video-editor-page').classList.remove('show');
     stopSearchPlayer();
     document.getElementById('docs-page').classList.add('show');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1771,6 +1899,7 @@
     document.getElementById('playground-page').classList.remove('show');
     document.getElementById('search-page').classList.remove('show');
     document.getElementById('docs-page').classList.remove('show');
+    document.getElementById('video-editor-page').classList.remove('show');
     stopSearchPlayer();
     document.getElementById('settings-page').classList.add('show');
     updateSettingsThemeButtons();
@@ -2190,6 +2319,7 @@
     document.getElementById('docs-page').classList.remove('show');
     document.getElementById('settings-page').classList.remove('show');
     document.getElementById('search-page').classList.remove('show');
+    document.getElementById('video-editor-page').classList.remove('show');
     stopSearchPlayer();
     document.getElementById('playground-page').classList.add('show');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -2481,11 +2611,134 @@
     document.getElementById('docs-page').classList.remove('show');
     document.getElementById('settings-page').classList.remove('show');
     document.getElementById('playground-page').classList.remove('show');
+    document.getElementById('video-editor-page').classList.remove('show');
     document.getElementById('search-page').classList.add('show');
     const ytTab = document.querySelector('.splat-tab[data-plat="youtube"]');
     if (ytTab) setSearchPlatform('youtube', ytTab);
     window.scrollTo({ top: 0, behavior: 'smooth' });
     setupSearchColumnSync();
+  };
+
+  // ─── VIDEO EDITOR — upload apni video, trim/noise-reduce/volume/speed ────
+  let editorUploadedFilename = null;
+  let editorUploadedFileUrl = null;
+
+  window.showVideoEditor = () => {
+    closeSidebar();
+    if (!(currentUser && authToken)) { showAuth(); showToast('Pehle login karo','error'); return; }
+    logVisit('video_editor_page');
+    document.getElementById('auth-view').style.display = 'none';
+    document.getElementById('app-view').style.display = 'none';
+    document.getElementById('download-page').classList.remove('show');
+    document.getElementById('docs-page').classList.remove('show');
+    document.getElementById('settings-page').classList.remove('show');
+    document.getElementById('playground-page').classList.remove('show');
+    document.getElementById('search-page').classList.remove('show');
+    document.getElementById('video-editor-page').classList.add('show');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  window.resetVideoEditor = () => {
+    editorUploadedFilename = null;
+    editorUploadedFileUrl = null;
+    document.getElementById('editor-file-input').value = '';
+    document.getElementById('editor-trim-start').value = '';
+    document.getElementById('editor-trim-end').value = '';
+    document.getElementById('editor-noise-reduction').checked = false;
+    document.getElementById('editor-volume').value = 1;
+    document.getElementById('editor-volume-label').textContent = '1.0x';
+    document.getElementById('editor-speed').value = '1';
+    document.getElementById('editor-upload-zone').style.display = '';
+    document.getElementById('editor-body').style.display = 'none';
+    document.getElementById('editor-result').style.display = 'none';
+    document.getElementById('editor-preview-video').src = '';
+  };
+
+  window.handleEditorFileSelect = async (event) => {
+    const file = event.target.files && event.target.files[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('video/')) { showToast('Sirf video files allowed hain', 'error'); return; }
+    const MAX_BYTES = 300 * 1024 * 1024;
+    if (file.size > MAX_BYTES) { showToast('File bahut badi hai (max 300MB)', 'error'); return; }
+
+    document.getElementById('editor-upload-zone').style.display = 'none';
+    document.getElementById('editor-upload-thinking').classList.add('active');
+
+    try {
+      const fd = new FormData();
+      fd.append('video', file);
+      const res = await fetch(`${BACKEND}/api/edit/upload`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${authToken}` },
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload fail ho gaya');
+
+      editorUploadedFilename = data.filename;
+      editorUploadedFileUrl = data.fileUrl;
+      document.getElementById('editor-preview-video').src = `${BACKEND}${data.fileUrl}`;
+      document.getElementById('editor-body').style.display = 'grid';
+      showToast('Video upload ho gayi!', 'success');
+    } catch (e) {
+      showToast(e.message || 'Upload fail ho gaya', 'error');
+      document.getElementById('editor-upload-zone').style.display = '';
+    } finally {
+      document.getElementById('editor-upload-thinking').classList.remove('active');
+    }
+  };
+
+  window.applyVideoEdits = async () => {
+    if (!editorUploadedFilename) { showToast('Pehle video upload karo', 'error'); return; }
+
+    const trimStart = document.getElementById('editor-trim-start').value;
+    const trimEnd = document.getElementById('editor-trim-end').value;
+    const noiseReduction = document.getElementById('editor-noise-reduction').checked;
+    const volume = document.getElementById('editor-volume').value;
+    const speed = document.getElementById('editor-speed').value;
+
+    if (trimEnd !== '' && trimStart !== '' && Number(trimEnd) <= Number(trimStart)) {
+      showToast('Trim end, start se bada hona chahiye', 'error');
+      return;
+    }
+    if (trimStart === '' && trimEnd === '' && !noiseReduction && Number(volume) === 1 && Number(speed) === 1) {
+      showToast('Kam se kam ek edit option choose karo', 'error');
+      return;
+    }
+
+    const applyBtn = document.getElementById('editor-apply-btn');
+    applyBtn.disabled = true;
+    document.getElementById('editor-processing-thinking').classList.add('active');
+
+    try {
+      const res = await fetch(`${BACKEND}/api/edit/process`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({
+          filename: editorUploadedFilename,
+          trimStart: trimStart || null,
+          trimEnd: trimEnd || null,
+          noiseReduction,
+          volume,
+          speed,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Edit fail ho gaya');
+
+      document.getElementById('editor-result-video').src = `${BACKEND}${data.fileUrl}`;
+      document.getElementById('editor-download-link').href = `${BACKEND}${data.fileUrl}?dl=1`;
+      document.getElementById('editor-body').style.display = 'none';
+      document.getElementById('editor-result').style.display = 'block';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      showToast('Video edit ho gayi!', 'success');
+    } catch (e) {
+      showToast(e.message || 'Edit fail ho gaya', 'error');
+    } finally {
+      applyBtn.disabled = false;
+      document.getElementById('editor-processing-thinking').classList.remove('active');
+    }
   };
 
   // Results list ki height ko player column ki ASAL (real, live-rendered)

@@ -20,6 +20,7 @@ const pdfParse  = require('pdf-parse');
 const mammoth   = require('mammoth');
 const XLSX      = require('xlsx');
 const AdmZip    = require('adm-zip');
+const multer    = require('multer');
 require('dotenv').config();
 
 const app  = express();
@@ -1054,6 +1055,123 @@ app.post('/api/convert', requireAuth, async (req, res) => {
     console.log(`[${uid.slice(0,8)}] Converted: ${outName}`);
     logActivity(req, 'convert', { sourceFilename: safeName, targetFormat, outName });
     res.json({ success: true, fileUrl: `/files/${outName}`, filename: outName, format: targetFormat });
+  });
+});
+
+// ─── VIDEO EDITOR — upload apni video, trim/noise-reduce/volume/speed ────
+const MAX_EDIT_UPLOAD_BYTES = 300 * 1024 * 1024; // 300MB
+
+const editUploadStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, DOWNLOADS_DIR),
+  // Download flow ke jaisa hi naming (uid prefix) — taaki /api/edit/process
+  // aur /files/ dono jagah wahi ownership check (startsWith uid) kaam kare.
+  filename: (req, file, cb) => {
+    const uid = req.user.id;
+    const ext = (path.extname(file.originalname) || '.mp4').toLowerCase();
+    cb(null, `${uid.slice(0,8)}_${Date.now()}_upload${ext}`);
+  },
+});
+const editUpload = multer({
+  storage: editUploadStorage,
+  limits: { fileSize: MAX_EDIT_UPLOAD_BYTES },
+  fileFilter: (req, file, cb) => cb(null, file.mimetype.startsWith('video/')),
+});
+
+app.post('/api/edit/upload', requireAuth, (req, res) => {
+  editUpload.single('video')(req, res, (err) => {
+    if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ error: 'File bahut badi hai (max 300MB)' });
+    }
+    if (err) return res.status(400).json({ error: 'Upload fail ho gaya. Sirf video files chalti hain' });
+    if (!req.file) return res.status(400).json({ error: 'Koi video file nahi mili' });
+
+    const uid = req.user.id;
+    logActivity(req, 'edit_upload', { filename: req.file.filename, sizeMB: Math.round(req.file.size / 1024 / 1024) });
+    res.json({ success: true, filename: req.file.filename, fileUrl: `/files/${req.file.filename}` });
+  });
+});
+
+// atempo sirf 0.5x-2x range hi accept karta hai (isse zyada/kam ke liye
+// chain karna padta), aur speed dropdown isi range tak limited hai, isliye
+// yahan seedha ek hi atempo instance kaafi hai.
+const EDIT_ALLOWED_SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+
+app.post('/api/edit/process', requireAuth, async (req, res) => {
+  const { filename, trimStart, trimEnd, noiseReduction, volume, speed } = req.body;
+  if (!filename) return res.status(400).json({ error: 'Filename zaroori hai' });
+
+  const uid = req.user.id;
+  const safeName = path.basename(String(filename)); // path traversal guard
+  if (!safeName.startsWith(`${uid.slice(0,8)}_`)) {
+    return res.status(403).json({ error: 'Yeh file aapki nahi hai' });
+  }
+  const inputPath = path.join(DOWNLOADS_DIR, safeName);
+  if (!fs.existsSync(inputPath)) return res.status(404).json({ error: 'File nahi mili. Pehle dobara upload karo' });
+
+  const start = trimStart !== undefined && trimStart !== null && trimStart !== '' ? Number(trimStart) : null;
+  const end   = trimEnd   !== undefined && trimEnd   !== null && trimEnd   !== '' ? Number(trimEnd)   : null;
+  if (start !== null && (!Number.isFinite(start) || start < 0)) return res.status(400).json({ error: 'Trim start invalid hai' });
+  if (end !== null && (!Number.isFinite(end) || end <= (start || 0))) return res.status(400).json({ error: 'Trim end invalid hai (start se bada hona chahiye)' });
+
+  const vol = volume !== undefined && volume !== null && volume !== '' ? Number(volume) : 1;
+  if (!Number.isFinite(vol) || vol <= 0 || vol > 5) return res.status(400).json({ error: 'Volume invalid hai (0-5 ke beech)' });
+
+  const spd = speed !== undefined && speed !== null && speed !== '' ? Number(speed) : 1;
+  if (!EDIT_ALLOWED_SPEEDS.includes(spd)) return res.status(400).json({ error: 'Speed invalid hai' });
+
+  const denoise = noiseReduction === true || noiseReduction === 'true';
+
+  const ffmpegCmd = await resolveFfmpegCommand();
+  if (!ffmpegCmd) {
+    return res.status(500).json({
+      error: 'ffmpeg install nahi hai. Edit karne ke liye ffmpeg chahiye',
+      detail: 'https://ffmpeg.org/download.html se install karo ya FFMPEG_PATH set karo.'
+    });
+  }
+
+  // Kam se kam ek edit zaroor select ho — warna ye sirf ek expensive no-op
+  // re-encode hi ban jaata.
+  if (start === null && end === null && !denoise && vol === 1 && spd === 1) {
+    return res.status(400).json({ error: 'Kam se kam ek edit option choose karo (trim, noise reduction, volume, ya speed)' });
+  }
+
+  const audioFilters = [];
+  if (denoise) audioFilters.push('afftdn');
+  if (vol !== 1) audioFilters.push(`volume=${vol}`);
+  if (spd !== 1) audioFilters.push(`atempo=${spd}`);
+  const videoFilters = [];
+  if (spd !== 1) videoFilters.push(`setpts=PTS/${spd}`);
+
+  const outName    = `${path.basename(safeName, path.extname(safeName))}_edited_${Date.now()}.mp4`;
+  const outputPath = path.join(DOWNLOADS_DIR, outName);
+
+  // -ss aur -t (duration) DONO input options hain (before -i) — isliye trim
+  // hamesha ORIGINAL/source timeline par hi hota hai, chahe -vf/-af mein
+  // speed filters (setpts/atempo) kitne bhi ho. Agar -to ko output option
+  // ke roop mein use karte (after -i), to wo POST-FILTER timeline par apply
+  // hota — speed change ke saath combine karne par galat trim length deta
+  // (live test se confirm hua: trim(1-8) + speed 1.25x se expected 5.6s ki
+  // jagah 8s output aaya tha, kyunki -to speed-adjusted output pts par cut
+  // kar raha tha, source par nahi).
+  const argParts = [quoteIfPath(ffmpegCmd), '-y'];
+  if (start !== null) argParts.push('-ss', start);
+  if (end !== null) argParts.push('-t', end - (start || 0));
+  argParts.push('-i', `"${inputPath}"`);
+  if (videoFilters.length) argParts.push('-vf', `"${videoFilters.join(',')}"`);
+  if (audioFilters.length) argParts.push('-af', `"${audioFilters.join(',')}"`);
+  argParts.push('-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', '-c:a', 'aac', `"${outputPath}"`);
+  const command = argParts.join(' ');
+
+  console.log(`[${uid.slice(0,8)}] Editing video: ${safeName} -> ${outName}`, { start, end, denoise, vol, spd });
+
+  exec(command, { timeout: 5 * 60 * 1000, shell: true, cwd: DOWNLOADS_DIR }, (error, stdout, stderr) => {
+    if (error || !fs.existsSync(outputPath)) {
+      console.error('ffmpeg edit error:', stderr || (error && error.message));
+      return res.status(500).json({ error: 'Edit fail ho gaya. Dobara try karo' });
+    }
+    console.log(`[${uid.slice(0,8)}] Edited: ${outName}`);
+    logActivity(req, 'video_edit', { sourceFilename: safeName, outName, start, end, denoise, vol, spd });
+    res.json({ success: true, fileUrl: `/files/${outName}`, filename: outName });
   });
 });
 
