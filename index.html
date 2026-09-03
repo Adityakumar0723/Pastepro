@@ -82,6 +82,8 @@
     .dl-bell-item-percent { flex-shrink:0; font-size:11.5px; font-weight:700; color:var(--muted); min-width:36px; text-align:right; }
     .dl-bell-item-percent.done { color:var(--green); }
     .dl-bell-item-percent.error { color:var(--accent); }
+    .dl-bell-item-open { flex-shrink:0; background:none; border:none; padding:0; font-family:'Space Grotesk',sans-serif; font-size:11.5px; font-weight:700; color:var(--green); cursor:pointer; white-space:nowrap; }
+    .dl-bell-item-open:hover { text-decoration:underline; }
     .dl-bell-item-error-detail { font-size:11px; color:var(--accent); margin-top:4px; line-height:1.4; }
     .dl-bell-item-dismiss { flex-shrink:0; background:none; border:none; color:var(--muted); cursor:pointer; font-size:14px; padding:2px 4px; line-height:1; }
     .dl-bell-item-dismiss:hover { color:var(--accent); }
@@ -3654,6 +3656,14 @@
       const errorDetail = p.status === 'error' && p.error
         ? `<div class="dl-bell-item-error-detail">${escapeHtml(p.error)}</div>` : '';
 
+      // Done + result mil chuka ho to "Done" text ki jagah ek clickable
+      // "Open" button — seedha Download Ready page par le jaata hai, taaki
+      // us waqt user kisi bhi page par ho, wahi se file download kar sake
+      // (search/playground/docs se wapas home aakar dobara dhundna na pade).
+      const statusCell = (p.status === 'done' && p.result)
+        ? `<button type="button" class="dl-bell-item-open" onclick="openDlResult('${p.id}')">Open ↗</button>`
+        : `<span class="dl-bell-item-percent ${percentClass}">${percentText}</span>`;
+
       return `
         <div class="dl-bell-item">
           <div class="dl-bell-item-icon" style="background:${plat.bg};">${plat.icon}</div>
@@ -3664,7 +3674,7 @@
             ${sub ? `<div class="dl-bell-item-sub">${escapeHtml(sub)}</div>` : ''}
             <div class="dl-bell-item-progress-row">
               <div class="dl-bell-progress-track"><div class="dl-bell-progress-fill ${barClass}" style="width:${barWidth}%;"></div></div>
-              <span class="dl-bell-item-percent ${percentClass}">${percentText}</span>
+              ${statusCell}
             </div>
             ${errorDetail}
           </div>
@@ -3731,6 +3741,30 @@
     renderDlBell();
     stopDlPollingIfIdle();
   }
+
+  // Bell mein "Open" button click hone par — jis page par bhi user abhi ho
+  // (search/playground/docs/settings/video-editor), sabko hide karke seedha
+  // Download Ready page dikhao, jaise goHome() karta hai. Ye p.result me
+  // pehle se saved poora /api/download response use karta hai, dobara
+  // download call kiye bina.
+  window.openDlResult = (id) => {
+    const p = dlProcesses.find(x => x.id === id);
+    if (!p || p.status !== 'done' || !p.result || !p.result.fileUrl) return;
+
+    document.getElementById('docs-page').classList.remove('show');
+    document.getElementById('settings-page').classList.remove('show');
+    document.getElementById('playground-page').classList.remove('show');
+    document.getElementById('search-page').classList.remove('show');
+    document.getElementById('video-editor-page').classList.remove('show');
+    stopSearchPlayer();
+
+    const panel = document.getElementById('dl-bell-panel');
+    if (panel) panel.style.display = 'none';
+
+    const fullUrl = p.result.fileUrl.startsWith('http') ? p.result.fileUrl : `${BACKEND}${p.result.fileUrl}`;
+    showDownloadPage(p.result, fullUrl, p.type, p.quality);
+    if (p.url) fetchAndRenderDownloadCaptions(p.url, p.result.filename);
+  };
 
   function markDlProcessError(id, error) {
     const p = dlProcesses.find(x => x.id === id);
