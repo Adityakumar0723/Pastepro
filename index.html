@@ -2090,6 +2090,7 @@
   let pgSessions = [];
   let currentPgSessionId = null;
   let pgAttachments = []; // [{ kind:'image'|'video'|'pdf'|'doc', format?, name, dataUrl, id }, ...] — id points into IndexedDB
+  let pgAttachModalObjectUrl = null; // PDF/HTML preview ke liye active blob: URL — modal band hone par revoke hota hai
 
   // Attachment ki poori file data localStorage mein NAHI jaati (session
   // history wahi hai, aur ek hi file ka base64 uska quota bhar sakta hai) —
@@ -2370,6 +2371,23 @@
     }
   }
 
+  // dataUrl ko ek Blob mein convert karta hai — bade PDF/HTML files ke liye
+  // seedha <iframe src="data:...base64,..."> lagane par Chrome ka built-in
+  // PDF viewer chup-chaap blank reh jaata hai (verified: is app mein hi ek
+  // ~15MB PDF ke saath reproduce hua). blob: URL use karne se ye reliably
+  // render hota hai, chahe file kitni bhi badi ho.
+  function pgDataUrlToBlob(dataUrl) {
+    const commaIdx = dataUrl.indexOf(',');
+    const meta = dataUrl.slice(0, commaIdx);
+    const base64 = dataUrl.slice(commaIdx + 1);
+    const mimeMatch = meta.match(/data:([^;]+);base64/);
+    const mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return new Blob([bytes], { type: mime });
+  }
+
   // Image/video/PDF/HTML browser khud render kar sakta hai (img/video/iframe)
   // — baaki formats (DOCX/XLSX/PPTX/ODT/RTF/EPUB) ke liye koi native renderer
   // nahi hai, isliye unke liye server se extracted plain text maang ke
@@ -2380,9 +2398,15 @@
     document.getElementById('pg-attach-modal-title').textContent = name;
     document.getElementById('pg-attach-modal').style.display = 'flex';
 
+    if (pgAttachModalObjectUrl) { URL.revokeObjectURL(pgAttachModalObjectUrl); pgAttachModalObjectUrl = null; }
+
     if (kind === 'image') { body.innerHTML = `<img src="${dataUrl}" alt="${escapeHtml(name)}" />`; return; }
     if (kind === 'video') { body.innerHTML = `<video src="${dataUrl}" controls autoplay></video>`; return; }
-    if (kind === 'pdf' || format === 'html') { body.innerHTML = `<iframe src="${dataUrl}" title="${escapeHtml(name)}"></iframe>`; return; }
+    if (kind === 'pdf' || format === 'html') {
+      pgAttachModalObjectUrl = URL.createObjectURL(pgDataUrlToBlob(dataUrl));
+      body.innerHTML = `<iframe src="${pgAttachModalObjectUrl}" title="${escapeHtml(name)}"></iframe>`;
+      return;
+    }
     if (format === 'txt') { body.innerHTML = `<pre class="pg-doc-preview-text">${escapeHtml(pgDecodeDataUrlText(dataUrl))}</pre>`; return; }
     if (format === 'md') { body.innerHTML = `<div class="pg-doc-preview-text">${renderMarkdownToHtml(pgDecodeDataUrlText(dataUrl))}</div>`; return; }
 
@@ -2420,6 +2444,7 @@
   window.closePgAttachmentModal = () => {
     document.getElementById('pg-attach-modal').style.display = 'none';
     document.getElementById('pg-attach-modal-body').innerHTML = '';
+    if (pgAttachModalObjectUrl) { URL.revokeObjectURL(pgAttachModalObjectUrl); pgAttachModalObjectUrl = null; }
   };
 
   window.clearPlaygroundChat = () => {
