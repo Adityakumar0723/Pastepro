@@ -3659,13 +3659,19 @@
     }
   };
 
-  // Bell panel ke bahar click karne par band ho jaaye
+  // Bell panel ke bahar click karne par band ho jaaye — capture phase mein
+  // (bubble ke bajaye) taaki ye check bell-panel ke andar kisi button (jaise
+  // ✕ dismiss) ke apne onclick se PEHLE chale. Warna us onclick mein
+  // renderDlBell() list ka innerHTML replace kar deta, jisse clicked button
+  // DOM se detach ho jaata — phir yahan wrap.contains(e.target) galat se
+  // false aata (detached node kabhi contains nahi hota) aur panel band ho
+  // jaata, chahe user ne andar hi click kiya ho.
   document.addEventListener('click', (e) => {
     const wrap  = document.getElementById('dl-bell-wrap');
     const panel = document.getElementById('dl-bell-panel');
     if (!wrap || !panel || panel.style.display === 'none') return;
     if (!wrap.contains(e.target)) panel.style.display = 'none';
-  });
+  }, true);
 
   function markDlProcessDone(id, result) {
     const p = dlProcesses.find(x => x.id === id);
