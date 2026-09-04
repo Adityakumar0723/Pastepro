@@ -512,6 +512,17 @@
     .pg-inline-code { background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:1px 6px; font-family:'Space Mono',monospace; font-size:0.92em; }
     .pg-code-block { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:12px 14px; margin:8px 0; overflow-x:auto; font-family:'Space Mono',monospace; font-size:13px; line-height:1.5; }
     .pg-code-block code { background:none; border:none; padding:0; }
+    .pg-code-wrap { border:1px solid var(--border); border-radius:8px; margin:8px 0; overflow:hidden; }
+    .pg-code-wrap .pg-code-block { margin:0; border:none; border-radius:0; border-top:1px solid var(--border); }
+    .pg-code-tabs { display:flex; align-items:center; justify-content:space-between; background:var(--surface); padding:6px 8px; gap:8px; }
+    .pg-code-tabs-left { display:flex; gap:4px; }
+    .pg-code-tab { font-family:'Space Grotesk',sans-serif; font-size:12px; font-weight:700; color:var(--muted); background:transparent; border:none; border-radius:6px; padding:6px 12px; cursor:pointer; transition:background 0.15s, color 0.15s; }
+    .pg-code-tab:hover { color:var(--text); }
+    .pg-code-tab.active { background:var(--card); color:var(--text); }
+    .pg-code-open-tab { font-family:'Space Grotesk',sans-serif; font-size:12px; font-weight:600; color:var(--muted); background:transparent; border:1px solid var(--border); border-radius:6px; padding:5px 10px; cursor:pointer; }
+    .pg-code-open-tab:hover { color:var(--text); border-color:var(--border-hover); }
+    .pg-code-preview-box { display:none; }
+    .pg-code-preview-box iframe { width:100%; height:440px; border:none; display:block; background:#fff; }
     .pg-md-h { display:block; font-size:1.05em; margin:4px 0; }
     .pg-md-list { margin:4px 0 8px 22px; }
     .pg-md-list li { margin-bottom:4px; }
@@ -2263,7 +2274,7 @@
         <div class="pg-msg-wrap pg-msg-wrap-assistant">
           <div class="pg-msg pg-msg-assistant">
             <div class="pg-msg-label">✦ PastePro Assistant</div>
-            <div>${renderMarkdownToHtml(m.text)}</div>
+            <div>${renderMarkdownToHtml(m.text, i)}</div>
           </div>
           <div class="pg-msg-actions">
             <button type="button" class="pg-msg-action-btn" onclick="copyPgMessage(${i})" title="Copy karo">📋 Copy</button>
@@ -4024,14 +4035,37 @@
     return out;
   }
 
-  function renderMarkdownToHtml(text) {
-    let html = escapeHtml(text);
+  // HTML jaisa lagne wala code (```html label ho, ya bina label ke bhi agar
+  // markup structure dikhe) — inhi ke liye "Preview" tab dikhana hai, baaki
+  // languages (JS/Python/JSON wagera) sirf code hi rehte hain.
+  function looksLikeHtml(lang, code) {
+    if (/^html?$/i.test((lang || '').trim())) return true;
+    const trimmed = code.trim();
+    return /^<!doctype html/i.test(trimmed) || /<html[\s>]/i.test(trimmed) || (/<\/[a-z][a-z0-9]*>/i.test(trimmed) && /<[a-z][a-z0-9]*[\s>]/i.test(trimmed));
+  }
 
+  function renderMarkdownToHtml(text, msgIndex) {
+    // Code blocks raw (un-escaped) text se hi nikaalte hain — display ke
+    // liye baad mein escape karenge, lekin Preview iframe ko asli code
+    // chahiye (escaped &lt;div&gt; se render kabhi nahi hoga).
     const codeBlocks = [];
-    html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, (m, lang, code) => {
-      codeBlocks.push(code);
-      return ` CB${codeBlocks.length - 1} `;
+    const withPlaceholders = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (m, lang, code) => {
+      // Kabhi-kabhi model ```html label inline lagane ki jagah "html" ko
+      // code ki hi pehli line bana deta hai (```\nhtml\n<!DOCTYPE ...) — us
+      // stray line ko lang ki tarah nikaal lo, warna preview mein upar ek
+      // ajeeb "html" text dikhta.
+      if (!lang) {
+        const firstLine = code.match(/^[ \t]*(\w+)[ \t]*\n/);
+        if (firstLine && /^(html|htm|css|js|javascript|jsx|tsx|ts|typescript|python|py|json|xml|bash|sh|shell|sql|yaml|yml|markdown|md)$/i.test(firstLine[1])) {
+          lang = firstLine[1];
+          code = code.slice(firstLine[0].length);
+        }
+      }
+      codeBlocks.push({ lang, code });
+      return `§CB${codeBlocks.length - 1}§`;
     });
+
+    let html = escapeHtml(withPlaceholders);
 
     html = html.replace(/`([^`\n]+)`/g, '<code class="pg-inline-code">$1</code>');
     html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
@@ -4065,10 +4099,69 @@
     if (listType) out.push(`</${listType}>`);
     html = out.join('');
 
-    html = html.replace(/ CB(\d+) /g, (m, i) => `<pre class="pg-code-block"><code>${codeBlocks[Number(i)]}</code></pre>`);
+    html = html.replace(/§CB(\d+)§/g, (m, i) => {
+      const block = codeBlocks[Number(i)];
+      const escapedCode = escapeHtml(block.code);
+      const blockId = `${msgIndex != null ? msgIndex : 'x'}_${i}`;
+      if (looksLikeHtml(block.lang, block.code)) {
+        window.pgCodeBlocks[blockId] = block.code; // raw HTML, iframe.srcdoc ke liye
+        return `
+          <div class="pg-code-wrap">
+            <div class="pg-code-tabs">
+              <div class="pg-code-tabs-left">
+                <button type="button" class="pg-code-tab active" onclick="pgSwitchCodeTab(this,'${blockId}','code')">💻 Code</button>
+                <button type="button" class="pg-code-tab" onclick="pgSwitchCodeTab(this,'${blockId}','preview')">👁 Preview</button>
+              </div>
+              <button type="button" class="pg-code-open-tab" onclick="pgOpenCodePreview('${blockId}')">⛶ Naye Tab Mein Kholo</button>
+            </div>
+            <pre class="pg-code-block" id="pg-code-${blockId}"><code>${escapedCode}</code></pre>
+            <div class="pg-code-preview-box" id="pg-preview-${blockId}"></div>
+          </div>`;
+      }
+      return `<pre class="pg-code-block"><code>${escapedCode}</code></pre>`;
+    });
 
     return html;
   }
+
+  // Playground ke "Preview" tab ke liye asli (un-escaped) HTML code yahan
+  // rakhte hain — DOM attribute mein seedha embed karne ki jagah, taaki
+  // quotes/newlines wagera escape karne ka jhanjhat na ho; iframe.srcdoc
+  // property se seedha set hota hai jab user Preview par click kare.
+  window.pgCodeBlocks = window.pgCodeBlocks || {};
+
+  window.pgSwitchCodeTab = (btn, blockId, tab) => {
+    const wrap = btn.closest('.pg-code-wrap');
+    wrap.querySelectorAll('.pg-code-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const codeEl = document.getElementById(`pg-code-${blockId}`);
+    const previewEl = document.getElementById(`pg-preview-${blockId}`);
+    if (tab === 'preview') {
+      codeEl.style.display = 'none';
+      previewEl.style.display = 'block';
+      if (!previewEl.dataset.loaded) {
+        const iframe = document.createElement('iframe');
+        // allow-same-origin jaan-boojh kar nahi diya — AI-generated code
+        // sandboxed rahe, parent app ke cookies/localStorage tak na pahunche.
+        iframe.setAttribute('sandbox', 'allow-scripts allow-forms allow-modals allow-popups');
+        iframe.srcdoc = window.pgCodeBlocks[blockId] || '';
+        previewEl.appendChild(iframe);
+        previewEl.dataset.loaded = '1';
+      }
+    } else {
+      codeEl.style.display = 'block';
+      previewEl.style.display = 'none';
+    }
+  };
+
+  window.pgOpenCodePreview = (blockId) => {
+    const code = window.pgCodeBlocks[blockId];
+    if (!code) return;
+    const blob = new Blob([code], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  };
 
   // ════════════════════════════════
   //  AUDIO WAVEFORM — preview video/audio play hote hi live bars dikhte hain
