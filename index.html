@@ -559,7 +559,7 @@
 
     /* Attachment viewer modal */
     .pg-attach-modal { position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:1000; display:flex; align-items:center; justify-content:center; padding:32px; }
-    .pg-attach-modal-inner { position:relative; width:100%; max-width:960px; max-height:88vh; background:var(--card); border:1px solid var(--border); border-radius:16px; overflow:hidden; display:flex; flex-direction:column; }
+    .pg-attach-modal-inner { position:relative; width:100%; max-width:960px; height:88vh; max-height:88vh; background:var(--card); border:1px solid var(--border); border-radius:16px; overflow:hidden; display:flex; flex-direction:column; }
     .pg-attach-modal-header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 18px; border-bottom:1px solid var(--border); font-size:13.5px; font-weight:700; }
     .pg-attach-modal-close { flex-shrink:0; width:32px; height:32px; border-radius:50%; background:var(--surface); border:1px solid var(--border); color:var(--text); font-size:14px; cursor:pointer; }
     .pg-attach-modal-close:hover { border-color:var(--accent); color:var(--accent); }
@@ -1246,9 +1246,15 @@
               <div class="docs-shot-caption">Ask the AI to code something — Preview it live, Download the code, or open it in a new tab</div>
             </div>
           </div>
-          <div class="docs-shot-wrap">
-            <img class="docs-shot" src="/docs-assets/playground-file-generate.png" alt="AI-generated PDF opened in the canvas viewer" loading="lazy" />
-            <div class="docs-shot-caption">Asked the AI for a PDF report — it generated the real file and opened it in the canvas, with a Download button</div>
+          <div class="docs-shot-row">
+            <div>
+              <img class="docs-shot" src="/docs-assets/playground-filegen-card.png" alt="File generation card with a Click Preview and Download button" loading="lazy" />
+              <div class="docs-shot-caption">Asked the AI for a PDF report — it drops a "Click Preview &amp; Download" card into the chat</div>
+            </div>
+            <div>
+              <img class="docs-shot" src="/docs-assets/playground-file-generate.png" alt="AI-generated PDF opened in the canvas viewer" loading="lazy" />
+              <div class="docs-shot-caption">One click generates the real PDF and opens it in the canvas, with a Download button</div>
+            </div>
           </div>
         </div>
 
