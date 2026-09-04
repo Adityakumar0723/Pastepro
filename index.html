@@ -1433,32 +1433,6 @@
       </div>
     </div>
 
-    <!-- Attachment viewer — click any 📎/🖼️ chip (pre-send preview ya
-         chat history dono) to open the actual file bade "canvas" mein. -->
-    <div class="pg-attach-modal" id="pg-attach-modal" style="display:none;" onclick="if(event.target===this) closePgAttachmentModal()">
-      <div class="pg-attach-modal-inner">
-        <div class="pg-attach-modal-header">
-          <span id="pg-attach-modal-title"></span>
-          <div class="pg-attach-modal-header-actions">
-            <button type="button" class="pg-attach-modal-download" id="pg-attach-modal-download" style="display:none;">⬇ Download</button>
-            <button type="button" class="pg-attach-modal-close" onclick="closePgAttachmentModal()">✕</button>
-          </div>
-        </div>
-        <div class="pg-attach-modal-body" id="pg-attach-modal-body"></div>
-      </div>
-    </div>
-
-    <!-- Delete confirmation popup — session history se koi bhi chat ✕ se
-         seedha delete nahi hoti, pehle yahan confirm karwaya jaata hai. -->
-    <div class="pg-confirm-modal" id="pg-confirm-modal" style="display:none;" onclick="if(event.target===this) closePgConfirmModal()">
-      <div class="pg-confirm-modal-inner">
-        <p id="pg-confirm-modal-text"></p>
-        <div class="pg-confirm-modal-actions">
-          <button type="button" class="pg-confirm-cancel-btn" onclick="closePgConfirmModal()">Cancel</button>
-          <button type="button" class="pg-confirm-delete-btn" onclick="confirmDeletePgSession()">Delete Karo</button>
-        </div>
-      </div>
-    </div>
   </div>
 
   <!-- YOUTUBE SEARCH PAGE — full-width, YouTube watch-page style layout -->
@@ -4731,5 +4705,38 @@
     input.focus();
   };
 </script>
+
+<!-- Attachment viewer + Playground delete-confirm modals live here, as
+     direct children of <body> — NOT nested inside any of the animated
+     page containers (like #playground-page, which has a CSS `animation`
+     that makes Chrome give it its own isolated stacking context). Any
+     high z-index declared on a modal nested inside such a container only
+     wins locally within that context; it can never out-rank a sibling
+     like the sticky header (z-index:50) declared outside it. That
+     exact bug made the canvas viewer render partly BEHIND the header
+     for the first ~80px — moving these modals to the top level fixes it
+     for good, regardless of which page they're opened from. -->
+<div class="pg-attach-modal" id="pg-attach-modal" style="display:none;" onclick="if(event.target===this) closePgAttachmentModal()">
+  <div class="pg-attach-modal-inner">
+    <div class="pg-attach-modal-header">
+      <span id="pg-attach-modal-title"></span>
+      <div class="pg-attach-modal-header-actions">
+        <button type="button" class="pg-attach-modal-download" id="pg-attach-modal-download" style="display:none;">⬇ Download</button>
+        <button type="button" class="pg-attach-modal-close" onclick="closePgAttachmentModal()">✕</button>
+      </div>
+    </div>
+    <div class="pg-attach-modal-body" id="pg-attach-modal-body"></div>
+  </div>
+</div>
+
+<div class="pg-confirm-modal" id="pg-confirm-modal" style="display:none;" onclick="if(event.target===this) closePgConfirmModal()">
+  <div class="pg-confirm-modal-inner">
+    <p id="pg-confirm-modal-text"></p>
+    <div class="pg-confirm-modal-actions">
+      <button type="button" class="pg-confirm-cancel-btn" onclick="closePgConfirmModal()">Cancel</button>
+      <button type="button" class="pg-confirm-delete-btn" onclick="confirmDeletePgSession()">Delete Karo</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
