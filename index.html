@@ -560,6 +560,9 @@
     .pg-attach-modal-header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 18px; border-bottom:1px solid var(--border); font-size:13.5px; font-weight:700; }
     .pg-attach-modal-close { flex-shrink:0; width:32px; height:32px; border-radius:50%; background:var(--surface); border:1px solid var(--border); color:var(--text); font-size:14px; cursor:pointer; }
     .pg-attach-modal-close:hover { border-color:var(--accent); color:var(--accent); }
+    .pg-attach-modal-header-actions { display:flex; align-items:center; gap:10px; flex-shrink:0; }
+    .pg-attach-modal-download { font-family:'Space Grotesk',sans-serif; font-size:12.5px; font-weight:700; color:#fff; background:var(--accent); border:none; border-radius:7px; padding:8px 14px; cursor:pointer; white-space:nowrap; }
+    .pg-attach-modal-download:hover { opacity:0.9; }
     .pg-attach-modal-body { flex:1; min-height:0; overflow:auto; display:flex; align-items:center; justify-content:center; background:var(--surface); }
     .pg-attach-modal-body img { max-width:100%; max-height:80vh; display:block; }
     .pg-attach-modal-body video { max-width:100%; max-height:80vh; display:block; }
@@ -1211,9 +1214,12 @@
           <p class="docs-section-desc">Ask the PastePro Assistant anything — a ChatGPT-style chat experience, with past chats saved in the sidebar.</p>
           <ul class="docs-feature-list">
             <li>Chat History — rename or delete past chats (with a confirmation popup)</li>
-            <li>Attach up to 5 files at once</li>
-            <li>Image, video, PDF, DOCX, XLSX, PPTX, MD, HTML, ODT, RTF, EPUB, TXT — all supported</li>
+            <li>Attach up to 5 files at once — image, video, PDF, DOCX, XLSX, PPTX, MD, HTML, ODT, RTF, EPUB, TXT all supported</li>
             <li>The AI can "see" images (vision model), and reads doc/PDF/spreadsheet content to answer questions about them</li>
+            <li>Click any attached (or AI-generated) file to open it in a full-screen "canvas" viewer — images/videos/PDFs render directly, DOCX/XLSX/PPTX show their extracted text/table/slides</li>
+            <li>Ask the AI to build a website and its HTML reply gets Code / Preview tabs — a real live preview of the page, plus "open in a new tab" and "download the code"</li>
+            <li>Ask for a PDF, Word, Excel or PowerPoint file and the AI generates the real file — click "Generate &amp; Preview" and it opens right in the canvas, with a Download button</li>
+            <li>Any other code (Python, JS, CSS, JSON, etc.) also gets a one-click Download button with the right file extension</li>
             <li>Replies render tables, code blocks and bullet points properly formatted</li>
             <li>Copy / Edit / Regenerate on every message</li>
           </ul>
@@ -1226,6 +1232,20 @@
               <img class="docs-shot" src="/docs-assets/playground-chat.png" alt="Playground chat with attachments and a markdown table" loading="lazy" />
               <div class="docs-shot-caption">A chat with attachments, and the AI's table-formatted reply</div>
             </div>
+          </div>
+          <div class="docs-shot-row">
+            <div>
+              <img class="docs-shot" src="/docs-assets/playground-canvas-attachment.png" alt="Canvas viewer open showing an attached image" loading="lazy" />
+              <div class="docs-shot-caption">Clicking an attachment opens it full-screen in the canvas viewer</div>
+            </div>
+            <div>
+              <img class="docs-shot" src="/docs-assets/playground-code-preview.png" alt="AI-generated HTML with a live Preview tab" loading="lazy" />
+              <div class="docs-shot-caption">AI-generated website — Code/Preview tabs, with a live rendered preview</div>
+            </div>
+          </div>
+          <div class="docs-shot-wrap">
+            <img class="docs-shot" src="/docs-assets/playground-file-generate.png" alt="AI-generated PDF opened in the canvas viewer" loading="lazy" />
+            <div class="docs-shot-caption">Asked the AI for a PDF report — it generated the real file and opened it in the canvas, with a Download button</div>
           </div>
         </div>
 
@@ -1407,7 +1427,10 @@
       <div class="pg-attach-modal-inner">
         <div class="pg-attach-modal-header">
           <span id="pg-attach-modal-title"></span>
-          <button type="button" class="pg-attach-modal-close" onclick="closePgAttachmentModal()">✕</button>
+          <div class="pg-attach-modal-header-actions">
+            <button type="button" class="pg-attach-modal-download" id="pg-attach-modal-download" style="display:none;">⬇ Download</button>
+            <button type="button" class="pg-attach-modal-close" onclick="closePgAttachmentModal()">✕</button>
+          </div>
         </div>
         <div class="pg-attach-modal-body" id="pg-attach-modal-body"></div>
       </div>
@@ -2475,27 +2498,13 @@
   // nahi hai, isliye unke liye server se extracted plain text maang ke
   // dikhate hain (TXT/MD ke liye ye client-side hi ho jaata hai, round-trip
   // ki zaroorat nahi).
-  window.showPgAttachmentModal = async (kind, name, dataUrl, format) => {
-    const body = document.getElementById('pg-attach-modal-body');
-    document.getElementById('pg-attach-modal-title').textContent = name;
-    document.getElementById('pg-attach-modal').style.display = 'flex';
-
-    if (pgAttachModalObjectUrl) { URL.revokeObjectURL(pgAttachModalObjectUrl); pgAttachModalObjectUrl = null; }
-
-    if (kind === 'image') { body.innerHTML = `<img src="${dataUrl}" alt="${escapeHtml(name)}" />`; return; }
-    if (kind === 'video') { body.innerHTML = `<video src="${dataUrl}" controls autoplay></video>`; return; }
-    if (kind === 'pdf' || format === 'html') {
-      pgAttachModalObjectUrl = URL.createObjectURL(pgDataUrlToBlob(dataUrl));
-      body.innerHTML = `<iframe src="${pgAttachModalObjectUrl}" title="${escapeHtml(name)}"></iframe>`;
-      return;
-    }
-    if (format === 'txt') { body.innerHTML = `<pre class="pg-doc-preview-text">${escapeHtml(pgDecodeDataUrlText(dataUrl))}</pre>`; return; }
-    if (format === 'md') { body.innerHTML = `<div class="pg-doc-preview-text">${renderMarkdownToHtml(pgDecodeDataUrlText(dataUrl))}</div>`; return; }
-
-    // DOCX/XLSX/PPTX/ODT/RTF/EPUB — server-side extraction on demand.
+  // DOCX/XLSX/PPTX/ODT/RTF/EPUB ke liye koi native browser renderer nahi hai
+  // — /api/extract-doc-text se text/table/slides mangwa ke dikhate hain. Ye
+  // helper user ke upload kiye attachments aur AI ke generate kiye files,
+  // dono "canvas" preview ke liye common hai.
+  async function pgRenderExtractedDocPreview(body, format, base64) {
     body.innerHTML = `<div class="pg-doc-preview-loading">Content load ho raha hai…</div>`;
     try {
-      const base64 = dataUrl.split(',')[1] || '';
       const res = await fetch(`${BACKEND}/api/extract-doc-text`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
@@ -2521,11 +2530,75 @@
     } catch (e) {
       body.innerHTML = `<div class="pg-doc-preview-loading">Preview load nahi ho paya: ${escapeHtml(e.message || '')}</div>`;
     }
+  }
+
+  window.showPgAttachmentModal = async (kind, name, dataUrl, format) => {
+    const body = document.getElementById('pg-attach-modal-body');
+    document.getElementById('pg-attach-modal-title').textContent = name;
+    document.getElementById('pg-attach-modal').style.display = 'flex';
+    document.getElementById('pg-attach-modal-download').style.display = 'none';
+
+    if (pgAttachModalObjectUrl) { URL.revokeObjectURL(pgAttachModalObjectUrl); pgAttachModalObjectUrl = null; }
+
+    if (kind === 'image') { body.innerHTML = `<img src="${dataUrl}" alt="${escapeHtml(name)}" />`; return; }
+    if (kind === 'video') { body.innerHTML = `<video src="${dataUrl}" controls autoplay></video>`; return; }
+    if (kind === 'pdf' || format === 'html') {
+      pgAttachModalObjectUrl = URL.createObjectURL(pgDataUrlToBlob(dataUrl));
+      body.innerHTML = `<iframe src="${pgAttachModalObjectUrl}" title="${escapeHtml(name)}"></iframe>`;
+      return;
+    }
+    if (format === 'txt') { body.innerHTML = `<pre class="pg-doc-preview-text">${escapeHtml(pgDecodeDataUrlText(dataUrl))}</pre>`; return; }
+    if (format === 'md') { body.innerHTML = `<div class="pg-doc-preview-text">${renderMarkdownToHtml(pgDecodeDataUrlText(dataUrl))}</div>`; return; }
+
+    await pgRenderExtractedDocPreview(body, format, dataUrl.split(',')[1] || '');
+  };
+
+  // AI ke generate kiye PDF/DOCX/XLSX/PPTX ko seedha "canvas" (attachment
+  // viewer modal) mein khol dete hain — user attachment jaise hi wahi
+  // experience milta hai, alag se file explorer mein dhoondhna nahi padta.
+  // Modal ke andar ek Download button bhi dikhta hai (baaki attachments mein
+  // nahi hota, kyunki wo pehle se hi user ki apni file hoti hai).
+  window.pgOpenGeneratedFileModal = (format, name, blob) => {
+    const body = document.getElementById('pg-attach-modal-body');
+    document.getElementById('pg-attach-modal-title').textContent = name;
+    document.getElementById('pg-attach-modal').style.display = 'flex';
+
+    if (pgAttachModalObjectUrl) { URL.revokeObjectURL(pgAttachModalObjectUrl); pgAttachModalObjectUrl = null; }
+
+    const downloadBtn = document.getElementById('pg-attach-modal-download');
+    downloadBtn.style.display = 'inline-block';
+    downloadBtn.onclick = () => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    };
+
+    if (format === 'pdf') {
+      pgAttachModalObjectUrl = URL.createObjectURL(blob);
+      body.innerHTML = `<iframe src="${pgAttachModalObjectUrl}" title="${escapeHtml(name)}"></iframe>`;
+      return;
+    }
+
+    // DOCX/XLSX/PPTX — wahi extraction-based preview jo upload ki gayi
+    // files ke liye use hota hai; blob ko base64 mein badalna padta hai
+    // kyunki /api/extract-doc-text yahi format expect karta hai.
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = String(reader.result).split(',')[1] || '';
+      pgRenderExtractedDocPreview(body, format, base64);
+    };
+    reader.readAsDataURL(blob);
   };
 
   window.closePgAttachmentModal = () => {
     document.getElementById('pg-attach-modal').style.display = 'none';
     document.getElementById('pg-attach-modal-body').innerHTML = '';
+    document.getElementById('pg-attach-modal-download').style.display = 'none';
     if (pgAttachModalObjectUrl) { URL.revokeObjectURL(pgAttachModalObjectUrl); pgAttachModalObjectUrl = null; }
   };
 
@@ -4117,7 +4190,7 @@
 
       if (PG_FILE_FORMATS[fileFormat]) {
         // PDF/DOCX/XLSX/PPTX — AI ne sirf structured text/CSV diya hai, asli
-        // file server par banti hai jab user "Generate & Download" dabaye.
+        // file server par banti hai jab user "Generate & Preview" dabaye.
         window.pgCodeBlocks[blockId] = block.code;
         const info = PG_FILE_FORMATS[fileFormat];
         return `
@@ -4125,9 +4198,9 @@
             <div class="pg-file-gen-icon">${info.icon}</div>
             <div class="pg-file-gen-info">
               <div class="pg-file-gen-title">${info.label}</div>
-              <div class="pg-file-gen-sub">Neeche button dabao — asli file ban ke download ho jaayegi</div>
+              <div class="pg-file-gen-sub">Neeche button dabao — asli file ban ke canvas mein khul jaayegi</div>
             </div>
-            <button type="button" class="pg-file-gen-btn" onclick="pgGenerateFile('${fileFormat}','${blockId}')">⬇ Generate &amp; Download</button>
+            <button type="button" class="pg-file-gen-btn" onclick="pgGenerateFile('${fileFormat}','${blockId}')">⬇ Generate &amp; Preview</button>
           </div>`;
       }
 
@@ -4264,21 +4337,18 @@
       const fileRes = await fetch(fullUrl);
       if (!fileRes.ok) throw new Error(`HTTP ${fileRes.status}`);
       const blob = await fileRes.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = blobUrl;
-      a.download = data.filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+
+      // Seedha download karne ki jagah ab "canvas" (attachment viewer modal)
+      // mein khol dete hain — Canva jaisa hi flow: pehle dekho, phir chaho
+      // to modal ke andar wale Download button se save karo.
+      window.pgOpenGeneratedFileModal(format, data.filename, blob);
 
       showToast('File ready hai! ✓', 'success');
-      if (btn) { btn.disabled = false; btn.textContent = '✓ Dobara Download Karo'; }
+      if (btn) { btn.disabled = false; btn.textContent = '✓ Dobara Kholo'; }
     } catch (err) {
       console.error('pgGenerateFile error:', err);
       showToast(err.message || 'File generate nahi ho payi', 'error');
-      if (btn) { btn.disabled = false; btn.textContent = '⬇ Generate & Download'; }
+      if (btn) { btn.disabled = false; btn.textContent = '⬇ Generate & Preview'; }
     }
   };
 
