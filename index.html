@@ -521,8 +521,18 @@
     .pg-code-tab.active { background:var(--card); color:var(--text); }
     .pg-code-open-tab { font-family:'Space Grotesk',sans-serif; font-size:12px; font-weight:600; color:var(--muted); background:transparent; border:1px solid var(--border); border-radius:6px; padding:5px 10px; cursor:pointer; }
     .pg-code-open-tab:hover { color:var(--text); border-color:var(--border-hover); }
+    .pg-code-tabs-right { display:flex; gap:8px; }
+    .pg-code-lang-label { font-family:'Space Mono',monospace; font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; padding:6px 8px; }
     .pg-code-preview-box { display:none; }
     .pg-code-preview-box iframe { width:100%; height:440px; border:none; display:block; background:#fff; }
+    .pg-file-gen-card { display:flex; align-items:center; gap:14px; border:1px solid var(--border); border-radius:10px; padding:14px 16px; margin:8px 0; background:var(--surface); }
+    .pg-file-gen-icon { font-size:28px; flex-shrink:0; }
+    .pg-file-gen-info { flex:1; min-width:0; }
+    .pg-file-gen-title { font-weight:700; font-size:14px; }
+    .pg-file-gen-sub { font-size:12px; color:var(--muted); margin-top:2px; }
+    .pg-file-gen-btn { flex-shrink:0; font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:700; color:#fff; background:var(--accent); border:none; border-radius:8px; padding:10px 16px; cursor:pointer; white-space:nowrap; }
+    .pg-file-gen-btn:hover { opacity:0.9; }
+    .pg-file-gen-btn:disabled { opacity:0.6; cursor:default; }
     .pg-md-h { display:block; font-size:1.05em; margin:4px 0; }
     .pg-md-list { margin:4px 0 8px 22px; }
     .pg-md-list li { margin-bottom:4px; }
@@ -4103,6 +4113,24 @@
       const block = codeBlocks[Number(i)];
       const escapedCode = escapeHtml(block.code);
       const blockId = `${msgIndex != null ? msgIndex : 'x'}_${i}`;
+      const fileFormat = (block.lang || '').trim().toLowerCase();
+
+      if (PG_FILE_FORMATS[fileFormat]) {
+        // PDF/DOCX/XLSX/PPTX — AI ne sirf structured text/CSV diya hai, asli
+        // file server par banti hai jab user "Generate & Download" dabaye.
+        window.pgCodeBlocks[blockId] = block.code;
+        const info = PG_FILE_FORMATS[fileFormat];
+        return `
+          <div class="pg-file-gen-card" id="pg-filegen-${blockId}">
+            <div class="pg-file-gen-icon">${info.icon}</div>
+            <div class="pg-file-gen-info">
+              <div class="pg-file-gen-title">${info.label}</div>
+              <div class="pg-file-gen-sub">Neeche button dabao — asli file ban ke download ho jaayegi</div>
+            </div>
+            <button type="button" class="pg-file-gen-btn" onclick="pgGenerateFile('${fileFormat}','${blockId}')">⬇ Generate &amp; Download</button>
+          </div>`;
+      }
+
       if (looksLikeHtml(block.lang, block.code)) {
         window.pgCodeBlocks[blockId] = block.code; // raw HTML, iframe.srcdoc ke liye
         return `
@@ -4112,17 +4140,52 @@
                 <button type="button" class="pg-code-tab active" onclick="pgSwitchCodeTab(this,'${blockId}','code')">💻 Code</button>
                 <button type="button" class="pg-code-tab" onclick="pgSwitchCodeTab(this,'${blockId}','preview')">👁 Preview</button>
               </div>
-              <button type="button" class="pg-code-open-tab" onclick="pgOpenCodePreview('${blockId}')">⛶ Naye Tab Mein Kholo</button>
+              <div class="pg-code-tabs-right">
+                <button type="button" class="pg-code-open-tab" onclick="pgDownloadCodeBlock('${blockId}','${escapeHtml(block.lang || 'html')}')">⬇ Download</button>
+                <button type="button" class="pg-code-open-tab" onclick="pgOpenCodePreview('${blockId}')">⛶ Naye Tab Mein Kholo</button>
+              </div>
             </div>
             <pre class="pg-code-block" id="pg-code-${blockId}"><code>${escapedCode}</code></pre>
             <div class="pg-code-preview-box" id="pg-preview-${blockId}"></div>
           </div>`;
       }
-      return `<pre class="pg-code-block"><code>${escapedCode}</code></pre>`;
+
+      // Baaki languages (Python/JS/CSS/JSON wagera) — sirf ek chhota
+      // "Download" button, koi preview/generate step nahi chahiye.
+      window.pgCodeBlocks[blockId] = block.code;
+      return `
+        <div class="pg-code-wrap">
+          <div class="pg-code-tabs">
+            <div class="pg-code-tabs-left"><span class="pg-code-lang-label">${escapeHtml(block.lang || 'code')}</span></div>
+            <button type="button" class="pg-code-open-tab" onclick="pgDownloadCodeBlock('${blockId}','${escapeHtml(block.lang || 'txt')}')">⬇ Download</button>
+          </div>
+          <pre class="pg-code-block" id="pg-code-${blockId}"><code>${escapedCode}</code></pre>
+        </div>`;
     });
 
     return html;
   }
+
+  // Fenced-block language se real file extension + generation-card ka
+  // label/icon nikalte hain — jitne bhi format PG_FILE_GENERATORS
+  // (server.js) support karta hai, unhi ke liye card dikhta hai.
+  const PG_FILE_FORMATS = {
+    pdf:  { label: 'PDF Document',       icon: '📄' },
+    docx: { label: 'Word Document',      icon: '📝' },
+    xlsx: { label: 'Excel Spreadsheet',  icon: '📊' },
+    pptx: { label: 'PowerPoint Slides',  icon: '📽️' },
+  };
+
+  // Code-block languages ke liye file extension guess — asli file
+  // extension se match ho, generic ".txt" sirf tabhi jab lang pehchana na jaaye.
+  const PG_LANG_EXTENSIONS = {
+    javascript: 'js', js: 'js', typescript: 'ts', ts: 'ts', jsx: 'jsx', tsx: 'tsx',
+    python: 'py', py: 'py', html: 'html', htm: 'html', css: 'css', json: 'json',
+    xml: 'xml', bash: 'sh', sh: 'sh', shell: 'sh', sql: 'sql', yaml: 'yml', yml: 'yml',
+    markdown: 'md', md: 'md', java: 'java', c: 'c', cpp: 'cpp', 'c++': 'cpp', csharp: 'cs',
+    cs: 'cs', go: 'go', rust: 'rs', rs: 'rs', php: 'php', ruby: 'rb', rb: 'rb', kotlin: 'kt',
+    swift: 'swift', txt: 'txt', text: 'txt',
+  };
 
   // Playground ke "Preview" tab ke liye asli (un-escaped) HTML code yahan
   // rakhte hain — DOM attribute mein seedha embed karne ki jagah, taaki
@@ -4161,6 +4224,62 @@
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
     setTimeout(() => URL.revokeObjectURL(url), 60000);
+  };
+
+  // Kisi bhi language ka code block seedha browser mein hi (bina server call
+  // ke) ek real file ki tarah save ho jaata hai — sahi extension ke saath.
+  window.pgDownloadCodeBlock = (blockId, lang) => {
+    const code = window.pgCodeBlocks[blockId];
+    if (!code) return;
+    const ext = PG_LANG_EXTENSIONS[(lang || '').toLowerCase().trim()] || 'txt';
+    const blob = new Blob([code], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pastepro-code.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  };
+
+  // PDF/Word/Excel/PowerPoint — content sirf structured text/CSV hai, asli
+  // file server par banti hai (pdfkit/docx/xlsx/pptxgenjs se) is call mein.
+  window.pgGenerateFile = async (format, blockId) => {
+    const content = window.pgCodeBlocks[blockId];
+    const card = document.getElementById(`pg-filegen-${blockId}`);
+    const btn = card ? card.querySelector('.pg-file-gen-btn') : null;
+    if (!content) { showToast('Content nahi mila', 'error'); return; }
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Generate ho raha hai...'; }
+    try {
+      const res = await fetch(`${BACKEND}/api/playground/generate-file`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ format, content }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || 'File generate nahi ho payi');
+
+      const fullUrl = data.fileUrl.startsWith('http') ? data.fileUrl : `${BACKEND}${data.fileUrl}`;
+      const fileRes = await fetch(fullUrl);
+      if (!fileRes.ok) throw new Error(`HTTP ${fileRes.status}`);
+      const blob = await fileRes.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = data.filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+
+      showToast('File ready hai! ✓', 'success');
+      if (btn) { btn.disabled = false; btn.textContent = '✓ Dobara Download Karo'; }
+    } catch (err) {
+      console.error('pgGenerateFile error:', err);
+      showToast(err.message || 'File generate nahi ho payi', 'error');
+      if (btn) { btn.disabled = false; btn.textContent = '⬇ Generate & Download'; }
+    }
   };
 
   // ════════════════════════════════

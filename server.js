@@ -21,6 +21,9 @@ const mammoth   = require('mammoth');
 const XLSX      = require('xlsx');
 const AdmZip    = require('adm-zip');
 const multer    = require('multer');
+const PDFDocument = require('pdfkit');
+const { Document: DocxDocument, Packer: DocxPacker, Paragraph: DocxParagraph, HeadingLevel: DocxHeadingLevel, TextRun: DocxTextRun } = require('docx');
+const PptxGenJS = require('pptxgenjs');
 require('dotenv').config();
 
 const app  = express();
@@ -1316,6 +1319,158 @@ app.post('/api/edit/process', requireAuth, async (req, res) => {
   });
 });
 
+// ─── PLAYGROUND FILE GENERATION — AI ke jawab mein ```pdf/docx/xlsx/pptx
+//     fenced block ko real downloadable file mein badalta hai (jaise
+//     ChatGPT ka Code Interpreter). AI sirf structured plain text/CSV deta
+//     hai — asli PDF/Word/Excel/PowerPoint yahan bante hain. ──────────────
+
+// "**bold**" ko segments mein todta hai taaki PDF/DOCX dono mein bold text
+// sahi se render ho (dono libraries ko run-by-run bold/normal chahiye).
+function splitBoldSegments(line) {
+  const segments = [];
+  const re = /\*\*(.+?)\*\*/g;
+  let lastIndex = 0, m;
+  while ((m = re.exec(line))) {
+    if (m.index > lastIndex) segments.push({ text: line.slice(lastIndex, m.index), bold: false });
+    segments.push({ text: m[1], bold: true });
+    lastIndex = re.lastIndex;
+  }
+  if (lastIndex < line.length) segments.push({ text: line.slice(lastIndex), bold: false });
+  return segments.length ? segments : [{ text: line, bold: false }];
+}
+
+// Simple markdown-jaisa text ko line-by-line block type mein todta hai —
+// PDF aur DOCX dono generator isi common structure ko use karte hain.
+function parseDocLines(text) {
+  return text.split('\n').map(raw => {
+    const line = raw.replace(/\r$/, '');
+    if (/^#\s+/.test(line))   return { type: 'h1', text: line.replace(/^#\s+/, '') };
+    if (/^##\s+/.test(line))  return { type: 'h2', text: line.replace(/^##\s+/, '') };
+    if (/^###\s+/.test(line)) return { type: 'h3', text: line.replace(/^###\s+/, '') };
+    if (/^\s*[-*]\s+/.test(line)) return { type: 'bullet', text: line.replace(/^\s*[-*]\s+/, '') };
+    const numMatch = line.match(/^\s*(\d+)\.\s+(.*)$/);
+    if (numMatch) return { type: 'numbered', num: numMatch[1], text: numMatch[2] };
+    if (line.trim() === '') return { type: 'blank', text: '' };
+    return { type: 'text', text: line };
+  });
+}
+
+function generatePdfBuffer(content) {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ margin: 50, size: 'A4' });
+    const chunks = [];
+    doc.on('data', c => chunks.push(c));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+
+    for (const line of parseDocLines(content)) {
+      if (line.type === 'blank') { doc.moveDown(0.6); continue; }
+      const prefix = line.type === 'bullet' ? '•  ' : line.type === 'numbered' ? `${line.num}.  ` : '';
+      const fontSize = line.type === 'h1' ? 20 : line.type === 'h2' ? 16 : line.type === 'h3' ? 13 : 11;
+      const baseBold = line.type === 'h1' || line.type === 'h2' || line.type === 'h3';
+      doc.fontSize(fontSize);
+      const segments = splitBoldSegments(prefix + line.text);
+      segments.forEach((seg, i) => {
+        doc.font(baseBold || seg.bold ? 'Helvetica-Bold' : 'Helvetica');
+        doc.text(seg.text, { continued: i < segments.length - 1 });
+      });
+      doc.moveDown(baseBold ? 0.5 : 0.25);
+    }
+    doc.end();
+  });
+}
+
+async function generateDocxBuffer(content) {
+  const paragraphs = parseDocLines(content).map(line => {
+    if (line.type === 'blank') return new DocxParagraph({ text: '' });
+    const prefix = line.type === 'numbered' ? `${line.num}. ` : '';
+    const segments = splitBoldSegments(prefix + line.text);
+    const runs = segments.map(seg => new DocxTextRun({ text: seg.text, bold: seg.bold }));
+    const opts = { children: runs };
+    if (line.type === 'h1') opts.heading = DocxHeadingLevel.HEADING_1;
+    else if (line.type === 'h2') opts.heading = DocxHeadingLevel.HEADING_2;
+    else if (line.type === 'h3') opts.heading = DocxHeadingLevel.HEADING_3;
+    else if (line.type === 'bullet') opts.bullet = { level: 0 };
+    return new DocxParagraph(opts);
+  });
+  const doc = new DocxDocument({ sections: [{ children: paragraphs }] });
+  return DocxPacker.toBuffer(doc);
+}
+
+// Chhota hand-rolled CSV parser (quoted commas/newlines handle karta hai)
+// — XLSX.utils.aoa_to_sheet ko seedha rows-of-arrays chahiye.
+function parseCsv(text) {
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQuotes = false; }
+      else field += c;
+    } else if (c === '"') inQuotes = true;
+    else if (c === ',') { row.push(field); field = ''; }
+    else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i + 1] === '\n') i++;
+      row.push(field); field = '';
+      if (row.length > 1 || row[0] !== '') rows.push(row);
+      row = [];
+    } else field += c;
+  }
+  if (field !== '' || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+function generateXlsxBuffer(content) {
+  const rows = parseCsv(content.trim());
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+  return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+}
+
+async function generatePptxBuffer(content) {
+  const pptx = new PptxGenJS();
+  const slides = content.split(/\n\s*---\s*\n/);
+  for (const raw of slides) {
+    const lines = raw.split('\n').map(l => l.trim()).filter(l => l !== '');
+    if (!lines.length) continue;
+    const slide = pptx.addSlide();
+    const title = lines[0].replace(/^#+\s*/, '');
+    slide.addText(title, { x: 0.5, y: 0.4, w: '90%', fontSize: 28, bold: true, color: '363636' });
+    const bodyLines = lines.slice(1).map(l => l.replace(/^[-*]\s+/, ''));
+    if (bodyLines.length) {
+      slide.addText(
+        bodyLines.map(t => ({ text: t, options: { bullet: true, breakLine: true } })),
+        { x: 0.5, y: 1.3, w: '90%', h: 4.5, fontSize: 18, color: '444444' }
+      );
+    }
+  }
+  return pptx.write({ outputType: 'nodebuffer' });
+}
+
+const PG_FILE_GENERATORS = { pdf: generatePdfBuffer, docx: generateDocxBuffer, xlsx: generateXlsxBuffer, pptx: generatePptxBuffer };
+const MAX_PG_FILE_CONTENT_CHARS = 200000;
+
+app.post('/api/playground/generate-file', requireAuth, async (req, res) => {
+  const { format, content } = req.body;
+  const generator = PG_FILE_GENERATORS[format];
+  if (!generator) return res.status(400).json({ error: 'Ye file format support nahi hai' });
+  if (typeof content !== 'string' || !content.trim()) return res.status(400).json({ error: 'Content khaali hai' });
+  if (content.length > MAX_PG_FILE_CONTENT_CHARS) return res.status(400).json({ error: 'Content bahut bada hai' });
+
+  try {
+    const buffer = await generator(content);
+    const uid = req.user.id;
+    const outName = `${uid.slice(0, 8)}_${Date.now()}_pg.${format}`;
+    fs.writeFileSync(path.join(DOWNLOADS_DIR, outName), buffer);
+    logActivity(req, 'playground_file_generate', { format });
+    res.json({ success: true, fileUrl: `/files/${outName}`, filename: outName });
+  } catch (err) {
+    console.error('generate-file error:', err);
+    res.status(500).json({ error: 'File generate nahi ho payi. Dobara try karo' });
+  }
+});
+
 // ─── PLAYGROUND QUERY — OpenRouter se streamed jawab ──────
 // Ek waqt mein ek user ki ek hi query process hoti hai (jaise download wala rate limit).
 const activeQueries = new Set();
@@ -1331,7 +1486,14 @@ function queryOpenRouter(model, content) {
       model,
       stream: true,
       messages: [
-        { role: 'system', content: 'Tum PastePro Assistant ho. Seedha, sahi aur helpful jawab do. Jab Hindi/Hinglish mein poocha jaaye, usi mein jawab do.' },
+        { role: 'system', content: `Tum PastePro Assistant ho. Seedha, sahi aur helpful jawab do. Jab Hindi/Hinglish mein poocha jaaye, usi mein jawab do.
+
+Agar user koi real downloadable file maange, use ek fenced code block mein is tarah do (sirf tabhi jab user specifically wo file-type maange, normal jawabon mein nahi):
+- PDF document: \`\`\`pdf fenced block, content plain text/markdown jaisa (# heading, ## subheading, - bullet, **bold**).
+- Word document: \`\`\`docx fenced block, wahi markdown-jaisa formatting.
+- Excel/spreadsheet: \`\`\`xlsx fenced block mein CSV format do — comma-separated values, pehli row column headers honi chahiye.
+- PowerPoint: \`\`\`pptx fenced block — har slide ko apni line \`---\` se alag karo, har slide ki pehli line uska title ho, baaki lines bullet points.
+Code files (Python/JS/HTML/CSS/etc.) ke liye normal fenced block hi use karo (\`\`\`python, \`\`\`js, wagera) — wo already downloadable hai, koi special format nahi chahiye.` },
         { role: 'user', content },
       ],
     }),
