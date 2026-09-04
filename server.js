@@ -1355,6 +1355,22 @@ function parseDocLines(text) {
   });
 }
 
+// pdfkit ke standard 14 base fonts (Helvetica/Helvetica-Bold) sirf WinAnsi
+// encoding support karte hain — koi bhi emoji ya doosra exotic Unicode
+// character (jaise 📅) daalne par silently garbled bytes render hote hain
+// (jaise "📅" ban jaata hai "Ø=ÜÄ"). Yahan sirf wahi characters rakhte hain
+// jo WinAnsi mein safely map hote hain, baaki hata dete hain.
+const PDF_WINANSI_SAFE_EXTRAS = new Set([0x2013, 0x2014, 0x2018, 0x2019, 0x201A, 0x201C, 0x201D, 0x201E, 0x2020, 0x2021, 0x2022, 0x2026, 0x2030, 0x2039, 0x203A, 0x2122, 0x20AC, 0x0192]);
+function sanitizePdfText(text) {
+  const filtered = Array.from(text).filter(ch => {
+    const code = ch.codePointAt(0);
+    return code === 0x0A || (code >= 0x20 && code <= 0x7E) || (code >= 0xA0 && code <= 0xFF) || PDF_WINANSI_SAFE_EXTRAS.has(code);
+  }).join('');
+  // Emoji hatane ke baad line mein aksar orphan double-space reh jaata hai
+  // (jaise "📅 Date:" → " Date:") — per-line trim se wo clean ho jaata hai.
+  return filtered.split('\n').map(line => line.replace(/[ \t]+/g, ' ').trim()).join('\n');
+}
+
 function generatePdfBuffer(content) {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 50, size: 'A4' });
@@ -1363,7 +1379,7 @@ function generatePdfBuffer(content) {
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    for (const line of parseDocLines(content)) {
+    for (const line of parseDocLines(sanitizePdfText(content))) {
       if (line.type === 'blank') { doc.moveDown(0.6); continue; }
       const prefix = line.type === 'bullet' ? '•  ' : line.type === 'numbered' ? `${line.num}.  ` : '';
       const fontSize = line.type === 'h1' ? 20 : line.type === 'h2' ? 16 : line.type === 'h3' ? 13 : 11;
@@ -1493,6 +1509,7 @@ Agar user koi real downloadable file maange, use ek fenced code block mein is ta
 - Word document: \`\`\`docx fenced block, wahi markdown-jaisa formatting.
 - Excel/spreadsheet: \`\`\`xlsx fenced block mein CSV format do — comma-separated values, pehli row column headers honi chahiye.
 - PowerPoint: \`\`\`pptx fenced block — har slide ko apni line \`---\` se alag karo, har slide ki pehli line uska title ho, baaki lines bullet points.
+\`\`\`pdf/docx/xlsx/pptx blocks mein kabhi emoji ya koi bhi Unicode symbol mat daalo (jaise 📅, ✓, ★) — PDF generator sirf plain text/ASCII safely render karta hai, emoji daalne par wo garbled/corrupt dikhta hai.
 Code files (Python/JS/HTML/CSS/etc.) ke liye normal fenced block hi use karo (\`\`\`python, \`\`\`js, wagera) — wo already downloadable hai, koi special format nahi chahiye.` },
         { role: 'user', content },
       ],

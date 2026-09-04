@@ -567,19 +567,19 @@
     .pg-attach-modal-download { font-family:'Space Grotesk',sans-serif; font-size:12.5px; font-weight:700; color:#fff; background:var(--accent); border:none; border-radius:7px; padding:8px 14px; cursor:pointer; white-space:nowrap; }
     .pg-attach-modal-download:hover { opacity:0.9; }
     .pg-attach-modal-body { flex:1; min-height:0; overflow:auto; display:flex; align-items:center; justify-content:center; background:var(--surface); }
-    .pg-attach-modal-body img { max-width:100%; max-height:80vh; display:block; }
-    .pg-attach-modal-body video { max-width:100%; max-height:80vh; display:block; }
-    .pg-attach-modal-body iframe { width:100%; height:80vh; border:none; }
-    .pg-attach-modal-body .pg-doc-preview-text { align-self:stretch; width:100%; max-height:80vh; overflow:auto; margin:0; padding:24px; box-sizing:border-box; white-space:pre-wrap; word-break:break-word; font-size:13.5px; line-height:1.6; color:var(--text); font-family:'Space Grotesk',sans-serif; text-align:left; }
+    .pg-attach-modal-body img { max-width:100%; max-height:100%; display:block; }
+    .pg-attach-modal-body video { max-width:100%; max-height:100%; display:block; }
+    .pg-attach-modal-body iframe { width:100%; height:100%; border:none; }
+    .pg-attach-modal-body .pg-doc-preview-text { align-self:stretch; width:100%; height:100%; overflow:auto; margin:0; padding:24px; box-sizing:border-box; white-space:pre-wrap; word-break:break-word; font-size:13.5px; line-height:1.6; color:var(--text); font-family:'Space Grotesk',sans-serif; text-align:left; }
     .pg-attach-modal-body .pg-doc-preview-loading { padding:40px; color:var(--muted); font-size:14px; text-align:center; }
-    .pg-attach-modal-body .pg-doc-preview-table { align-self:stretch; width:100%; max-height:80vh; overflow:auto; padding:20px; box-sizing:border-box; }
+    .pg-attach-modal-body .pg-doc-preview-table { align-self:stretch; width:100%; height:100%; overflow:auto; padding:20px; box-sizing:border-box; }
     .pg-doc-preview-table .pg-doc-sheet + .pg-doc-sheet { margin-top:28px; }
     .pg-doc-preview-table .pg-doc-sheet-name { font-size:13px; font-weight:700; color:var(--text); margin-bottom:8px; }
     .pg-doc-preview-table .pg-doc-sheet-note { font-size:11.5px; color:var(--muted); margin-top:6px; }
     .pg-doc-preview-table table { border-collapse:collapse; font-size:12.5px; font-family:'Space Grotesk',sans-serif; color:var(--text); }
     .pg-doc-preview-table td { border:1px solid var(--border); padding:6px 10px; white-space:nowrap; }
     .pg-doc-preview-table tr:first-child td { background:var(--surface); font-weight:700; }
-    .pg-attach-modal-body .pg-doc-preview-slides { align-self:stretch; width:100%; max-height:80vh; overflow:auto; padding:20px; box-sizing:border-box; display:flex; flex-direction:column; gap:14px; }
+    .pg-attach-modal-body .pg-doc-preview-slides { align-self:stretch; width:100%; height:100%; overflow:auto; padding:20px; box-sizing:border-box; display:flex; flex-direction:column; gap:14px; }
     .pg-doc-slide { border:1px solid var(--border); border-radius:10px; padding:14px 16px; background:var(--surface); }
     .pg-doc-slide-title { font-size:11.5px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; color:var(--muted); margin-bottom:8px; }
     .pg-doc-slide-body { font-size:13.5px; line-height:1.7; color:var(--text); font-family:'Space Grotesk',sans-serif; }
@@ -1221,7 +1221,7 @@
             <li>The AI can "see" images (vision model), and reads doc/PDF/spreadsheet content to answer questions about them</li>
             <li>Click any attached (or AI-generated) file to open it in a full-screen "canvas" viewer — images/videos/PDFs render directly, DOCX/XLSX/PPTX show their extracted text/table/slides</li>
             <li>Ask the AI to build a website and its HTML reply gets Code / Preview tabs — a real live preview of the page, plus "open in a new tab" and "download the code"</li>
-            <li>Ask for a PDF, Word, Excel or PowerPoint file and the AI generates the real file — click "Generate &amp; Preview" and it opens right in the canvas, with a Download button</li>
+            <li>Ask for a PDF, Word, Excel or PowerPoint file and the AI generates the real file — click "Click Preview &amp; Download" and it opens right in the canvas, with a Download button</li>
             <li>Any other code (Python, JS, CSS, JSON, etc.) also gets a one-click Download button with the right file extension</li>
             <li>Replies render tables, code blocks and bullet points properly formatted</li>
             <li>Copy / Edit / Regenerate on every message</li>
@@ -4214,7 +4214,7 @@
 
       if (PG_FILE_FORMATS[fileFormat]) {
         // PDF/DOCX/XLSX/PPTX — AI ne sirf structured text/CSV diya hai, asli
-        // file server par banti hai jab user "Generate & Preview" dabaye.
+        // file server par banti hai jab user button dabaye.
         window.pgCodeBlocks[blockId] = block.code;
         const info = PG_FILE_FORMATS[fileFormat];
         return `
@@ -4222,9 +4222,9 @@
             <div class="pg-file-gen-icon">${info.icon}</div>
             <div class="pg-file-gen-info">
               <div class="pg-file-gen-title">${info.label}</div>
-              <div class="pg-file-gen-sub">Neeche button dabao — asli file ban ke canvas mein khul jaayegi</div>
+              <div class="pg-file-gen-sub">Click Preview &amp; Download — asli file ban ke canvas mein khul jaayegi</div>
             </div>
-            <button type="button" class="pg-file-gen-btn" onclick="pgGenerateFile('${fileFormat}','${blockId}')">⬇ Generate &amp; Preview</button>
+            <button type="button" class="pg-file-gen-btn" onclick="pgGenerateFile('${fileFormat}','${blockId}')">👁 Click Preview &amp; Download</button>
           </div>`;
       }
 
@@ -4372,7 +4372,7 @@
     } catch (err) {
       console.error('pgGenerateFile error:', err);
       showToast(err.message || 'File generate nahi ho payi', 'error');
-      if (btn) { btn.disabled = false; btn.textContent = '⬇ Generate & Preview'; }
+      if (btn) { btn.disabled = false; btn.textContent = '👁 Click Preview & Download'; }
     }
   };
 
