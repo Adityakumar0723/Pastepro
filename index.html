@@ -491,7 +491,10 @@
     .pg-main-header h2 { font-family:'Space Grotesk',sans-serif; font-size:16px; font-weight:700; letter-spacing:normal; line-height:1.35; margin-bottom:2px; display:-webkit-box; -webkit-line-clamp:2; line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
     .pg-main-header p { font-size:12.5px; color:var(--muted); }
 
+    .pg-messages-wrap { position:relative; flex:1; min-height:0; display:flex; flex-direction:column; }
     .pg-messages { flex:1; overflow-y:auto; padding:24px 28px; display:flex; flex-direction:column; gap:18px; }
+    .pg-scroll-bottom-btn { display:none; align-items:center; justify-content:center; position:absolute; right:24px; bottom:16px; width:40px; height:40px; border-radius:50%; background:var(--card); border:1px solid var(--border); color:var(--text); font-size:16px; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,0.3); z-index:5; }
+    .pg-scroll-bottom-btn:hover { border-color:var(--accent); color:var(--accent); }
     .pg-empty-state { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; color:var(--muted); text-align:center; }
     .pg-empty-icon { font-size:32px; color:var(--green); }
 
@@ -1400,11 +1403,14 @@
             <button type="button" class="pg-clear-btn" id="pg-clear-btn" onclick="clearPlaygroundChat()">🗑️ Clear</button>
           </div>
 
-          <div class="pg-messages" id="pg-messages">
-            <div class="pg-empty-state" id="pg-empty-state">
-              <div class="pg-empty-icon">✦</div>
-              <p>Kuch bhi pucho — PastePro Assistant jawab dega</p>
+          <div class="pg-messages-wrap">
+            <div class="pg-messages" id="pg-messages">
+              <div class="pg-empty-state" id="pg-empty-state">
+                <div class="pg-empty-icon">✦</div>
+                <p>Kuch bhi pucho — PastePro Assistant jawab dega</p>
+              </div>
             </div>
+            <button type="button" class="pg-scroll-bottom-btn" id="pg-scroll-bottom-btn" onclick="scrollPgToBottom()" title="Neeche jao">⬇</button>
           </div>
 
           <div class="pg-input-wrap">
@@ -2316,7 +2322,25 @@
         </div>`;
     }).join('');
     box.scrollTop = box.scrollHeight;
+    updatePgScrollBtnVisibility();
   }
+
+  // Purani chat upar scroll karke padhte waqt ek floating "neeche jao"
+  // button dikhta hai — click/scroll event dono se latest message tak
+  // wapas smooth-scroll ho jaata hai.
+  window.scrollPgToBottom = () => {
+    const box = document.getElementById('pg-messages');
+    if (box) box.scrollTo({ top: box.scrollHeight, behavior: 'smooth' });
+  };
+
+  function updatePgScrollBtnVisibility() {
+    const box = document.getElementById('pg-messages');
+    const btn = document.getElementById('pg-scroll-bottom-btn');
+    if (!box || !btn) return;
+    const distanceFromBottom = box.scrollHeight - box.scrollTop - box.clientHeight;
+    btn.style.display = distanceFromBottom > 120 ? 'flex' : 'none';
+  }
+  document.getElementById('pg-messages').addEventListener('scroll', updatePgScrollBtnVisibility);
 
   function setPgHeaderTitle() {
     const s = getCurrentPgSession();
