@@ -86,7 +86,7 @@ Server `http://localhost:3002` pe start ho jayega.
 1. Sign up with an email and password
 2. YouTube link paste karo
 3. "Video Download" click karo
-4. Server process karega aur download link milega
+4.  Server process karega aur download link milega
 
 ---
 
