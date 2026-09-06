@@ -250,7 +250,7 @@
  
     /* Banner */
     .dl-banner { background:linear-gradient(135deg,rgba(46,196,182,0.12),rgba(46,196,182,0.04)); border-bottom:1px solid rgba(46,196,182,0.2); padding:28px 32px; display:flex; align-items:center; gap:16px; }
-    .dl-banner-icon { width:52px; height:52px; border-radius:50%; background:rgba(46,196,182,0.15); display:flex; align-items:center; justify-content:center; font-size:24px; flex-shrink:0; }
+    .dl-banner-icon { width:52px; height:52px; border-radius:50%; background:rgba(46,196,182,0.15); display:flex; align-items:center; justify-content:center; font-size:24px; color:var(--green); flex-shrink:0; }
     .dl-banner h2 { font-family:'Space Grotesk',sans-serif; font-size:22px; font-weight:700; color:var(--green); margin-bottom:4px; }
     .dl-banner p { font-size:14px; color:var(--muted); }
 
@@ -377,7 +377,7 @@
     .editor-page-banner { background:linear-gradient(135deg,rgba(46,196,182,0.12),rgba(46,196,182,0.04)); border:1px solid rgba(46,196,182,0.2); border-radius:16px; padding:24px 28px; display:flex; align-items:center; gap:16px; margin-bottom:20px; }
     .editor-upload-zone { border:2px dashed var(--border); border-radius:16px; padding:80px 20px; text-align:center; cursor:pointer; transition:all 0.2s; }
     .editor-upload-zone:hover { border-color:var(--green); background:rgba(46,196,182,0.04); }
-    .editor-upload-icon { font-size:40px; margin-bottom:12px; }
+    .editor-upload-icon { color:var(--muted); margin-bottom:12px; display:flex; justify-content:center; }
     .editor-upload-text { font-size:16px; font-weight:700; }
     .editor-upload-hint { font-size:13px; color:var(--muted); margin-top:6px; }
 
@@ -388,13 +388,13 @@
     .editor-vignette-overlay { display:none; position:absolute; inset:0; border-radius:12px; pointer-events:none; background:radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,0.75) 100%); }
     .editor-text-overlay { display:none; position:absolute; max-width:90%; padding:0.3em 0.6em; border-radius:6px; font-weight:700; text-align:center; white-space:pre-wrap; word-break:break-word; line-height:1.25; cursor:move; user-select:none; touch-action:none; outline-offset:4px; }
     .editor-text-overlay:hover, .editor-text-overlay.dragging { outline:2px dashed rgba(255,255,255,0.7); }
-    .editor-text-drag-hint { display:none; position:absolute; top:10px; right:10px; background:rgba(0,0,0,0.55); color:#fff; font-family:'Space Grotesk',sans-serif; font-size:10.5px; font-weight:600; padding:4px 10px; border-radius:20px; pointer-events:none; }
-    .editor-preview-live-tag { position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.55); color:#fff; font-family:'Space Grotesk',sans-serif; font-size:10.5px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; padding:4px 9px; border-radius:20px; pointer-events:none; }
+    .editor-text-drag-hint { display:none; align-items:center; gap:5px; position:absolute; top:10px; right:10px; background:rgba(0,0,0,0.55); color:#fff; font-family:'Space Grotesk',sans-serif; font-size:10.5px; font-weight:600; padding:4px 10px; border-radius:20px; pointer-events:none; }
+    .editor-preview-live-tag { display:inline-flex; align-items:center; gap:5px; position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.55); color:#fff; font-family:'Space Grotesk',sans-serif; font-size:10.5px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; padding:4px 9px; border-radius:20px; pointer-events:none; }
     .editor-apply-hint { font-size:11.5px; color:var(--muted); text-align:center; margin-top:-4px; }
 
     .editor-panel { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:18px; display:flex; flex-direction:column; gap:16px; min-height:600px; min-width:0; overflow-x:hidden; }
     .editor-tabs { display:flex; gap:6px; background:var(--surface); padding:4px; border-radius:10px; flex-shrink:0; }
-    .editor-tab-btn { flex:1; padding:10px 6px; border:none; background:transparent; border-radius:8px; color:var(--muted); font-family:'Space Grotesk',sans-serif; font-size:12px; font-weight:700; cursor:pointer; transition:all 0.2s; white-space:nowrap; }
+    .editor-tab-btn { flex:1; display:inline-flex; align-items:center; justify-content:center; gap:5px; padding:10px 6px; border:none; background:transparent; border-radius:8px; color:var(--muted); font-family:'Space Grotesk',sans-serif; font-size:12px; font-weight:700; cursor:pointer; transition:all 0.2s; white-space:nowrap; }
     .editor-tab-btn:hover { color:var(--text); }
     .editor-tab-btn.active { background:var(--card); color:var(--green); box-shadow:0 2px 10px rgba(0,0,0,0.25); }
     .editor-tab-content { flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:16px; max-height:600px; }
@@ -1608,7 +1608,7 @@
     <button class="back-btn" onclick="goHome()">← Wapas Jaao</button>
 
     <div class="editor-page-banner">
-      <div class="dl-banner-icon">🎬</div>
+      <div class="dl-banner-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/></svg></div>
       <div>
         <h2>Video Editor</h2>
         <p>Apni video upload karo — trim, effects, animation, text overlay sab ek jagah</p>
@@ -1618,7 +1618,7 @@
     <!-- Upload zone (shown until a video is uploaded) -->
     <div id="editor-upload-zone" class="editor-upload-zone" onclick="document.getElementById('editor-file-input').click()">
       <input type="file" id="editor-file-input" accept="video/*" style="display:none;" onchange="handleEditorFileSelect(event)" />
-      <div class="editor-upload-icon">📤</div>
+      <div class="editor-upload-icon"><svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/></svg></div>
       <p class="editor-upload-text">Video upload karne ke liye click karo</p>
       <p class="editor-upload-hint">MP4, MOV, MKV, WebM — max 300MB</p>
     </div>
@@ -1636,19 +1636,19 @@
           <video id="editor-preview-video" class="editor-preview-video" controls></video>
           <div class="editor-vignette-overlay" id="editor-vignette-overlay"></div>
           <div class="editor-text-overlay" id="editor-text-overlay"></div>
-          <span class="editor-text-drag-hint" id="editor-text-drag-hint">✋ Text ko drag karke move karo</span>
-          <span class="editor-preview-live-tag">👁 Live Preview</span>
+          <span class="editor-text-drag-hint" id="editor-text-drag-hint"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg> Text ko drag karke move karo</span>
+          <span class="editor-preview-live-tag"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Live Preview</span>
         </div>
-        <button type="button" class="dl-btn dl-btn-gray" style="margin-top:14px;" onclick="resetVideoEditor()">🔄 Doosri video upload karo</button>
+        <button type="button" class="dl-btn dl-btn-gray" style="margin-top:14px;" onclick="resetVideoEditor()"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:4px;"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Doosri video upload karo</button>
       </div>
 
       <div class="editor-panel">
 
         <div class="editor-tabs">
-          <button type="button" class="editor-tab-btn active" data-tab="trim" onclick="setEditorTab('trim', this)">✂️ Trim & Speed</button>
-          <button type="button" class="editor-tab-btn" data-tab="audio" onclick="setEditorTab('audio', this)">🔊 Audio</button>
-          <button type="button" class="editor-tab-btn" data-tab="effects" onclick="setEditorTab('effects', this)">🎨 Effects</button>
-          <button type="button" class="editor-tab-btn" data-tab="text" onclick="setEditorTab('text', this)">📝 Text</button>
+          <button type="button" class="editor-tab-btn active" data-tab="trim" onclick="setEditorTab('trim', this)"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg> Trim & Speed</button>
+          <button type="button" class="editor-tab-btn" data-tab="audio" onclick="setEditorTab('audio', this)"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg> Audio</button>
+          <button type="button" class="editor-tab-btn" data-tab="effects" onclick="setEditorTab('effects', this)"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg> Effects</button>
+          <button type="button" class="editor-tab-btn" data-tab="text" onclick="setEditorTab('text', this)"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg> Text</button>
         </div>
 
         <div class="editor-tab-content">
@@ -1656,14 +1656,14 @@
           <!-- Trim & Speed -->
           <div class="editor-tab-pane active" data-pane="trim">
             <div class="editor-control-group">
-              <div class="dl-section-label">✂️ Trim</div>
+              <div class="dl-section-label"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:3px;"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>Trim</div>
               <div class="editor-inline-row">
                 <label>Start (sec)<input type="number" id="editor-trim-start" min="0" step="0.1" placeholder="0" oninput="onEditorTrimStartInput()" /></label>
                 <label>End (sec)<input type="number" id="editor-trim-end" min="0" step="0.1" placeholder="poora video" oninput="updateEditorLivePreview()" /></label>
               </div>
             </div>
             <div class="editor-control-group">
-              <div class="dl-section-label">⏩ Speed</div>
+              <div class="dl-section-label"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" style="vertical-align:-2px; margin-right:3px;"><polygon points="13 19 22 12 13 5 13 19"/><polygon points="2 19 11 12 2 5 2 19"/></svg>Speed</div>
               <select id="editor-speed" class="editor-speed-select" onchange="updateEditorLivePreview()">
                 <option value="0.5">0.5x</option>
                 <option value="0.75">0.75x</option>
@@ -1675,7 +1675,7 @@
               </select>
             </div>
             <div class="editor-control-group">
-              <div class="dl-section-label">🎞️ Animation</div>
+              <div class="dl-section-label"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:3px;"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Animation</div>
               <label class="editor-toggle-row"><input type="checkbox" id="editor-fade-in" class="editor-checkbox" onchange="updateEditorLivePreview()" /><span>Fade In (shuru mein)</span></label>
               <label class="editor-toggle-row" style="margin-top:10px;"><input type="checkbox" id="editor-fade-out" class="editor-checkbox" onchange="updateEditorLivePreview()" /><span>Fade Out (aakhir mein)</span></label>
             </div>
@@ -1686,11 +1686,11 @@
             <div class="editor-control-group">
               <label class="editor-toggle-row">
                 <input type="checkbox" id="editor-noise-reduction" class="editor-checkbox" />
-                <span>🔇 Noise Reduction (background noise kam karo)</span>
+                <span><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:4px;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>Noise Reduction (background noise kam karo)</span>
               </label>
             </div>
             <div class="editor-control-group">
-              <div class="dl-section-label">🔊 Volume — <span id="editor-volume-label">1.0x</span></div>
+              <div class="dl-section-label"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:3px;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>Volume — <span id="editor-volume-label">1.0x</span></div>
               <input type="range" id="editor-volume" class="editor-slider" min="0" max="3" step="0.1" value="1" oninput="document.getElementById('editor-volume-label').textContent = Number(this.value).toFixed(1) + 'x'; updateEditorLivePreview()" />
               <div class="editor-apply-hint" style="text-align:left; margin-top:8px;">Preview 1.0x tak hi live sunayi dega — usse zyada amplify sirf final export mein hoga</div>
             </div>
@@ -1699,32 +1699,32 @@
           <!-- Effects -->
           <div class="editor-tab-pane" data-pane="effects">
             <div class="editor-control-group">
-              <div class="dl-section-label">🎨 Filter</div>
+              <div class="dl-section-label"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:3px;"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>Filter</div>
               <div class="editor-effect-grid" id="editor-effect-grid">
-                <button type="button" class="editor-effect-chip active" data-effect="none" onclick="selectEditorEffect('none', this)">🚫 None</button>
-                <button type="button" class="editor-effect-chip" data-effect="grayscale" onclick="selectEditorEffect('grayscale', this)">⚫ B&amp;W</button>
-                <button type="button" class="editor-effect-chip" data-effect="sepia" onclick="selectEditorEffect('sepia', this)">🟤 Sepia</button>
-                <button type="button" class="editor-effect-chip" data-effect="vignette" onclick="selectEditorEffect('vignette', this)">🖤 Vignette</button>
-                <button type="button" class="editor-effect-chip" data-effect="blur" onclick="selectEditorEffect('blur', this)">💨 Blur</button>
-                <button type="button" class="editor-effect-chip" data-effect="sharpen" onclick="selectEditorEffect('sharpen', this)">🔪 Sharpen</button>
-                <button type="button" class="editor-effect-chip" data-effect="invert" onclick="selectEditorEffect('invert', this)">🌗 Invert</button>
-                <button type="button" class="editor-effect-chip" data-effect="warm" onclick="selectEditorEffect('warm', this)">🔥 Warm</button>
-                <button type="button" class="editor-effect-chip" data-effect="cool" onclick="selectEditorEffect('cool', this)">❄️ Cool</button>
-                <button type="button" class="editor-effect-chip" data-effect="highcontrast" onclick="selectEditorEffect('highcontrast', this)">⚡ High Contrast</button>
-                <button type="button" class="editor-effect-chip" data-effect="fade" onclick="selectEditorEffect('fade', this)">🌫️ Fade</button>
-                <button type="button" class="editor-effect-chip" data-effect="oldfilm" onclick="selectEditorEffect('oldfilm', this)">🎞️ Old Film</button>
+                <button type="button" class="editor-effect-chip active" data-effect="none" onclick="selectEditorEffect('none', this)">None</button>
+                <button type="button" class="editor-effect-chip" data-effect="grayscale" onclick="selectEditorEffect('grayscale', this)">B&amp;W</button>
+                <button type="button" class="editor-effect-chip" data-effect="sepia" onclick="selectEditorEffect('sepia', this)">Sepia</button>
+                <button type="button" class="editor-effect-chip" data-effect="vignette" onclick="selectEditorEffect('vignette', this)">Vignette</button>
+                <button type="button" class="editor-effect-chip" data-effect="blur" onclick="selectEditorEffect('blur', this)">Blur</button>
+                <button type="button" class="editor-effect-chip" data-effect="sharpen" onclick="selectEditorEffect('sharpen', this)">Sharpen</button>
+                <button type="button" class="editor-effect-chip" data-effect="invert" onclick="selectEditorEffect('invert', this)">Invert</button>
+                <button type="button" class="editor-effect-chip" data-effect="warm" onclick="selectEditorEffect('warm', this)">Warm</button>
+                <button type="button" class="editor-effect-chip" data-effect="cool" onclick="selectEditorEffect('cool', this)">Cool</button>
+                <button type="button" class="editor-effect-chip" data-effect="highcontrast" onclick="selectEditorEffect('highcontrast', this)">High Contrast</button>
+                <button type="button" class="editor-effect-chip" data-effect="fade" onclick="selectEditorEffect('fade', this)">Fade</button>
+                <button type="button" class="editor-effect-chip" data-effect="oldfilm" onclick="selectEditorEffect('oldfilm', this)">Old Film</button>
               </div>
             </div>
             <div class="editor-control-group">
-              <div class="dl-section-label">☀️ Brightness — <span id="editor-brightness-label">0.0</span></div>
+              <div class="dl-section-label"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:3px;"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>Brightness — <span id="editor-brightness-label">0.0</span></div>
               <input type="range" id="editor-brightness" class="editor-slider" min="-1" max="1" step="0.05" value="0" oninput="document.getElementById('editor-brightness-label').textContent = Number(this.value).toFixed(2); updateEditorLivePreview()" />
             </div>
             <div class="editor-control-group">
-              <div class="dl-section-label">◐ Contrast — <span id="editor-contrast-label">1.0</span></div>
+              <div class="dl-section-label"><svg viewBox="0 0 24 24" width="12" height="12" style="vertical-align:-2px; margin-right:3px;"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M12 2a10 10 0 0 1 0 20z" fill="currentColor"/></svg>Contrast — <span id="editor-contrast-label">1.0</span></div>
               <input type="range" id="editor-contrast" class="editor-slider" min="0" max="3" step="0.05" value="1" oninput="document.getElementById('editor-contrast-label').textContent = Number(this.value).toFixed(2); updateEditorLivePreview()" />
             </div>
             <div class="editor-control-group">
-              <div class="dl-section-label">🌈 Saturation — <span id="editor-saturation-label">1.0</span></div>
+              <div class="dl-section-label"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:3px;"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>Saturation — <span id="editor-saturation-label">1.0</span></div>
               <input type="range" id="editor-saturation" class="editor-slider" min="0" max="3" step="0.05" value="1" oninput="document.getElementById('editor-saturation-label').textContent = Number(this.value).toFixed(2); updateEditorLivePreview()" />
             </div>
           </div>
@@ -1734,7 +1734,7 @@
             <div class="editor-control-group">
               <label class="editor-toggle-row">
                 <input type="checkbox" id="editor-text-enabled" class="editor-checkbox" onchange="updateEditorLivePreview()" />
-                <span>📝 Text Overlay Enable Karo</span>
+                <span><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:4px;"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>Text Overlay Enable Karo</span>
               </label>
             </div>
             <div class="editor-control-group">
@@ -1754,7 +1754,7 @@
                   <option value="bottom" selected>Bottom</option>
                 </select></label>
               </div>
-              <div class="editor-apply-hint" style="text-align:left; margin-top:8px;">✋ Preview mein text ko seedha drag karke bhi kahin le ja sakte ho</div>
+              <div class="editor-apply-hint" style="text-align:left; margin-top:8px;"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px; margin-right:3px;"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg>Preview mein text ko seedha drag karke bhi kahin le ja sakte ho</div>
             </div>
             <div class="editor-control-group">
               <div class="dl-section-label">Size — <span id="editor-text-size-label">36px</span></div>
@@ -1770,7 +1770,7 @@
 
         </div>
 
-        <button type="button" class="dl-btn dl-btn-green editor-apply-btn" id="editor-apply-btn" onclick="applyVideoEdits()">✨ Apply Edits</button>
+        <button type="button" class="dl-btn dl-btn-green editor-apply-btn" id="editor-apply-btn" onclick="applyVideoEdits()"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:4px;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>Apply Edits</button>
         <div class="editor-apply-hint">Upar live preview approximate hai — is button se asli HD file banti hai jo download ho sakti hai</div>
 
         <div class="pg-thinking" id="editor-processing-thinking">
@@ -1784,11 +1784,11 @@
 
     <!-- Result (shown after a successful edit) -->
     <div class="editor-result" id="editor-result" style="display:none;">
-      <div class="dl-section-label">✅ Edit Ho Gaya!</div>
+      <div class="dl-section-label"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:3px;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>Edit Ho Gaya!</div>
       <video id="editor-result-video" class="editor-preview-video" controls></video>
       <div style="display:flex; gap:12px; margin-top:16px;">
-        <a id="editor-download-link" href="#" class="dl-btn dl-btn-green" style="flex:1;">⬇ Download Karo</a>
-        <button type="button" class="dl-btn dl-btn-gray" onclick="resetVideoEditor()">🔄 Nayi Video Edit Karo</button>
+        <a id="editor-download-link" href="#" class="dl-btn dl-btn-green" style="flex:1;"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download Karo</a>
+        <button type="button" class="dl-btn dl-btn-gray" onclick="resetVideoEditor()"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:4px;"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Nayi Video Edit Karo</button>
       </div>
     </div>
 
@@ -3118,7 +3118,7 @@
       textOverlay.style.left = `${editorTextX}%`;
       textOverlay.style.top = `${editorTextY}%`;
       textOverlay.style.transform = 'translate(-50%, -50%)';
-      dragHint.style.display = 'block';
+      dragHint.style.display = 'flex';
     } else {
       textOverlay.style.display = 'none';
       dragHint.style.display = 'none';
