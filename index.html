@@ -386,7 +386,9 @@
     .editor-preview-wrap { position:relative; display:flex; justify-content:center; }
     .editor-preview-video { width:100%; border-radius:12px; background:#000; max-height:600px; transition:opacity 0.1s linear; }
     .editor-vignette-overlay { display:none; position:absolute; inset:0; border-radius:12px; pointer-events:none; background:radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,0.75) 100%); }
-    .editor-text-overlay { display:none; position:absolute; left:50%; transform:translateX(-50%); max-width:90%; padding:0.3em 0.6em; border-radius:6px; font-weight:700; text-align:center; white-space:pre-wrap; word-break:break-word; pointer-events:none; line-height:1.25; }
+    .editor-text-overlay { display:none; position:absolute; max-width:90%; padding:0.3em 0.6em; border-radius:6px; font-weight:700; text-align:center; white-space:pre-wrap; word-break:break-word; line-height:1.25; cursor:move; user-select:none; touch-action:none; outline-offset:4px; }
+    .editor-text-overlay:hover, .editor-text-overlay.dragging { outline:2px dashed rgba(255,255,255,0.7); }
+    .editor-text-drag-hint { display:none; position:absolute; top:10px; right:10px; background:rgba(0,0,0,0.55); color:#fff; font-family:'Space Grotesk',sans-serif; font-size:10.5px; font-weight:600; padding:4px 10px; border-radius:20px; pointer-events:none; }
     .editor-preview-live-tag { position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.55); color:#fff; font-family:'Space Grotesk',sans-serif; font-size:10.5px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; padding:4px 9px; border-radius:20px; pointer-events:none; }
     .editor-apply-hint { font-size:11.5px; color:var(--muted); text-align:center; margin-top:-4px; }
 
@@ -1634,6 +1636,7 @@
           <video id="editor-preview-video" class="editor-preview-video" controls></video>
           <div class="editor-vignette-overlay" id="editor-vignette-overlay"></div>
           <div class="editor-text-overlay" id="editor-text-overlay"></div>
+          <span class="editor-text-drag-hint" id="editor-text-drag-hint">✋ Text ko drag karke move karo</span>
           <span class="editor-preview-live-tag">👁 Live Preview</span>
         </div>
         <button type="button" class="dl-btn dl-btn-gray" style="margin-top:14px;" onclick="resetVideoEditor()">🔄 Doosri video upload karo</button>
@@ -1704,6 +1707,12 @@
                 <button type="button" class="editor-effect-chip" data-effect="vignette" onclick="selectEditorEffect('vignette', this)">🖤 Vignette</button>
                 <button type="button" class="editor-effect-chip" data-effect="blur" onclick="selectEditorEffect('blur', this)">💨 Blur</button>
                 <button type="button" class="editor-effect-chip" data-effect="sharpen" onclick="selectEditorEffect('sharpen', this)">🔪 Sharpen</button>
+                <button type="button" class="editor-effect-chip" data-effect="invert" onclick="selectEditorEffect('invert', this)">🌗 Invert</button>
+                <button type="button" class="editor-effect-chip" data-effect="warm" onclick="selectEditorEffect('warm', this)">🔥 Warm</button>
+                <button type="button" class="editor-effect-chip" data-effect="cool" onclick="selectEditorEffect('cool', this)">❄️ Cool</button>
+                <button type="button" class="editor-effect-chip" data-effect="highcontrast" onclick="selectEditorEffect('highcontrast', this)">⚡ High Contrast</button>
+                <button type="button" class="editor-effect-chip" data-effect="fade" onclick="selectEditorEffect('fade', this)">🌫️ Fade</button>
+                <button type="button" class="editor-effect-chip" data-effect="oldfilm" onclick="selectEditorEffect('oldfilm', this)">🎞️ Old Film</button>
               </div>
             </div>
             <div class="editor-control-group">
@@ -1739,12 +1748,13 @@
                   <option value="serif">Serif</option>
                   <option value="mono">Monospace</option>
                 </select></label>
-                <label>Position<select id="editor-text-position" class="editor-speed-select" onchange="updateEditorLivePreview()">
+                <label>Position (quick jump)<select id="editor-text-position" class="editor-speed-select" onchange="onEditorTextPositionPreset(this.value)">
                   <option value="top">Top</option>
                   <option value="center">Center</option>
                   <option value="bottom" selected>Bottom</option>
                 </select></label>
               </div>
+              <div class="editor-apply-hint" style="text-align:left; margin-top:8px;">✋ Preview mein text ko seedha drag karke bhi kahin le ja sakte ho</div>
             </div>
             <div class="editor-control-group">
               <div class="dl-section-label">Size — <span id="editor-text-size-label">36px</span></div>
@@ -3020,6 +3030,7 @@
   };
 
   let editorSelectedEffect = 'none';
+  let editorTextX = 50, editorTextY = 90; // percentage of video width/height — text ka center
 
   window.setEditorTab = (tabName, btnEl) => {
     document.querySelectorAll('.editor-tab-btn').forEach(b => b.classList.remove('active'));
@@ -3067,22 +3078,33 @@
 
     const vignette = document.getElementById('editor-vignette-overlay');
     vignette.style.display = 'none';
+    // Kuch effects (Sharpen, Warm, Cool) CSS mein hu-ba-hu nahi ban sakte
+    // (ffmpeg unsharp-mask/colorbalance ka koi direct CSS filter equivalent
+    // nahi hai) — inke liye sirf ek visually-close approximation dete hain.
     if (editorSelectedEffect === 'grayscale') filters.push('grayscale(1)');
     else if (editorSelectedEffect === 'sepia') filters.push('sepia(0.8)');
     else if (editorSelectedEffect === 'blur') filters.push('blur(3px)');
-    else if (editorSelectedEffect === 'sharpen') filters.push('contrast(1.15) saturate(1.12)'); // asli unsharp-mask sirf export mein
+    else if (editorSelectedEffect === 'sharpen') filters.push('contrast(1.15) saturate(1.12)');
     else if (editorSelectedEffect === 'vignette') vignette.style.display = 'block';
+    else if (editorSelectedEffect === 'invert') filters.push('invert(1)');
+    else if (editorSelectedEffect === 'warm') filters.push('sepia(0.25) saturate(1.25)');
+    else if (editorSelectedEffect === 'cool') filters.push('saturate(0.9) contrast(1.05) brightness(1.03)');
+    else if (editorSelectedEffect === 'highcontrast') filters.push('contrast(1.6) saturate(1.15)');
+    else if (editorSelectedEffect === 'fade') filters.push('contrast(0.85) brightness(1.08) saturate(0.85)');
+    else if (editorSelectedEffect === 'oldfilm') { filters.push('grayscale(1) contrast(1.3)'); vignette.style.display = 'block'; }
     video.style.filter = filters.join(' ');
 
     // Text overlay — asli export mein ffmpeg drawtext poore video resolution
     // ke hisaab se font-size lagata hai, isliye preview mein bhi wahi ratio
     // (chosen px / video ki asli width) use karte hain taaki size sahi dikhe.
+    // Position ab drag se set hoti hai (editorTextX/editorTextY, percentage
+    // — text ka CENTER us point par rehta hai, top-left nahi).
     const textOverlay = document.getElementById('editor-text-overlay');
+    const dragHint = document.getElementById('editor-text-drag-hint');
     const textEnabled = document.getElementById('editor-text-enabled').checked;
     const text = document.getElementById('editor-text-content').value;
     if (textEnabled && text.trim()) {
       const font = document.getElementById('editor-text-font').value;
-      const position = document.getElementById('editor-text-position').value;
       const size = Number(document.getElementById('editor-text-size').value);
       const color = document.getElementById('editor-text-color').value;
       const box = document.getElementById('editor-text-box').checked;
@@ -3093,11 +3115,13 @@
       textOverlay.style.fontSize = `${Math.max(8, size * scale)}px`;
       textOverlay.style.color = color;
       textOverlay.style.background = box ? 'rgba(0,0,0,0.55)' : 'transparent';
-      if (position === 'top') { textOverlay.style.top = '5%'; textOverlay.style.bottom = 'auto'; textOverlay.style.transform = 'translateX(-50%)'; }
-      else if (position === 'center') { textOverlay.style.top = '50%'; textOverlay.style.bottom = 'auto'; textOverlay.style.transform = 'translate(-50%, -50%)'; }
-      else { textOverlay.style.bottom = '5%'; textOverlay.style.top = 'auto'; textOverlay.style.transform = 'translateX(-50%)'; }
+      textOverlay.style.left = `${editorTextX}%`;
+      textOverlay.style.top = `${editorTextY}%`;
+      textOverlay.style.transform = 'translate(-50%, -50%)';
+      dragHint.style.display = 'block';
     } else {
       textOverlay.style.display = 'none';
+      dragHint.style.display = 'none';
     }
 
     updateEditorPreviewOpacity();
@@ -3162,10 +3186,63 @@
     });
   }
 
+  // Position dropdown ab sirf ek "quick jump" hai — asli control drag se
+  // hota hai (neeche wala pointer handler).
+  window.onEditorTextPositionPreset = (value) => {
+    editorTextX = 50;
+    editorTextY = value === 'top' ? 8 : value === 'center' ? 50 : 90;
+    updateEditorLivePreview();
+  };
+
+  // Text overlay ko seedha preview ke andar drag karke kahin bhi move kar
+  // sakte hain — pointer events se (mouse + touch dono ke liye kaam karta
+  // hai), position ko video ke bounding box ke against percentage mein
+  // convert karke editorTextX/editorTextY mein store karte hain (yehi
+  // values Apply Edits ke waqt server ko bhi jaati hain, taaki final export
+  // exactly wahi dikhaye jahan preview mein tha).
+  (() => {
+    const overlay = document.getElementById('editor-text-overlay');
+    const video = document.getElementById('editor-preview-video');
+    let dragging = false, offsetX = 0, offsetY = 0;
+
+    overlay.addEventListener('pointerdown', (e) => {
+      dragging = true;
+      overlay.classList.add('dragging');
+      overlay.setPointerCapture(e.pointerId);
+      const rect = video.getBoundingClientRect();
+      const pointX = ((e.clientX - rect.left) / rect.width) * 100;
+      const pointY = ((e.clientY - rect.top) / rect.height) * 100;
+      offsetX = pointX - editorTextX;
+      offsetY = pointY - editorTextY;
+      e.preventDefault();
+    });
+
+    overlay.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      const rect = video.getBoundingClientRect();
+      const pointX = ((e.clientX - rect.left) / rect.width) * 100;
+      const pointY = ((e.clientY - rect.top) / rect.height) * 100;
+      editorTextX = Math.min(96, Math.max(4, pointX - offsetX));
+      editorTextY = Math.min(96, Math.max(4, pointY - offsetY));
+      updateEditorLivePreview();
+    });
+
+    const stopDrag = (e) => {
+      if (!dragging) return;
+      dragging = false;
+      overlay.classList.remove('dragging');
+      try { overlay.releasePointerCapture(e.pointerId); } catch (err) {}
+    };
+    overlay.addEventListener('pointerup', stopDrag);
+    overlay.addEventListener('pointercancel', stopDrag);
+  })();
+
   window.resetVideoEditor = () => {
     editorUploadedFilename = null;
     editorUploadedFileUrl = null;
     editorSelectedEffect = 'none';
+    editorTextX = 50;
+    editorTextY = 90;
     document.getElementById('editor-file-input').value = '';
     document.getElementById('editor-trim-start').value = '';
     document.getElementById('editor-trim-end').value = '';
@@ -3255,7 +3332,6 @@
     const textEnabled = document.getElementById('editor-text-enabled').checked;
     const text = document.getElementById('editor-text-content').value;
     const textFont = document.getElementById('editor-text-font').value;
-    const textPosition = document.getElementById('editor-text-position').value;
     const textSize = document.getElementById('editor-text-size').value;
     const textColor = document.getElementById('editor-text-color').value;
     const textBox = document.getElementById('editor-text-box').checked;
@@ -3300,7 +3376,8 @@
           textEnabled,
           text,
           textFont,
-          textPosition,
+          textX: editorTextX,
+          textY: editorTextY,
           textSize,
           textColor,
           textBox,

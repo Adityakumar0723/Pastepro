@@ -1141,16 +1141,21 @@ app.post('/api/edit/upload', requireAuth, (req, res) => {
 // chain karna padta), aur speed dropdown isi range tak limited hai, isliye
 // yahan seedha ek hi atempo instance kaafi hai.
 const EDIT_ALLOWED_SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
-const EDIT_ALLOWED_EFFECTS = ['none', 'grayscale', 'sepia', 'vignette', 'blur', 'sharpen'];
+const EDIT_ALLOWED_EFFECTS = ['none', 'grayscale', 'sepia', 'vignette', 'blur', 'sharpen', 'invert', 'warm', 'cool', 'highcontrast', 'fade', 'oldfilm'];
 const EDIT_EFFECT_FILTERS = {
   grayscale: 'hue=s=0',
   sepia: 'colorchannelmixer=.393:.769:.189:0:.349:.686:.168:0:.272:.534:.131',
   vignette: 'vignette',
   blur: 'boxblur=4:1',
   sharpen: 'unsharp=5:5:1.0:5:5:0.0',
+  invert: 'negate',
+  warm: 'colorbalance=rs=0.2:gs=0.05:bs=-0.15',
+  cool: 'colorbalance=rs=-0.15:gs=0:bs=0.2',
+  highcontrast: 'eq=contrast=1.6:saturation=1.15',
+  fade: 'eq=contrast=0.85:brightness=0.08:saturation=0.85',
+  oldfilm: 'hue=s=0,eq=contrast=1.3,vignette',
 };
 const EDIT_ALLOWED_FONTS = { sans: 'sans-serif', serif: 'serif', mono: 'monospace' };
-const EDIT_ALLOWED_POSITIONS = ['top', 'center', 'bottom'];
 const EDIT_MAX_TEXT_LEN = 300;
 
 // Filter-graph string mein path daalne se pehle: backslash -> forward slash
@@ -1166,7 +1171,7 @@ app.post('/api/edit/process', requireAuth, async (req, res) => {
   const {
     filename, trimStart, trimEnd, noiseReduction, volume, speed,
     effect, brightness, contrast, saturation, fadeIn, fadeOut,
-    textEnabled, text, textFont, textSize, textColor, textPosition, textBox,
+    textEnabled, text, textFont, textSize, textColor, textX, textY, textBox,
   } = req.body;
   if (!filename) return res.status(400).json({ error: 'Filename zaroori hai' });
 
@@ -1210,7 +1215,14 @@ app.post('/api/edit/process', requireAuth, async (req, res) => {
   const fSize = textSize !== undefined && textSize !== null && textSize !== '' ? Number(textSize) : 36;
   if (!Number.isFinite(fSize) || fSize < 12 || fSize > 160) return res.status(400).json({ error: 'Font size invalid hai (12-160 ke beech)' });
   const colorHex = /^#[0-9a-fA-F]{6}$/.test(textColor || '') ? textColor : '#ffffff';
-  const pos = EDIT_ALLOWED_POSITIONS.includes(textPosition) ? textPosition : 'bottom';
+  // Text ab kisi bhi (x%, y%) par drag karke rakha ja sakta hai — preset
+  // top/center/bottom ki jagah seedha percentage position leke ffmpeg ki
+  // drawtext expression banate hain, jo preview mein dikhi drag position se
+  // hu-ba-hu match kare.
+  const tx = textX !== undefined && textX !== null && textX !== '' ? Number(textX) : 50;
+  const ty = textY !== undefined && textY !== null && textY !== '' ? Number(textY) : 90;
+  if (!Number.isFinite(tx) || tx < 0 || tx > 100) return res.status(400).json({ error: 'Text X position invalid hai' });
+  if (!Number.isFinite(ty) || ty < 0 || ty > 100) return res.status(400).json({ error: 'Text Y position invalid hai' });
   const withBox = textBox === true || textBox === 'true';
 
   const ffmpegCmd = await resolveFfmpegCommand();
@@ -1277,9 +1289,13 @@ app.post('/api/edit/process', requireAuth, async (req, res) => {
   if (bright !== 0 || contr !== 1 || satur !== 1) videoFilters.push(`eq=brightness=${bright}:contrast=${contr}:saturation=${satur}`);
   if (doText) {
     const escapedPath = escapeFfmpegFilterPath(textFilePath);
-    const yExpr = pos === 'top' ? '40' : pos === 'center' ? '(h-text_h)/2' : 'h-text_h-40';
+    // Preview mein text ka center (drag point) x%/y% par hota hai — wahi
+    // center yahan bhi maintain karte hain (text_w/2, text_h/2 minus karke)
+    // taaki final export exactly wahi jagah dikhaye jahan preview mein tha.
+    const xExpr = `(w*${(tx / 100).toFixed(4)})-text_w/2`;
+    const yExpr = `(h*${(ty / 100).toFixed(4)})-text_h/2`;
     const boxParts = withBox ? ':box=1:boxcolor=0x000000@0.45:boxborderw=12' : '';
-    videoFilters.push(`drawtext=textfile='${escapedPath}':reload=0:expansion=none:font=${EDIT_ALLOWED_FONTS[fontKey]}:fontsize=${fSize}:fontcolor=0x${colorHex.slice(1)}${boxParts}:x=(w-text_w)/2:y=${yExpr}`);
+    videoFilters.push(`drawtext=textfile='${escapedPath}':reload=0:expansion=none:font=${EDIT_ALLOWED_FONTS[fontKey]}:fontsize=${fSize}:fontcolor=0x${colorHex.slice(1)}${boxParts}:x=${xExpr}:y=${yExpr}`);
   }
   if (spd !== 1) videoFilters.push(`setpts=PTS/${spd}`);
   if (fadeInDur > 0) videoFilters.push(`fade=t=in:st=0:d=${fadeInDur.toFixed(2)}`);
