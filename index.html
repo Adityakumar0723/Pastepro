@@ -795,25 +795,6 @@
     </div>
   </div>
 
-  <!-- Quick Apps — sirf shortcut links hain, naye tab mein khulte hain. In
-       sites (Amazon/Flipkart/Swiggy/Zomato/Uber wagera) ko PastePro ke andar
-       iframe mein embed karna possible nahi hai — ye sab apni taraf se
-       X-Frame-Options/CSP se cross-site framing block karte hain (security
-       ke liye), isliye login/order/payment sirf unki apni real site par hi
-       ho sakta hai. -->
-  <div class="sidebar-section">
-    <div class="sidebar-section-title">Quick Apps</div>
-    <div class="sidebar-list">
-      <button class="sidebar-item" onclick="openExternalApp('Amazon','https://www.amazon.in')"><span class="sidebar-item-icon" style="background:#000;"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#FF9900" stroke-width="2.2" stroke-linecap="round"><path d="M4 15.5c4.2 3 12 3 16 0"/><path d="M17 14l3 1.3-1 3"/></svg></span>Amazon</button>
-      <button class="sidebar-item" onclick="openExternalApp('Flipkart','https://www.flipkart.com')"><span class="sidebar-item-icon" style="background:#2874F0;">F</span>Flipkart</button>
-      <button class="sidebar-item" onclick="openExternalApp('Myntra','https://www.myntra.com')"><span class="sidebar-item-icon" style="background:#FF3F6C;">M</span>Myntra</button>
-      <button class="sidebar-item" onclick="openExternalApp('Blinkit','https://blinkit.com')"><span class="sidebar-item-icon" style="background:#FFC300;"><svg viewBox="0 0 24 24" width="13" height="13" fill="#111"><path d="M13 2 3 14h7l-1 8 11-14h-7l1-6z"/></svg></span>Blinkit</button>
-      <button class="sidebar-item" onclick="openExternalApp('Swiggy','https://www.swiggy.com')"><span class="sidebar-item-icon" style="background:#FC8019;">S</span>Swiggy</button>
-      <button class="sidebar-item" onclick="openExternalApp('Zomato','https://www.zomato.com')"><span class="sidebar-item-icon" style="background:#E23744;">Z</span>Zomato</button>
-      <button class="sidebar-item" onclick="openExternalApp('Uber','https://www.uber.com/in/en/')"><span class="sidebar-item-icon" style="background:#000;">U</span>Uber</button>
-    </div>
-  </div>
-
   <div class="sidebar-section">
     <div class="sidebar-section-title">Account</div>
     <div class="sidebar-list">
@@ -2128,16 +2109,6 @@
     window.scrollTo({ top: 0, behavior: 'smooth' });
     input.focus();
     showToast(`${name} ka link paste karo!`, 'success');
-  };
-
-  // Quick Apps — Amazon/Flipkart/Swiggy/Zomato/Uber wagera apni site khud
-  // iframe mein embed hone nahi dete (X-Frame-Options/CSP), isliye ye seedha
-  // asli site naye tab mein khol dete hain — login/order/payment sab wahi
-  // real site par hota hai, jaisa ki hona bhi chahiye.
-  window.openExternalApp = (name, url) => {
-    closeSidebar();
-    logVisit('quick_app', { name });
-    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   // Documentation page
