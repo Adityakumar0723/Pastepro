@@ -106,7 +106,7 @@
     main:has(#docs-page.show) .hero { display: none; }
     main:has(#settings-page.show) { max-width: 100%; padding-top: 24px; padding-bottom: 24px; }
     main:has(#settings-page.show) .hero { display: none; }
-    main:has(#video-editor-page.show) { max-width: 1500px; padding-top: 24px; padding-bottom: 24px; }
+    main:has(#video-editor-page.show) { max-width: 100%; padding-top: 24px; padding-bottom: 24px; }
     main:has(#video-editor-page.show) .hero { display: none; }
     main:has(#playground-page.show) { max-width: 1800px; padding-top: 24px; padding-bottom: 24px; padding-left: 16px; padding-right: 16px; }
     main:has(#playground-page.show) .hero { display: none; }
@@ -383,7 +383,12 @@
 
     .editor-studio { display:grid; grid-template-columns:1fr 440px; gap:20px; align-items:start; }
     .editor-preview-col { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:20px; position:sticky; top:20px; min-width:0; }
-    .editor-preview-video { width:100%; border-radius:12px; background:#000; max-height:600px; }
+    .editor-preview-wrap { position:relative; display:flex; justify-content:center; }
+    .editor-preview-video { width:100%; border-radius:12px; background:#000; max-height:600px; transition:opacity 0.1s linear; }
+    .editor-vignette-overlay { display:none; position:absolute; inset:0; border-radius:12px; pointer-events:none; background:radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,0.75) 100%); }
+    .editor-text-overlay { display:none; position:absolute; left:50%; transform:translateX(-50%); max-width:90%; padding:0.3em 0.6em; border-radius:6px; font-weight:700; text-align:center; white-space:pre-wrap; word-break:break-word; pointer-events:none; line-height:1.25; }
+    .editor-preview-live-tag { position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.55); color:#fff; font-family:'Space Grotesk',sans-serif; font-size:10.5px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; padding:4px 9px; border-radius:20px; pointer-events:none; }
+    .editor-apply-hint { font-size:11.5px; color:var(--muted); text-align:center; margin-top:-4px; }
 
     .editor-panel { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:18px; display:flex; flex-direction:column; gap:16px; min-height:600px; min-width:0; overflow-x:hidden; }
     .editor-tabs { display:flex; gap:6px; background:var(--surface); padding:4px; border-radius:10px; flex-shrink:0; }
@@ -1625,7 +1630,12 @@
     <div class="editor-studio" id="editor-body" style="display:none;">
 
       <div class="editor-preview-col">
-        <video id="editor-preview-video" class="editor-preview-video" controls></video>
+        <div class="editor-preview-wrap">
+          <video id="editor-preview-video" class="editor-preview-video" controls></video>
+          <div class="editor-vignette-overlay" id="editor-vignette-overlay"></div>
+          <div class="editor-text-overlay" id="editor-text-overlay"></div>
+          <span class="editor-preview-live-tag">👁 Live Preview</span>
+        </div>
         <button type="button" class="dl-btn dl-btn-gray" style="margin-top:14px;" onclick="resetVideoEditor()">🔄 Doosri video upload karo</button>
       </div>
 
@@ -1645,13 +1655,13 @@
             <div class="editor-control-group">
               <div class="dl-section-label">✂️ Trim</div>
               <div class="editor-inline-row">
-                <label>Start (sec)<input type="number" id="editor-trim-start" min="0" step="0.1" placeholder="0" /></label>
-                <label>End (sec)<input type="number" id="editor-trim-end" min="0" step="0.1" placeholder="poora video" /></label>
+                <label>Start (sec)<input type="number" id="editor-trim-start" min="0" step="0.1" placeholder="0" oninput="onEditorTrimStartInput()" /></label>
+                <label>End (sec)<input type="number" id="editor-trim-end" min="0" step="0.1" placeholder="poora video" oninput="updateEditorLivePreview()" /></label>
               </div>
             </div>
             <div class="editor-control-group">
               <div class="dl-section-label">⏩ Speed</div>
-              <select id="editor-speed" class="editor-speed-select">
+              <select id="editor-speed" class="editor-speed-select" onchange="updateEditorLivePreview()">
                 <option value="0.5">0.5x</option>
                 <option value="0.75">0.75x</option>
                 <option value="1" selected>1x (Normal)</option>
@@ -1663,8 +1673,8 @@
             </div>
             <div class="editor-control-group">
               <div class="dl-section-label">🎞️ Animation</div>
-              <label class="editor-toggle-row"><input type="checkbox" id="editor-fade-in" class="editor-checkbox" /><span>Fade In (shuru mein)</span></label>
-              <label class="editor-toggle-row" style="margin-top:10px;"><input type="checkbox" id="editor-fade-out" class="editor-checkbox" /><span>Fade Out (aakhir mein)</span></label>
+              <label class="editor-toggle-row"><input type="checkbox" id="editor-fade-in" class="editor-checkbox" onchange="updateEditorLivePreview()" /><span>Fade In (shuru mein)</span></label>
+              <label class="editor-toggle-row" style="margin-top:10px;"><input type="checkbox" id="editor-fade-out" class="editor-checkbox" onchange="updateEditorLivePreview()" /><span>Fade Out (aakhir mein)</span></label>
             </div>
           </div>
 
@@ -1678,7 +1688,8 @@
             </div>
             <div class="editor-control-group">
               <div class="dl-section-label">🔊 Volume — <span id="editor-volume-label">1.0x</span></div>
-              <input type="range" id="editor-volume" class="editor-slider" min="0" max="3" step="0.1" value="1" oninput="document.getElementById('editor-volume-label').textContent = Number(this.value).toFixed(1) + 'x'" />
+              <input type="range" id="editor-volume" class="editor-slider" min="0" max="3" step="0.1" value="1" oninput="document.getElementById('editor-volume-label').textContent = Number(this.value).toFixed(1) + 'x'; updateEditorLivePreview()" />
+              <div class="editor-apply-hint" style="text-align:left; margin-top:8px;">Preview 1.0x tak hi live sunayi dega — usse zyada amplify sirf final export mein hoga</div>
             </div>
           </div>
 
@@ -1697,15 +1708,15 @@
             </div>
             <div class="editor-control-group">
               <div class="dl-section-label">☀️ Brightness — <span id="editor-brightness-label">0.0</span></div>
-              <input type="range" id="editor-brightness" class="editor-slider" min="-1" max="1" step="0.05" value="0" oninput="document.getElementById('editor-brightness-label').textContent = Number(this.value).toFixed(2)" />
+              <input type="range" id="editor-brightness" class="editor-slider" min="-1" max="1" step="0.05" value="0" oninput="document.getElementById('editor-brightness-label').textContent = Number(this.value).toFixed(2); updateEditorLivePreview()" />
             </div>
             <div class="editor-control-group">
               <div class="dl-section-label">◐ Contrast — <span id="editor-contrast-label">1.0</span></div>
-              <input type="range" id="editor-contrast" class="editor-slider" min="0" max="3" step="0.05" value="1" oninput="document.getElementById('editor-contrast-label').textContent = Number(this.value).toFixed(2)" />
+              <input type="range" id="editor-contrast" class="editor-slider" min="0" max="3" step="0.05" value="1" oninput="document.getElementById('editor-contrast-label').textContent = Number(this.value).toFixed(2); updateEditorLivePreview()" />
             </div>
             <div class="editor-control-group">
               <div class="dl-section-label">🌈 Saturation — <span id="editor-saturation-label">1.0</span></div>
-              <input type="range" id="editor-saturation" class="editor-slider" min="0" max="3" step="0.05" value="1" oninput="document.getElementById('editor-saturation-label').textContent = Number(this.value).toFixed(2)" />
+              <input type="range" id="editor-saturation" class="editor-slider" min="0" max="3" step="0.05" value="1" oninput="document.getElementById('editor-saturation-label').textContent = Number(this.value).toFixed(2); updateEditorLivePreview()" />
             </div>
           </div>
 
@@ -1713,22 +1724,22 @@
           <div class="editor-tab-pane" data-pane="text">
             <div class="editor-control-group">
               <label class="editor-toggle-row">
-                <input type="checkbox" id="editor-text-enabled" class="editor-checkbox" />
+                <input type="checkbox" id="editor-text-enabled" class="editor-checkbox" onchange="updateEditorLivePreview()" />
                 <span>📝 Text Overlay Enable Karo</span>
               </label>
             </div>
             <div class="editor-control-group">
               <div class="dl-section-label">Caption Text</div>
-              <textarea id="editor-text-content" class="editor-text-input" maxlength="300" placeholder="Yahan apna text likho..."></textarea>
+              <textarea id="editor-text-content" class="editor-text-input" maxlength="300" placeholder="Yahan apna text likho..." oninput="updateEditorLivePreview()"></textarea>
             </div>
             <div class="editor-control-group">
               <div class="editor-inline-row">
-                <label>Font<select id="editor-text-font" class="editor-speed-select">
+                <label>Font<select id="editor-text-font" class="editor-speed-select" onchange="updateEditorLivePreview()">
                   <option value="sans" selected>Sans</option>
                   <option value="serif">Serif</option>
                   <option value="mono">Monospace</option>
                 </select></label>
-                <label>Position<select id="editor-text-position" class="editor-speed-select">
+                <label>Position<select id="editor-text-position" class="editor-speed-select" onchange="updateEditorLivePreview()">
                   <option value="top">Top</option>
                   <option value="center">Center</option>
                   <option value="bottom" selected>Bottom</option>
@@ -1737,12 +1748,12 @@
             </div>
             <div class="editor-control-group">
               <div class="dl-section-label">Size — <span id="editor-text-size-label">36px</span></div>
-              <input type="range" id="editor-text-size" class="editor-slider" min="12" max="120" step="1" value="36" oninput="document.getElementById('editor-text-size-label').textContent = this.value + 'px'" />
+              <input type="range" id="editor-text-size" class="editor-slider" min="12" max="120" step="1" value="36" oninput="document.getElementById('editor-text-size-label').textContent = this.value + 'px'; updateEditorLivePreview()" />
             </div>
             <div class="editor-control-group">
               <div class="editor-inline-row" style="align-items:center;">
-                <label>Color<input type="color" id="editor-text-color" class="editor-color-input" value="#ffffff" /></label>
-                <label class="editor-toggle-row" style="margin-top:20px;"><input type="checkbox" id="editor-text-box" class="editor-checkbox" checked /><span>Background box</span></label>
+                <label>Color<input type="color" id="editor-text-color" class="editor-color-input" value="#ffffff" oninput="updateEditorLivePreview()" /></label>
+                <label class="editor-toggle-row" style="margin-top:20px;"><input type="checkbox" id="editor-text-box" class="editor-checkbox" checked onchange="updateEditorLivePreview()" /><span>Background box</span></label>
               </div>
             </div>
           </div>
@@ -1750,6 +1761,7 @@
         </div>
 
         <button type="button" class="dl-btn dl-btn-green editor-apply-btn" id="editor-apply-btn" onclick="applyVideoEdits()">✨ Apply Edits</button>
+        <div class="editor-apply-hint">Upar live preview approximate hai — is button se asli HD file banti hai jo download ho sakti hai</div>
 
         <div class="pg-thinking" id="editor-processing-thinking">
           <span class="pg-dot"></span><span class="pg-dot"></span><span class="pg-dot"></span>
@@ -3020,7 +3032,135 @@
     editorSelectedEffect = effectName;
     document.querySelectorAll('.editor-effect-chip').forEach(c => c.classList.remove('active'));
     btnEl.classList.add('active');
+    updateEditorLivePreview();
   };
+
+  // ════════════════════════════════
+  //  VIDEO EDITOR — LIVE PREVIEW
+  //  Server par asli edit sirf "Apply Edits" dabane par ffmpeg se banta hai
+  //  (isme time lagta hai). Tab tak user ko andaza dena zaroori hai ki
+  //  settings kaisi dikhengi — isliye jitna browser mein bina render kiye
+  //  possible hai (CSS filter, playbackRate, DOM text overlay), sab yahin
+  //  turant apply karte hain. Kuch cheezein (Sharpen, volume >1x amplify)
+  //  browser mein sach mein nahi ho sakti — unke liye sirf ek approximate
+  //  preview dete hain, asli result Apply Edits ke baad hi milta hai.
+  // ════════════════════════════════
+  const EDITOR_FADE_SECONDS = 0.6; // sirf preview ke liye — asli export ffmpeg khud decide karta hai
+
+  window.updateEditorLivePreview = () => {
+    const video = document.getElementById('editor-preview-video');
+    if (!video || !video.src) return;
+
+    const speed = Number(document.getElementById('editor-speed').value) || 1;
+    video.playbackRate = speed;
+
+    // HTML5 <video>.volume sirf 0-1 tak support karta hai — 1x se zyada
+    // amplify (ffmpeg ka volume filter kar sakta hai) preview mein nahi
+    // dikh sakta, isliye clamp karte hain.
+    const volume = Number(document.getElementById('editor-volume').value);
+    video.volume = Math.min(1, Math.max(0, volume));
+
+    const brightness = Number(document.getElementById('editor-brightness').value);
+    const contrast = Number(document.getElementById('editor-contrast').value);
+    const saturation = Number(document.getElementById('editor-saturation').value);
+    const filters = [`brightness(${1 + brightness})`, `contrast(${contrast})`, `saturate(${saturation})`];
+
+    const vignette = document.getElementById('editor-vignette-overlay');
+    vignette.style.display = 'none';
+    if (editorSelectedEffect === 'grayscale') filters.push('grayscale(1)');
+    else if (editorSelectedEffect === 'sepia') filters.push('sepia(0.8)');
+    else if (editorSelectedEffect === 'blur') filters.push('blur(3px)');
+    else if (editorSelectedEffect === 'sharpen') filters.push('contrast(1.15) saturate(1.12)'); // asli unsharp-mask sirf export mein
+    else if (editorSelectedEffect === 'vignette') vignette.style.display = 'block';
+    video.style.filter = filters.join(' ');
+
+    // Text overlay — asli export mein ffmpeg drawtext poore video resolution
+    // ke hisaab se font-size lagata hai, isliye preview mein bhi wahi ratio
+    // (chosen px / video ki asli width) use karte hain taaki size sahi dikhe.
+    const textOverlay = document.getElementById('editor-text-overlay');
+    const textEnabled = document.getElementById('editor-text-enabled').checked;
+    const text = document.getElementById('editor-text-content').value;
+    if (textEnabled && text.trim()) {
+      const font = document.getElementById('editor-text-font').value;
+      const position = document.getElementById('editor-text-position').value;
+      const size = Number(document.getElementById('editor-text-size').value);
+      const color = document.getElementById('editor-text-color').value;
+      const box = document.getElementById('editor-text-box').checked;
+      const scale = video.videoWidth ? (video.clientWidth / video.videoWidth) : 1;
+      textOverlay.textContent = text;
+      textOverlay.style.display = 'block';
+      textOverlay.style.fontFamily = font === 'serif' ? 'Georgia, serif' : font === 'mono' ? "'Space Mono', monospace" : "'Space Grotesk', sans-serif";
+      textOverlay.style.fontSize = `${Math.max(8, size * scale)}px`;
+      textOverlay.style.color = color;
+      textOverlay.style.background = box ? 'rgba(0,0,0,0.55)' : 'transparent';
+      if (position === 'top') { textOverlay.style.top = '5%'; textOverlay.style.bottom = 'auto'; textOverlay.style.transform = 'translateX(-50%)'; }
+      else if (position === 'center') { textOverlay.style.top = '50%'; textOverlay.style.bottom = 'auto'; textOverlay.style.transform = 'translate(-50%, -50%)'; }
+      else { textOverlay.style.bottom = '5%'; textOverlay.style.top = 'auto'; textOverlay.style.transform = 'translateX(-50%)'; }
+    } else {
+      textOverlay.style.display = 'none';
+    }
+
+    updateEditorPreviewOpacity();
+  };
+
+  // Trim "Start" field mein type karte hi (agar video paused hai) turant
+  // wahi frame dikhao — general updateEditorLivePreview() mein ye nahi
+  // karte kyunki wo har control (effect/text/etc.) change hone par bhi
+  // chalta hai, aur tab seek karna user ka manually scrub kiya hua frame
+  // ud jaata.
+  window.onEditorTrimStartInput = () => {
+    const video = document.getElementById('editor-preview-video');
+    if (video && video.src && video.paused) {
+      const startVal = document.getElementById('editor-trim-start').value;
+      const start = startVal !== '' ? Number(startVal) : 0;
+      if (start >= 0 && start <= (video.duration || Infinity)) video.currentTime = start;
+    }
+    updateEditorLivePreview();
+  };
+
+  // Trim ke end tak pahunchte hi pause + fade in/out ka opacity — dono
+  // playback ke currentTime par depend karte hain, isliye ek hi timeupdate
+  // listener mein combine kiya hai.
+  function updateEditorPreviewOpacity() {
+    const video = document.getElementById('editor-preview-video');
+    if (!video || !video.duration) { video.style.opacity = '1'; return; }
+    const fadeIn = document.getElementById('editor-fade-in').checked;
+    const fadeOut = document.getElementById('editor-fade-out').checked;
+    const startVal = document.getElementById('editor-trim-start').value;
+    const endVal = document.getElementById('editor-trim-end').value;
+    const start = startVal !== '' ? Number(startVal) : 0;
+    const end = endVal !== '' ? Number(endVal) : video.duration;
+
+    let opacity = 1;
+    if (fadeIn) opacity = Math.min(opacity, Math.max(0, (video.currentTime - start) / EDITOR_FADE_SECONDS));
+    if (fadeOut) opacity = Math.min(opacity, Math.max(0, (end - video.currentTime) / EDITOR_FADE_SECONDS));
+    video.style.opacity = String(Math.max(0, Math.min(1, opacity)));
+  }
+
+  function handleEditorPreviewTimeUpdate() {
+    const video = document.getElementById('editor-preview-video');
+    const endVal = document.getElementById('editor-trim-end').value;
+    if (endVal !== '' && video.currentTime >= Number(endVal)) {
+      video.pause();
+      const startVal = document.getElementById('editor-trim-start').value;
+      video.currentTime = startVal !== '' ? Number(startVal) : 0;
+    }
+    updateEditorPreviewOpacity();
+  }
+
+  {
+    const previewVideoEl = document.getElementById('editor-preview-video');
+    previewVideoEl.addEventListener('timeupdate', handleEditorPreviewTimeUpdate);
+    previewVideoEl.addEventListener('loadedmetadata', updateEditorLivePreview);
+    previewVideoEl.addEventListener('play', () => {
+      // Play dabate hi trim start se shuru ho (agar abhi bahar hai).
+      const startVal = document.getElementById('editor-trim-start').value;
+      const endVal = document.getElementById('editor-trim-end').value;
+      const start = startVal !== '' ? Number(startVal) : 0;
+      const end = endVal !== '' ? Number(endVal) : Infinity;
+      if (previewVideoEl.currentTime < start || previewVideoEl.currentTime >= end) previewVideoEl.currentTime = start;
+    });
+  }
 
   window.resetVideoEditor = () => {
     editorUploadedFilename = null;
@@ -3056,7 +3196,12 @@
     document.getElementById('editor-upload-zone').style.display = '';
     document.getElementById('editor-body').style.display = 'none';
     document.getElementById('editor-result').style.display = 'none';
-    document.getElementById('editor-preview-video').src = '';
+    const previewVideo = document.getElementById('editor-preview-video');
+    previewVideo.src = '';
+    previewVideo.style.filter = 'none';
+    previewVideo.style.opacity = '1';
+    document.getElementById('editor-vignette-overlay').style.display = 'none';
+    document.getElementById('editor-text-overlay').style.display = 'none';
   };
 
   window.handleEditorFileSelect = async (event) => {
