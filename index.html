@@ -1505,22 +1505,42 @@
 
         <div class="docs-section">
           <div class="docs-section-title">🧰 PDF Tools</div>
-          <p class="docs-section-desc">A full iLovePDF-style toolset — merge, split, compress, convert PDFs to/from Word, PowerPoint and Excel, and a real visual editor to drop text or images anywhere on a PDF.</p>
+          <p class="docs-section-desc">A full iLovePDF-style toolset — 25 tools across Organize, Optimize, Convert, Edit and PDF Security, filterable by category. Every tool shows a live progress percentage while it works, and opens the result straight in the canvas viewer (ZIP-producing tools download directly instead).</p>
           <ul class="docs-feature-list">
-            <li>Merge PDF — combine two or more PDFs into one, in the order you upload them</li>
-            <li>Split PDF — every page becomes its own PDF file, delivered as a ZIP</li>
-            <li>Compress PDF — shrinks the file size and shows the real before/after size, no exaggerated claims</li>
-            <li>PDF → Word, PowerPoint or Excel, and the reverse — Word/PowerPoint/Excel → PDF</li>
-            <li>Edit PDF — upload a PDF, click "Text Daalo" or "Image Daalo", then click anywhere on any page to drop it there; drag to reposition, resize images, and change text font size/color inline</li>
-            <li>Every tool shows a live progress percentage while it works, and opens the result straight in the canvas viewer (except Split, which downloads its ZIP directly)</li>
+            <li><strong>Organize:</strong> Merge PDF (combine files in upload order) · Split PDF (every page → its own file, as a ZIP) · JPG to PDF (one or more images → one PDF, each on its own page) · Scan to PDF (same, with camera capture on mobile) · Organize PDF (thumbnail preview of every page — reorder with ↑/↓, delete any page, then rebuild)</li>
+            <li><strong>Optimize:</strong> Compress PDF (real before/after size shown, no exaggerated claims) · Repair PDF (best-effort fix for a damaged/corrupt file) · OCR PDF (for scanned/image-only PDFs with no text layer — rasterizes each page and runs it through the vision AI, producing a Word document)</li>
+            <li><strong>Convert:</strong> PDF ↔ Word, PowerPoint and Excel in both directions · PDF to JPG (every page → a JPG, as a ZIP) · HTML to PDF (paste a URL to fetch and print it, or paste raw HTML directly)</li>
+            <li><strong>Edit:</strong> Edit PDF (click "Text Daalo"/"Image Daalo" then click any page to drop it there; drag to reposition, resize images, change text font size/color inline) · Watermark (your text stamped on every page — text, opacity, rotation, size and color are all adjustable) · Rotate PDF (90°/180°/270°, applied to every page) · Page Numbers (position and starting number configurable) · Compare PDF (upload two PDFs, see a line-by-line diff per page — added lines in green, removed in red)</li>
+            <li><strong>PDF Security:</strong> Protect PDF (add a password) · Unlock PDF (remove one, if you know it) · Sign PDF (draw a signature on a pad, then place/drag/resize it on any page — it's really just the Edit PDF image-overlay flow under the hood)</li>
+            <li>Two things are honestly scoped rather than faked: <strong>PDF to PDF/A</strong> is disclosed as a best-effort structural cleanup, not a certified ISO PDF/A conversion; <strong>OCR PDF</strong> produces an editable Word doc rather than an invisibly-searchable PDF, since that would need word-level bounding boxes a plain-text AI response doesn't provide</li>
           </ul>
           <div class="docs-shot-wrap">
             <img class="docs-shot" src="/docs-assets/pdf-tools-grid.png" alt="PDF Tools grid with category filters" loading="lazy" />
-            <div class="docs-shot-caption">The PDF Tools grid — every tool one click away, filterable by category</div>
+            <div class="docs-shot-caption">The PDF Tools grid — 25 tools across 5 categories, one click away</div>
+          </div>
+          <div class="docs-shot-row">
+            <div>
+              <img class="docs-shot" src="/docs-assets/pdf-edit-studio.png" alt="Edit PDF — text and image placed on a page" loading="lazy" />
+              <div class="docs-shot-caption">Edit PDF — a text overlay and an image dropped onto the page, both draggable</div>
+            </div>
+            <div>
+              <img class="docs-shot" src="/docs-assets/pdf-sign.png" alt="Sign PDF — a drawn signature placed on a page" loading="lazy" />
+              <div class="docs-shot-caption">Sign PDF — draw a signature, then drag it wherever it needs to go</div>
+            </div>
+          </div>
+          <div class="docs-shot-row">
+            <div>
+              <img class="docs-shot" src="/docs-assets/pdf-organize.png" alt="Organize PDF — page thumbnails with reorder and delete controls" loading="lazy" />
+              <div class="docs-shot-caption">Organize PDF — reorder or delete pages from a thumbnail view</div>
+            </div>
+            <div>
+              <img class="docs-shot" src="/docs-assets/pdf-watermark.png" alt="Watermark applied diagonally across a PDF page" loading="lazy" />
+              <div class="docs-shot-caption">Watermark — text, opacity, rotation, size and color all adjustable</div>
+            </div>
           </div>
           <div class="docs-shot-wrap">
-            <img class="docs-shot" src="/docs-assets/pdf-edit-studio.png" alt="Edit PDF — text and image placed on a page" loading="lazy" />
-            <div class="docs-shot-caption">Edit PDF — a text overlay and an image dropped onto the page, both draggable</div>
+            <img class="docs-shot" src="/docs-assets/pdf-compare.png" alt="Compare PDF showing an added and a removed line" loading="lazy" />
+            <div class="docs-shot-caption">Compare PDF — a per-page line diff between two files</div>
           </div>
         </div>
 
