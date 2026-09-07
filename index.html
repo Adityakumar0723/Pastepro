@@ -626,6 +626,7 @@
     .pg-doc-slide { border:1px solid var(--border); border-radius:10px; padding:14px 16px; background:var(--surface); }
     .pg-doc-slide-title { font-size:11.5px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; color:var(--muted); margin-bottom:8px; }
     .pg-doc-slide-body { font-size:13.5px; line-height:1.7; color:var(--text); font-family:'Space Grotesk',sans-serif; }
+    .pg-doc-slide-image { display:block; max-width:100%; max-height:420px; object-fit:contain; margin:0 auto; border-radius:6px; background:#000; }
     .pg-send-btn { width:44px; height:44px; flex-shrink:0; border-radius:12px; background:linear-gradient(135deg,var(--accent),var(--accent2)); border:none; color:#fff; font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:opacity 0.2s; }
     .pg-send-btn:hover { opacity:0.9; }
     .pg-send-btn:disabled { opacity:0.5; cursor:not-allowed; }
@@ -1861,7 +1862,7 @@
       <div class="dl-banner-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
       <div>
         <h2>File Converter</h2>
-        <p>Text likho ya image se nikaalo — PDF, Word, Excel, TXT, Markdown ya RTF file bana lo</p>
+        <p>Text likho ya images upload karo — PDF, Word, PowerPoint, Excel, TXT, Markdown ya RTF file bana lo</p>
       </div>
     </div>
 
@@ -1869,29 +1870,27 @@
       <div class="editor-preview-col" style="position:static;">
         <div class="editor-tabs fc-mode-tabs">
           <button type="button" class="editor-tab-btn active" data-tab="text" onclick="setFcMode('text', this)"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg> Text Likho</button>
-          <button type="button" class="editor-tab-btn" data-tab="image" onclick="setFcMode('image', this)"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> Image Se Nikaalo</button>
+          <button type="button" class="editor-tab-btn" data-tab="image" onclick="setFcMode('image', this)"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> Image Upload Karo</button>
         </div>
 
         <div class="editor-tab-pane" data-pane="image" style="display:none; margin-bottom:16px;">
           <div id="fc-image-upload-zone" class="editor-upload-zone" style="padding:40px 20px;" onclick="document.getElementById('fc-image-input').click()">
-            <input type="file" id="fc-image-input" accept="image/png,image/jpeg,image/webp" multiple style="display:none;" onchange="handleFcImageSelect(event)" />
+            <input type="file" id="fc-image-input" accept="image/png,image/jpeg" multiple style="display:none;" onchange="handleFcImageSelect(event)" />
             <div class="editor-upload-icon"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
-            <p class="editor-upload-text">Ek ya ek se zyada image upload karo jisme text ho</p>
-            <p class="editor-upload-hint">PNG, JPEG, WEBP — ek image max 15MB</p>
+            <p class="editor-upload-text">Ek ya ek se zyada image upload karo</p>
+            <p class="editor-upload-hint">Har image apni asli shakal mein hi PDF/Word/PPT mein daal di jaayegi — PNG, JPEG, ek image max 15MB</p>
           </div>
           <div id="fc-image-preview-wrap" style="display:none;">
             <div id="fc-image-preview-list" class="fc-image-preview-list"></div>
             <button type="button" class="dl-btn dl-btn-gray" onclick="resetFcImage()"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:4px;"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Doosri image(s) upload karo</button>
           </div>
-          <div class="pg-thinking" id="fc-ocr-thinking">
-            <span class="pg-dot"></span><span class="pg-dot"></span><span class="pg-dot"></span>
-            Image se text nikala ja raha hai...
-          </div>
         </div>
 
-        <div class="editor-control-group">
-          <div class="dl-section-label">Content <span style="text-transform:none; font-weight:600; letter-spacing:normal; color:var(--muted);">— yahan se edit bhi kar sakte ho</span></div>
-          <textarea id="fc-text-content" class="editor-text-input" style="min-height:360px;" maxlength="200000" placeholder="Yahan apna text likho... (# Heading, ## Subheading, - bullet, **bold** bhi chalega)"></textarea>
+        <div class="editor-tab-pane" data-pane="text" style="display:block;">
+          <div class="editor-control-group">
+            <div class="dl-section-label">Content <span style="text-transform:none; font-weight:600; letter-spacing:normal; color:var(--muted);">— yahan se edit bhi kar sakte ho</span></div>
+            <textarea id="fc-text-content" class="editor-text-input" style="min-height:360px;" maxlength="200000" placeholder="Yahan apna text likho... (# Heading, ## Subheading, - bullet, **bold** bhi chalega)"></textarea>
+          </div>
         </div>
       </div>
 
@@ -1900,10 +1899,11 @@
         <div class="fc-format-grid" id="fc-format-grid">
           <button type="button" class="fc-format-chip active" data-format="pdf" onclick="selectFcFormat('pdf', this)"><span class="fc-format-icon" style="background:#e63946;">PDF</span>PDF Document</button>
           <button type="button" class="fc-format-chip" data-format="docx" onclick="selectFcFormat('docx', this)"><span class="fc-format-icon" style="background:#2b579a;">DOC</span>Word Document</button>
-          <button type="button" class="fc-format-chip" data-format="xlsx" onclick="selectFcFormat('xlsx', this)"><span class="fc-format-icon" style="background:#217346;">XLS</span>Excel Spreadsheet</button>
-          <button type="button" class="fc-format-chip" data-format="txt" onclick="selectFcFormat('txt', this)"><span class="fc-format-icon" style="background:#6b7280;">TXT</span>Plain Text</button>
-          <button type="button" class="fc-format-chip" data-format="md" onclick="selectFcFormat('md', this)"><span class="fc-format-icon" style="background:#1f2937;">MD</span>Markdown</button>
-          <button type="button" class="fc-format-chip" data-format="rtf" onclick="selectFcFormat('rtf', this)"><span class="fc-format-icon" style="background:#7c3aed;">RTF</span>Rich Text (RTF)</button>
+          <button type="button" class="fc-format-chip" data-format="pptx" onclick="selectFcFormat('pptx', this)"><span class="fc-format-icon" style="background:#d24726;">PPT</span>PowerPoint</button>
+          <button type="button" class="fc-format-chip fc-format-textonly" data-format="xlsx" onclick="selectFcFormat('xlsx', this)"><span class="fc-format-icon" style="background:#217346;">XLS</span>Excel Spreadsheet</button>
+          <button type="button" class="fc-format-chip fc-format-textonly" data-format="txt" onclick="selectFcFormat('txt', this)"><span class="fc-format-icon" style="background:#6b7280;">TXT</span>Plain Text</button>
+          <button type="button" class="fc-format-chip fc-format-textonly" data-format="md" onclick="selectFcFormat('md', this)"><span class="fc-format-icon" style="background:#1f2937;">MD</span>Markdown</button>
+          <button type="button" class="fc-format-chip fc-format-textonly" data-format="rtf" onclick="selectFcFormat('rtf', this)"><span class="fc-format-icon" style="background:#7c3aed;">RTF</span>Rich Text (RTF)</button>
         </div>
 
         <button type="button" class="dl-btn dl-btn-green editor-apply-btn" id="fc-generate-btn" style="margin-top:20px;" onclick="generateFcFile()"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:4px;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>Generate &amp; Preview</button>
@@ -2835,12 +2835,19 @@
         // dump se kahin zyada spreadsheet jaisa dikhta hai.
         body.innerHTML = `<div class="pg-doc-preview-table">${data.html}</div>`;
       } else if (format === 'pptx' && Array.isArray(data.slides) && data.slides.length) {
-        // Har slide apna card, har bullet/paragraph apni line par.
+        // Har slide apna card — image ho to wo dikhti hai, text ho to har
+        // bullet/paragraph apni line par.
         body.innerHTML = `<div class="pg-doc-preview-slides">${data.slides.map(s => `
           <div class="pg-doc-slide">
             <div class="pg-doc-slide-title">Slide ${s.number}</div>
-            <div class="pg-doc-slide-body">${s.lines.length ? s.lines.map(l => escapeHtml(l)).join('<br>') : '<em>(koi text nahi mila)</em>'}</div>
+            ${s.image ? `<img class="pg-doc-slide-image" src="${s.image}" alt="Slide ${s.number}" />` : ''}
+            ${s.lines.length ? `<div class="pg-doc-slide-body">${s.lines.map(l => escapeHtml(l)).join('<br>')}</div>` : (s.image ? '' : '<div class="pg-doc-slide-body"><em>(koi text nahi mila)</em></div>')}
           </div>`).join('')}</div>`;
+      } else if (format === 'docx' && Array.isArray(data.images) && data.images.length && !(data.text && data.text.trim())) {
+        // Sirf-image DOCX (File Converter ka "image to Word" tool) — har
+        // embedded image apne card mein dikhti hai.
+        body.innerHTML = `<div class="pg-doc-preview-slides">${data.images.map((src, i) => `
+          <div class="pg-doc-slide"><img class="pg-doc-slide-image" src="${src}" alt="Image ${i + 1}" /></div>`).join('')}</div>`;
       } else {
         body.innerHTML = `<pre class="pg-doc-preview-text">${escapeHtml(data.text && data.text.trim() ? data.text : '(Is file mein koi readable text nahi mila)')}</pre>`;
       }
@@ -3342,12 +3349,24 @@
   //  duplicate nahi karna pada.
   // ════════════════════════════════
   let fcSelectedFormat = 'pdf';
+  let fcMode = 'text';
+  let fcImageDataUrls = [];
+  const FC_IMAGE_FORMATS = ['pdf', 'docx', 'pptx'];
 
   window.setFcMode = (mode, btnEl) => {
+    fcMode = mode;
     const container = document.getElementById('file-converter-page');
     container.querySelectorAll('.editor-tab-btn').forEach(b => b.classList.remove('active'));
     btnEl.classList.add('active');
     container.querySelector('.editor-tab-pane[data-pane="image"]').style.display = mode === 'image' ? 'block' : 'none';
+    container.querySelector('.editor-tab-pane[data-pane="text"]').style.display = mode === 'image' ? 'none' : 'block';
+
+    const grid = document.getElementById('fc-format-grid');
+    grid.querySelectorAll('.fc-format-textonly').forEach(chip => { chip.style.display = mode === 'image' ? 'none' : ''; });
+    if (mode === 'image' && !FC_IMAGE_FORMATS.includes(fcSelectedFormat)) {
+      const pdfChip = grid.querySelector('.fc-format-chip[data-format="pdf"]');
+      window.selectFcFormat('pdf', pdfChip);
+    }
   };
 
   window.selectFcFormat = (format, btnEl) => {
@@ -3365,10 +3384,10 @@
     });
   }
 
-  // Ek se zyada images ek saath select kar sakte ho — har ek ka thumbnail
-  // dikhta hai, aur har image se OCR (ek-ek karke, taaki AI rate-limit na ho)
-  // hone ke baad sab ka text ek hi content box mein "--- Image N ---" se
-  // alag karke jud jaata hai.
+  // Ek se zyada images ek saath select kar sakte ho — koi OCR/text-extraction
+  // nahi hota, har image jaisi hai waisi hi dataURL ke roop mein yaad rakhi
+  // jaati hai taaki "Generate & Preview" pe seedha PDF/Word/PPT mein embed
+  // ho jaaye (iLovePDF ke image-to-file tools jaisa).
   window.handleFcImageSelect = async (event) => {
     const files = Array.from(event.target.files || []);
     event.target.value = '';
@@ -3376,7 +3395,7 @@
 
     const valid = [];
     for (const file of files) {
-      if (!file.type.startsWith('image/')) { showToast(`"${file.name}" image nahi hai, skip kar diya`, 'error'); continue; }
+      if (file.type !== 'image/png' && file.type !== 'image/jpeg') { showToast(`"${file.name}" PNG/JPEG nahi hai, skip kar diya`, 'error'); continue; }
       if (file.size > 15 * 1024 * 1024) { showToast(`"${file.name}" bahut badi hai (max 15MB), skip kar diya`, 'error'); continue; }
       valid.push(file);
     }
@@ -3395,35 +3414,13 @@
     document.getElementById('fc-image-upload-zone').style.display = 'none';
     document.getElementById('fc-image-preview-wrap').style.display = 'block';
 
-    const thinking = document.getElementById('fc-ocr-thinking');
-    thinking.classList.add('active');
-    const parts = [];
-    let anyFail = false;
-    for (const file of valid) {
-      try {
-        const dataUrl = await fcFileToDataUrl(file);
-        const res = await fetch(`${BACKEND}/api/doc-tool/image-to-text`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-          body: JSON.stringify({ dataUrl }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || !data.success) throw new Error(data.error || 'fail');
-        parts.push((data.text || '').trim());
-      } catch (e) {
-        anyFail = true;
-        parts.push(`(${file.name} se text nahi nikal paaye)`);
-      }
-    }
-    thinking.classList.remove('active');
-    document.getElementById('fc-text-content').value = parts.length > 1
-      ? parts.map((t, i) => `--- Image ${i + 1} ---\n${t}`).join('\n\n')
-      : (parts[0] || '');
-    showToast(anyFail ? 'Kuch images se text nahi nikal paaye' : 'Saari images se text nikal liya! ✓', anyFail ? 'error' : 'success');
+    fcImageDataUrls = await Promise.all(valid.map(fcFileToDataUrl));
+    showToast(`${valid.length} image(s) upload ho gayi! Ab format choose karke Generate karo`, 'success');
   };
 
   window.resetFcImage = () => {
     document.getElementById('fc-image-input').value = '';
+    fcImageDataUrls = [];
     const list = document.getElementById('fc-image-preview-list');
     list.querySelectorAll('img').forEach(img => URL.revokeObjectURL(img.src));
     list.innerHTML = '';
@@ -3432,17 +3429,20 @@
   };
 
   window.generateFcFile = async () => {
-    const content = document.getElementById('fc-text-content').value;
-    if (!content.trim()) { showToast('Pehle text likho ya image se nikaalo', 'error'); return; }
+    const isImageMode = fcMode === 'image';
+    if (isImageMode && !fcImageDataUrls.length) { showToast('Pehle image(s) upload karo', 'error'); return; }
+    if (!isImageMode && !document.getElementById('fc-text-content').value.trim()) { showToast('Pehle text likho', 'error'); return; }
 
     const btn = document.getElementById('fc-generate-btn');
     btn.disabled = true;
     document.getElementById('fc-generate-thinking').classList.add('active');
     try {
-      const res = await fetch(`${BACKEND}/api/playground/generate-file`, {
+      const res = await fetch(`${BACKEND}/${isImageMode ? 'api/doc-tool/images-to-file' : 'api/playground/generate-file'}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-        body: JSON.stringify({ format: fcSelectedFormat, content }),
+        body: JSON.stringify(isImageMode
+          ? { format: fcSelectedFormat, images: fcImageDataUrls }
+          : { format: fcSelectedFormat, content: document.getElementById('fc-text-content').value }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.success) throw new Error(data.error || 'File generate nahi ho payi');

@@ -22,8 +22,9 @@ const XLSX      = require('xlsx');
 const AdmZip    = require('adm-zip');
 const multer    = require('multer');
 const PDFDocument = require('pdfkit');
-const { Document: DocxDocument, Packer: DocxPacker, Paragraph: DocxParagraph, HeadingLevel: DocxHeadingLevel, TextRun: DocxTextRun } = require('docx');
+const { Document: DocxDocument, Packer: DocxPacker, Paragraph: DocxParagraph, HeadingLevel: DocxHeadingLevel, TextRun: DocxTextRun, ImageRun: DocxImageRun } = require('docx');
 const PptxGenJS = require('pptxgenjs');
+const { imageSize } = require('image-size');
 require('dotenv').config();
 
 const app  = express();
@@ -1594,48 +1595,98 @@ app.post('/api/playground/generate-file', requireAuth, async (req, res) => {
   }
 });
 
-// ─── FILE CONVERTER — image se text nikalna (OCR) ─────────
-// Playground ki tarah hi vision-capable model use karta hai, bas yahan
-// stream:false hai kyunki humein sirf poora text ek baar mein chahiye
-// (chat mein type-hote-hue dikhane ki zaroorat nahi hai).
+// ─── FILE CONVERTER — images ko seedha PDF/DOCX/PPTX mein embed karna ─────
+// Koi OCR/text-extraction nahi — jaisa hai waisa hi visual image naye
+// document format mein daal dete hain (iLovePDF ke "image to file" tools
+// jaisa). Sirf PNG/JPEG allowed hain kyunki pdfkit aur docx dono sirf
+// inhi do formats ko natively embed kar sakte hain.
 const MAX_FC_IMAGE_BYTES = 15 * 1024 * 1024;
+const MAX_FC_IMAGES_PER_REQUEST = 20;
 
-async function extractTextFromImage(dataUrl) {
-  const upstream = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENROUTER_API_KEY}` },
-    body: JSON.stringify({
-      model: OPENROUTER_VISION_MODEL,
-      stream: false,
-      messages: [
-        { role: 'system', content: 'Is image mein jo bhi text likha hai wo bilkul verbatim (jaisa hai waisa) nikaal ke do — line breaks/structure jitna ho sake wahi rakho. Sirf extracted text hi likho, koi extra comment/explanation mat do. Agar image mein koi text hi na ho to sirf ye likho: (no text found)' },
-        { role: 'user', content: [{ type: 'image_url', image_url: { url: dataUrl } }] },
-      ],
-    }),
+function generateImagePdfBuffer(images) {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ margin: 36, size: 'A4' });
+    const chunks = [];
+    doc.on('data', c => chunks.push(c));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+    images.forEach((img, i) => {
+      if (i > 0) doc.addPage();
+      const areaW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+      const areaH = doc.page.height - doc.page.margins.top - doc.page.margins.bottom;
+      doc.image(img.buffer, doc.page.margins.left, doc.page.margins.top, { fit: [areaW, areaH], align: 'center', valign: 'center' });
+    });
+    doc.end();
   });
-  if (!upstream.ok) {
-    const errText = await upstream.text().catch(() => '');
-    throw new Error(`OpenRouter HTTP ${upstream.status}: ${errText.slice(0, 200)}`);
-  }
-  const data = await upstream.json();
-  return data.choices?.[0]?.message?.content || '';
 }
 
-app.post('/api/doc-tool/image-to-text', requireAuth, async (req, res) => {
-  const { dataUrl } = req.body;
-  if (typeof dataUrl !== 'string' || !/^data:image\/(png|jpe?g|webp);base64,/.test(dataUrl)) {
-    return res.status(400).json({ error: 'Sirf PNG/JPEG/WEBP images support hain' });
+async function generateImageDocxBuffer(images) {
+  const MAX_W_PX = 600; // ~6.25in usable page width @ 96dpi
+  const MAX_H_PX = 750; // ~7.8in usable page height @ 96dpi
+  const paragraphs = images.map((img, i) => {
+    let w = MAX_W_PX, h = Math.round(MAX_W_PX * 0.75);
+    try {
+      const dim = imageSize(img.buffer);
+      if (dim.width && dim.height) {
+        const scale = Math.min(MAX_W_PX / dim.width, MAX_H_PX / dim.height, 1);
+        w = Math.round(dim.width * scale);
+        h = Math.round(dim.height * scale);
+      }
+    } catch { /* dimensions na mile to default box size use ho jaata hai */ }
+    return new DocxParagraph({
+      pageBreakBefore: i > 0,
+      children: [new DocxImageRun({
+        data: img.buffer,
+        type: img.mime === 'image/png' ? 'png' : 'jpg',
+        transformation: { width: w, height: h },
+      })],
+    });
+  });
+  const doc = new DocxDocument({ sections: [{ children: paragraphs }] });
+  return DocxPacker.toBuffer(doc);
+}
+
+async function generateImagePptxBuffer(images) {
+  const pptx = new PptxGenJS();
+  const slideW = pptx.presLayout.width / 914400, slideH = pptx.presLayout.height / 914400;
+  const margin = 0.3;
+  const w = slideW - margin * 2, h = slideH - margin * 2;
+  for (const img of images) {
+    const slide = pptx.addSlide();
+    const dataUrl = `data:${img.mime};base64,${img.buffer.toString('base64')}`;
+    slide.addImage({ data: dataUrl, x: margin, y: margin, w, h, sizing: { type: 'contain', w, h } });
   }
-  if (dataUrl.length * 0.75 > MAX_FC_IMAGE_BYTES) return res.status(400).json({ error: 'Image bahut badi hai (max 15MB)' });
-  if (!OPENROUTER_API_KEY) return res.status(500).json({ error: 'OpenRouter API key server par configure nahi hai' });
+  return pptx.write({ outputType: 'nodebuffer' });
+}
+
+const IMAGE_DOC_GENERATORS = { pdf: generateImagePdfBuffer, docx: generateImageDocxBuffer, pptx: generateImagePptxBuffer };
+
+app.post('/api/doc-tool/images-to-file', requireAuth, async (req, res) => {
+  const { format, images } = req.body;
+  const generator = IMAGE_DOC_GENERATORS[format];
+  if (!generator) return res.status(400).json({ error: 'Image se ye file format nahi ban sakta' });
+  if (!Array.isArray(images) || !images.length) return res.status(400).json({ error: 'Koi image nahi mili' });
+  if (images.length > MAX_FC_IMAGES_PER_REQUEST) return res.status(400).json({ error: `Ek baar mein max ${MAX_FC_IMAGES_PER_REQUEST} images allowed hain` });
+
+  const parsed = [];
+  for (const dataUrl of images) {
+    const m = /^data:(image\/(?:png|jpeg));base64,(.+)$/.exec(dataUrl || '');
+    if (!m) return res.status(400).json({ error: 'Sirf PNG ya JPEG images allowed hain' });
+    const buffer = Buffer.from(m[2], 'base64');
+    if (buffer.length > MAX_FC_IMAGE_BYTES) return res.status(400).json({ error: 'Ek image 15MB se badi hai' });
+    parsed.push({ buffer, mime: m[1] });
+  }
 
   try {
-    const text = await extractTextFromImage(dataUrl);
-    logActivity(req, 'file_converter_ocr', {});
-    res.json({ success: true, text });
+    const buffer = await generator(parsed);
+    const uid = req.user.id;
+    const outName = `${uid.slice(0, 8)}_${Date.now()}_fc.${format}`;
+    fs.writeFileSync(path.join(DOWNLOADS_DIR, outName), buffer);
+    logActivity(req, 'file_converter_image_generate', { format, count: parsed.length });
+    res.json({ success: true, fileUrl: `/files/${outName}`, filename: outName });
   } catch (err) {
-    console.error('image-to-text error:', err);
-    res.status(500).json({ error: 'Image se text nikaal nahi paaye. Dobara try karo' });
+    console.error('images-to-file error:', err);
+    res.status(500).json({ error: 'File generate nahi ho payi. Dobara try karo' });
   }
 });
 
@@ -1734,7 +1785,37 @@ async function extractDocText(buffer, format) {
   switch (format) {
     case 'docx': {
       const result = await mammoth.extractRawText({ buffer });
-      return { text: (result.value || '').trim() };
+      const text = (result.value || '').trim();
+      if (text) return { text };
+      // Sirf-image DOCX (jaise File Converter ka "image to Word" tool
+      // banata hai) mammoth se koi text nahi deta — seedha zip ke andar se
+      // embedded images nikaal ke preview mein dikha dete hain taaki
+      // confusing "no text" message ki jagah asli content dikhe. Media
+      // filenames content-hash based hote hain (image1/image2 jaisi
+      // sequence nahi), isliye sirf sorting se sahi order guarantee nahi
+      // hota — document.xml ke <a:blip r:embed="rIdN"/> references ko
+      // unke relationships se resolve karke asli paragraph order milta hai.
+      try {
+        const zip = new AdmZip(buffer);
+        const docXmlEntry = zip.getEntry('word/document.xml');
+        const relsEntry = zip.getEntry('word/_rels/document.xml.rels');
+        const docXml = docXmlEntry ? docXmlEntry.getData().toString('utf8') : '';
+        const relsXml = relsEntry ? relsEntry.getData().toString('utf8') : '';
+        const relMap = {};
+        for (const m of relsXml.matchAll(/<Relationship[^>]*\sId="([^"]+)"[^>]*\sTarget="([^"]+)"/g)) relMap[m[1]] = m[2];
+        const images = [...docXml.matchAll(/r:embed="([^"]+)"/g)]
+          .map(m => relMap[m[1]])
+          .filter(Boolean)
+          .map(target => zip.getEntry(`word/${target}`))
+          .filter(Boolean)
+          .map(entry => {
+            const ext = entry.entryName.split('.').pop().toLowerCase();
+            const mime = ext === 'png' ? 'image/png' : ext === 'gif' ? 'image/gif' : ext === 'bmp' ? 'image/bmp' : 'image/jpeg';
+            return `data:${mime};base64,${entry.getData().toString('base64')}`;
+          });
+        if (images.length) return { text: '', images };
+      } catch { /* fall through */ }
+      return { text: '' };
     }
     case 'xlsx': {
       const wb = XLSX.read(buffer, { type: 'buffer' });
@@ -1768,7 +1849,22 @@ async function extractDocText(buffer, format) {
         const lines = [...xml.matchAll(/<a:p>([\s\S]*?)<\/a:p>/g)]
           .map(p => [...p[1].matchAll(/<a:t>([^<]*)<\/a:t>/g)].map(m => decodeXmlEntities(m[1])).join(''))
           .filter(line => line.trim());
-        return { number: i + 1, lines };
+        // Is slide ka embedded image dhoondo (jaise File Converter ka "image
+        // to PowerPoint" tool banata hai — har slide mein ek full-size image).
+        let image = null;
+        try {
+          const slideFileName = e.entryName.split('/').pop();
+          const relEntry = zip.getEntry(`ppt/slides/_rels/${slideFileName}.rels`);
+          const relXml = relEntry ? relEntry.getData().toString('utf8') : '';
+          const m = /Target="\.\.\/media\/([^"]+)"/.exec(relXml);
+          const mediaEntry = m ? zip.getEntry(`ppt/media/${m[1]}`) : null;
+          if (mediaEntry) {
+            const ext = m[1].split('.').pop().toLowerCase();
+            const mime = ext === 'png' ? 'image/png' : ext === 'gif' ? 'image/gif' : ext === 'bmp' ? 'image/bmp' : 'image/jpeg';
+            image = `data:${mime};base64,${mediaEntry.getData().toString('base64')}`;
+          }
+        } catch { /* image na mile to text-only slide jaisa treat hota hai */ }
+        return { number: i + 1, lines, image };
       });
       const text = slides.map(s => `--- Slide ${s.number} ---\n${s.lines.join('\n')}`).join('\n\n').trim();
       return { text, slides };
@@ -2007,7 +2103,8 @@ app.post('/api/extract-doc-text', requireAuth, async (req, res) => {
     res.json({
       text: (result.text || '').slice(0, 50000), // AI-context cap se zyada, preview ke liye — phir bhi bounded
       html: result.html,     // xlsx only — actual <table> markup for a real spreadsheet-like preview
-      slides: result.slides, // pptx only — per-slide paragraph lines for a readable outline-style preview
+      slides: result.slides, // pptx only — per-slide paragraph lines (+ embedded image) for a readable preview
+      images: result.images, // docx only — sirf-image DOCX ke embedded images (jab koi text na ho)
     });
   } catch (e) {
     console.error('Doc preview extract error:', e.message);
