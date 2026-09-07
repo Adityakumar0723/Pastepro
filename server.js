@@ -2461,6 +2461,296 @@ app.post('/api/pdf-tools/ocr', requireAuth, withPdfToolUpload(pdfToolUpload.sing
   }
 }));
 
+// ─── PDF TOOLS (round 3) — Crop, PDF Forms, Redact, AI Summarizer,
+//     Translate PDF, PDF to Markdown ───────────────────────────────
+
+async function queryOpenRouterText(systemPrompt, userContent) {
+  const callModel = async (model) => fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENROUTER_API_KEY}` },
+    body: JSON.stringify({ model, stream: false, messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userContent }] }),
+  });
+  let upstream = await callModel(OPENROUTER_MODEL);
+  if ((upstream.status === 429 || upstream.status === 404) && OPENROUTER_FALLBACK_MODEL !== OPENROUTER_MODEL) {
+    upstream = await callModel(OPENROUTER_FALLBACK_MODEL);
+  }
+  if (!upstream.ok) throw new Error(`OpenRouter HTTP ${upstream.status}`);
+  const data = await upstream.json();
+  return data.choices?.[0]?.message?.content || '';
+}
+
+const MAX_AI_TEXT_TOOL_CHARS = 30000;
+
+async function summarizePdfText(text) {
+  return queryOpenRouterText(
+    'Tum ek summarization assistant ho. Diye gaye document ka concise, clear summary do — pehle ek short paragraph, phir key points bullet mein. Hinglish/Hindi document ho to usi tone mein jawab do, warna English mein. Koi preamble mat likho ("Here is a summary:" jaisa) — seedha summary se shuru karo.',
+    text.slice(0, MAX_AI_TEXT_TOOL_CHARS)
+  );
+}
+
+async function translatePdfText(text, targetLang) {
+  return queryOpenRouterText(
+    `Tum ek translation assistant ho. Diya gaya text ko ${targetLang} mein translate karo — meaning bilkul accurate rakho, paragraph structure jitna ho sake preserve karo. Sirf translated text likho, koi extra comment ya preamble nahi.`,
+    text.slice(0, MAX_AI_TEXT_TOOL_CHARS)
+  );
+}
+
+async function pdfToMarkdownBuffer(buffer) {
+  const pages = await extractPdfPages(buffer);
+  const md = pages.map((p, i) => `## Page ${i + 1}\n\n${p}`).join('\n\n---\n\n').trim();
+  if (!md) throw new Error('NO_TEXT');
+  return Buffer.from(md, 'utf8');
+}
+
+async function cropPdfBuffer(buffer, { top, bottom, left, right }) {
+  const doc = await PdfLibDocument.load(buffer, { ignoreEncryption: true });
+  for (const page of doc.getPages()) {
+    const { width, height } = page.getSize();
+    const mTop = height * top / 100, mBottom = height * bottom / 100;
+    const mLeft = width * left / 100, mRight = width * right / 100;
+    page.setCropBox(mLeft, mBottom, Math.max(1, width - mLeft - mRight), Math.max(1, height - mTop - mBottom));
+  }
+  return Buffer.from(await doc.save());
+}
+
+// PDF Forms — pdf-lib se existing AcroForm fields padh/fill kar sakte hain,
+// ya (agar koi field hi nahi hai) naye clickable text fields add kar sakte
+// hain (real fillable AcroForm fields banate hain, koi image/overlay hack nahi).
+async function detectPdfFormFields(buffer) {
+  const doc = await PdfLibDocument.load(buffer, { ignoreEncryption: true });
+  const form = doc.getForm();
+  return form.getFields().map(f => ({ name: f.getName(), type: f.constructor.name }));
+}
+
+async function fillPdfForm(buffer, values) {
+  const doc = await PdfLibDocument.load(buffer, { ignoreEncryption: true });
+  const form = doc.getForm();
+  for (const [name, value] of Object.entries(values)) {
+    try {
+      const field = form.getField(name);
+      const ctorName = field.constructor.name;
+      if (ctorName === 'PDFTextField') field.setText(String(value ?? ''));
+      else if (ctorName === 'PDFCheckBox') { if (value) field.check(); else field.uncheck(); }
+      else if (ctorName === 'PDFDropdown' || ctorName === 'PDFRadioGroup' || ctorName === 'PDFOptionList') field.select(String(value));
+    } catch { /* field na mile ya value type mismatch ho to skip karo, baaki fields fill hote rahein */ }
+  }
+  form.flatten();
+  return Buffer.from(await doc.save());
+}
+
+async function createPdfFormFields(buffer, placements) {
+  const doc = await PdfLibDocument.load(buffer, { ignoreEncryption: true });
+  const form = doc.getForm();
+  placements.forEach((p, i) => {
+    const page = doc.getPage(p.page);
+    const field = form.createTextField(p.name || `field_${i + 1}`);
+    field.addToPage(page, { x: p.x, y: p.y, width: p.width, height: p.height, borderWidth: 1 });
+  });
+  return Buffer.from(await doc.save());
+}
+
+// Redact PDF — sirf ek black box upar draw karna security ke liye kaafi
+// nahi hai (text neeche se copy-paste ho sakta hai) — isliye poora page
+// hi rasterize (flatten to image) karte hain redaction boxes ke saath,
+// taaki result mein koi selectable/extractable text hi na bache.
+async function redactPdfToImages(buffer, redactionsByPage) {
+  const scale = 1.8;
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    await page.setContent('<!doctype html><html><body></body></html>');
+    await page.addScriptTag({ url: `${PDFJS_CDN_BASE}/pdf.min.js` });
+    const base64 = buffer.toString('base64');
+    const dataUrls = await page.evaluate(async ({ base64, scale, workerSrc, redactionsByPage }) => {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const doc = await window.pdfjsLib.getDocument({ data: bytes }).promise;
+      const out = [];
+      for (let i = 1; i <= doc.numPages; i++) {
+        const p = await doc.getPage(i);
+        const viewport = p.getViewport({ scale });
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width; canvas.height = viewport.height;
+        const ctx = canvas.getContext('2d');
+        await p.render({ canvasContext: ctx, viewport }).promise;
+        ctx.fillStyle = '#000';
+        for (const r of (redactionsByPage[i - 1] || [])) {
+          const xPx = r.x * scale;
+          const yPxTop = canvas.height - (r.y + r.height) * scale;
+          ctx.fillRect(xPx, yPxTop, r.width * scale, r.height * scale);
+        }
+        out.push(canvas.toDataURL('image/png'));
+      }
+      return out;
+    }, { base64, scale, workerSrc: `${PDFJS_CDN_BASE}/pdf.worker.min.js`, redactionsByPage });
+    return dataUrls.map(u => Buffer.from(u.split(',')[1], 'base64'));
+  } finally {
+    await browser.close();
+  }
+}
+
+app.post('/api/pdf-tools/crop', requireAuth, withPdfToolUpload(pdfToolUpload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Koi PDF file nahi mili' });
+  const errMsg = pdfMimeCheck(req.file);
+  if (errMsg) return res.status(400).json({ error: errMsg });
+  const clamp = v => Math.min(45, Math.max(0, Number(v) || 0));
+  const top = clamp(req.body.top), bottom = clamp(req.body.bottom), left = clamp(req.body.left), right = clamp(req.body.right);
+  try {
+    const buffer = await cropPdfBuffer(req.file.buffer, { top, bottom, left, right });
+    const uid = req.user.id;
+    const outName = `${uid.slice(0, 8)}_${Date.now()}_pt.pdf`;
+    fs.writeFileSync(path.join(DOWNLOADS_DIR, outName), buffer);
+    logActivity(req, 'pdf_crop', {});
+    res.json({ success: true, fileUrl: `/files/${outName}`, filename: outName });
+  } catch (err) {
+    console.error('crop error:', err);
+    res.status(500).json({ error: 'Crop nahi ho paaya. Kya ye ek valid PDF hai?' });
+  }
+}));
+
+app.post('/api/pdf-tools/summarize', requireAuth, withPdfToolUpload(pdfToolUpload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Koi PDF file nahi mili' });
+  const errMsg = pdfMimeCheck(req.file);
+  if (errMsg) return res.status(400).json({ error: errMsg });
+  if (!OPENROUTER_API_KEY) return res.status(500).json({ error: 'OpenRouter API key server par configure nahi hai' });
+  try {
+    const pages = await extractPdfPages(req.file.buffer);
+    const text = pages.join('\n\n').trim();
+    if (!text) return res.status(400).json({ error: 'Is PDF mein koi text nahi mila' });
+    const summary = await summarizePdfText(text);
+    logActivity(req, 'pdf_summarize', {});
+    res.json({ success: true, summary });
+  } catch (err) {
+    console.error('summarize error:', err);
+    res.status(500).json({ error: 'Summarize nahi ho paaya. Dobara try karo' });
+  }
+}));
+
+const PDF_TRANSLATE_LANGS = ['Hindi', 'English', 'Spanish', 'French', 'German', 'Arabic', 'Chinese (Simplified)', 'Japanese', 'Portuguese', 'Russian'];
+app.post('/api/pdf-tools/translate', requireAuth, withPdfToolUpload(pdfToolUpload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Koi PDF file nahi mili' });
+  const errMsg = pdfMimeCheck(req.file);
+  if (errMsg) return res.status(400).json({ error: errMsg });
+  if (!OPENROUTER_API_KEY) return res.status(500).json({ error: 'OpenRouter API key server par configure nahi hai' });
+  const targetLang = PDF_TRANSLATE_LANGS.includes(req.body.targetLang) ? req.body.targetLang : 'English';
+  try {
+    const pages = await extractPdfPages(req.file.buffer);
+    const text = pages.join('\n\n').trim();
+    if (!text) return res.status(400).json({ error: 'Is PDF mein koi text nahi mila' });
+    const translated = await translatePdfText(text, targetLang);
+    if (!translated.trim()) throw new Error('NO_TEXT');
+    // DOCX output — pdfkit ke standard fonts sirf WinAnsi (Latin-script)
+    // characters render kar sakte hain, isliye Hindi/Arabic/Chinese/Japanese/
+    // Russian jaisi target languages ke liye PDF output silently khaali ban
+    // jaata (verified: sanitizePdfText Devanagari poori tarah strip kar deta
+    // hai). DOCX/OOXML mein aisi koi font-encoding limitation nahi hai.
+    const buffer = await generateDocxBuffer(translated);
+    const uid = req.user.id;
+    const outName = `${uid.slice(0, 8)}_${Date.now()}_pt.docx`;
+    fs.writeFileSync(path.join(DOWNLOADS_DIR, outName), buffer);
+    logActivity(req, 'pdf_translate', { targetLang });
+    res.json({ success: true, fileUrl: `/files/${outName}`, filename: outName });
+  } catch (err) {
+    console.error('translate error:', err);
+    res.status(500).json({ error: 'Translate nahi ho paaya. Dobara try karo' });
+  }
+}));
+
+app.post('/api/pdf-tools/to-markdown', requireAuth, withPdfToolUpload(pdfToolUpload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Koi PDF file nahi mili' });
+  const errMsg = pdfMimeCheck(req.file);
+  if (errMsg) return res.status(400).json({ error: errMsg });
+  try {
+    const buffer = await pdfToMarkdownBuffer(req.file.buffer);
+    const uid = req.user.id;
+    const outName = `${uid.slice(0, 8)}_${Date.now()}_pt.md`;
+    fs.writeFileSync(path.join(DOWNLOADS_DIR, outName), buffer);
+    logActivity(req, 'pdf_to_markdown', {});
+    res.json({ success: true, fileUrl: `/files/${outName}`, filename: outName });
+  } catch (err) {
+    if (err.message === 'NO_TEXT') return res.status(400).json({ error: 'Is PDF mein koi text nahi mila' });
+    console.error('to-markdown error:', err);
+    res.status(500).json({ error: 'Markdown banane mein error aayi' });
+  }
+}));
+
+app.post('/api/pdf-tools/forms/detect', requireAuth, withPdfToolUpload(pdfToolUpload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Koi PDF file nahi mili' });
+  const errMsg = pdfMimeCheck(req.file);
+  if (errMsg) return res.status(400).json({ error: errMsg });
+  try {
+    const fields = await detectPdfFormFields(req.file.buffer);
+    res.json({ success: true, fields });
+  } catch (err) {
+    console.error('forms/detect error:', err);
+    res.status(500).json({ error: 'Form fields detect nahi ho paaye. Kya ye ek valid PDF hai?' });
+  }
+}));
+
+app.post('/api/pdf-tools/forms/fill', requireAuth, withPdfToolUpload(pdfToolUpload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Koi PDF file nahi mili' });
+  const errMsg = pdfMimeCheck(req.file);
+  if (errMsg) return res.status(400).json({ error: errMsg });
+  let values;
+  try { values = JSON.parse(req.body.values || '{}'); } catch { return res.status(400).json({ error: 'Values invalid hain' }); }
+  try {
+    const buffer = await fillPdfForm(req.file.buffer, values);
+    const uid = req.user.id;
+    const outName = `${uid.slice(0, 8)}_${Date.now()}_pt.pdf`;
+    fs.writeFileSync(path.join(DOWNLOADS_DIR, outName), buffer);
+    logActivity(req, 'pdf_forms_fill', {});
+    res.json({ success: true, fileUrl: `/files/${outName}`, filename: outName });
+  } catch (err) {
+    console.error('forms/fill error:', err);
+    res.status(500).json({ error: 'Form fill nahi ho paaya. Kya ye ek valid PDF hai?' });
+  }
+}));
+
+app.post('/api/pdf-tools/forms/create', requireAuth, withPdfToolUpload(pdfToolUpload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Koi PDF file nahi mili' });
+  const errMsg = pdfMimeCheck(req.file);
+  if (errMsg) return res.status(400).json({ error: errMsg });
+  let placements;
+  try { placements = JSON.parse(req.body.placements || '[]'); } catch { return res.status(400).json({ error: 'Fields invalid hain' }); }
+  if (!Array.isArray(placements) || !placements.length) return res.status(400).json({ error: 'Kam se kam ek field place karo' });
+  try {
+    const buffer = await createPdfFormFields(req.file.buffer, placements);
+    const uid = req.user.id;
+    const outName = `${uid.slice(0, 8)}_${Date.now()}_pt.pdf`;
+    fs.writeFileSync(path.join(DOWNLOADS_DIR, outName), buffer);
+    logActivity(req, 'pdf_forms_create', { count: placements.length });
+    res.json({ success: true, fileUrl: `/files/${outName}`, filename: outName });
+  } catch (err) {
+    console.error('forms/create error:', err);
+    res.status(500).json({ error: 'Form fields add nahi ho paaye. Kya ye ek valid PDF hai?' });
+  }
+}));
+
+app.post('/api/pdf-tools/redact', requireAuth, withPdfToolUpload(pdfToolUpload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Koi PDF file nahi mili' });
+  const errMsg = pdfMimeCheck(req.file);
+  if (errMsg) return res.status(400).json({ error: errMsg });
+  let redactionsByPage;
+  try { redactionsByPage = JSON.parse(req.body.redactionsByPage || '[]'); } catch { return res.status(400).json({ error: 'Redaction areas invalid hain' }); }
+  if (!Array.isArray(redactionsByPage) || !redactionsByPage.some(r => Array.isArray(r) && r.length)) {
+    return res.status(400).json({ error: 'Kam se kam ek area select karo' });
+  }
+  try {
+    const images = await redactPdfToImages(req.file.buffer, redactionsByPage);
+    const buffer = await generateImagePdfBuffer(images.map(b => ({ buffer: b, mime: 'image/png' })));
+    const uid = req.user.id;
+    const outName = `${uid.slice(0, 8)}_${Date.now()}_pt.pdf`;
+    fs.writeFileSync(path.join(DOWNLOADS_DIR, outName), buffer);
+    logActivity(req, 'pdf_redact', {});
+    res.json({ success: true, fileUrl: `/files/${outName}`, filename: outName });
+  } catch (err) {
+    console.error('redact error:', err);
+    res.status(500).json({ error: 'Redact nahi ho paaya. Kya ye ek valid PDF hai?' });
+  }
+}));
+
 // ─── PLAYGROUND QUERY — OpenRouter se streamed jawab ──────
 // Ek waqt mein ek user ki ek hi query process hoti hai (jaise download wala rate limit).
 const activeQueries = new Set();
@@ -2785,10 +3075,16 @@ app.post('/api/query', requireAuth, async (req, res) => {
     // gets busy (verified directly — some free models 429 consistently,
     // others only intermittently) — one retry with a different free model
     // covers most of those cases instead of failing the query outright.
-    // No verified-working second vision model yet, so this retry only
+    // 404 bhi retry karte hain kyunki OpenRouter free-tier model slugs
+    // kabhi-kabhi discontinue ho jaate hain (verified directly: is session
+    // mein hi default OPENROUTER_MODEL retire ho chuka tha, aur upstream
+    // isko rate-limit ki tarah 429 nahi, seedha 404 "model unavailable"
+    // deta hai) — bina is check ke primary model retire hote hi poora
+    // Playground text-chat broken ho jaata, sirf fallback model set karne
+    // tak. No verified-working second vision model yet, so this retry only
     // applies to plain text queries.
-    if (upstream.status === 429 && !imageDataUrls.length && OPENROUTER_FALLBACK_MODEL !== OPENROUTER_MODEL) {
-      console.log('OpenRouter primary model rate-limited, retrying with fallback model...');
+    if ((upstream.status === 429 || upstream.status === 404) && !imageDataUrls.length && OPENROUTER_FALLBACK_MODEL !== OPENROUTER_MODEL) {
+      console.log(`OpenRouter primary model unavailable (HTTP ${upstream.status}), retrying with fallback model...`);
       upstream = await queryOpenRouter(OPENROUTER_FALLBACK_MODEL, content);
     }
 

@@ -494,6 +494,15 @@
     .pdfc-diff-added { background:rgba(46,196,182,0.16); color:var(--text); }
     .pdfc-diff-removed { background:rgba(230,57,70,0.16); color:var(--text); text-decoration:line-through; opacity:0.8; }
 
+    /* AI SUMMARIZER */
+    .pdfs-summary-card { border:1px solid var(--border); border-radius:10px; padding:18px 20px; background:var(--card); font-size:14px; line-height:1.7; white-space:pre-wrap; color:var(--text); }
+
+    /* PDF FORMS — naye field placeholders jo click se page par place hote hain */
+    .pdff-field-item { position:absolute; border:2px dashed #7c3aed; background:rgba(124,58,237,0.14); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#7c3aed; cursor:move; }
+
+    /* REDACT PDF — draw-karke-banaya gaya box, permanent black area ka preview */
+    .pdfr-box { position:absolute; background:rgba(0,0,0,0.75); border:1px solid #000; }
+
     /* EDIT PDF — visual canvas editor: pdf.js render + draggable/resizable
        absolutely-positioned overlays on top of each page's canvas. */
     .pdfe-toolbar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:18px; position:sticky; top:0; background:var(--bg); padding:10px 0; z-index:5; }
@@ -1505,18 +1514,19 @@
 
         <div class="docs-section">
           <div class="docs-section-title">🧰 PDF Tools</div>
-          <p class="docs-section-desc">A full iLovePDF-style toolset — 25 tools across Organize, Optimize, Convert, Edit and PDF Security, filterable by category. Every tool shows a live progress percentage while it works, and opens the result straight in the canvas viewer (ZIP-producing tools download directly instead).</p>
+          <p class="docs-section-desc">A full iLovePDF-style toolset — 31 tools across Organize, Optimize, Convert, Edit, PDF Security and PDF Intelligence, filterable by category. Every tool shows a live progress percentage while it works, and opens the result straight in the canvas viewer (ZIP-producing tools download directly instead).</p>
           <ul class="docs-feature-list">
-            <li><strong>Organize:</strong> Merge PDF (combine files in upload order) · Split PDF (every page → its own file, as a ZIP) · JPG to PDF (one or more images → one PDF, each on its own page) · Scan to PDF (same, with camera capture on mobile) · Organize PDF (thumbnail preview of every page — reorder with ↑/↓, delete any page, then rebuild)</li>
+            <li><strong>Organize:</strong> Merge PDF (combine files in upload order) · Split PDF (every page → its own file, as a ZIP) · JPG to PDF (one or more images → one PDF, each on its own page) · Scan to PDF (same, with camera capture on mobile) · Organize PDF (thumbnail preview of every page — reorder with ↑/↓, delete any page, then rebuild) · Crop PDF (independent top/bottom/left/right margin sliders, applied to every page)</li>
             <li><strong>Optimize:</strong> Compress PDF (real before/after size shown, no exaggerated claims) · Repair PDF (best-effort fix for a damaged/corrupt file) · OCR PDF (for scanned/image-only PDFs with no text layer — rasterizes each page and runs it through the vision AI, producing a Word document)</li>
-            <li><strong>Convert:</strong> PDF ↔ Word, PowerPoint and Excel in both directions · PDF to JPG (every page → a JPG, as a ZIP) · HTML to PDF (paste a URL to fetch and print it, or paste raw HTML directly)</li>
-            <li><strong>Edit:</strong> Edit PDF (click "Text Daalo"/"Image Daalo" then click any page to drop it there; drag to reposition, resize images, change text font size/color inline) · Watermark (your text stamped on every page — text, opacity, rotation, size and color are all adjustable) · Rotate PDF (90°/180°/270°, applied to every page) · Page Numbers (position and starting number configurable) · Compare PDF (upload two PDFs, see a line-by-line diff per page — added lines in green, removed in red)</li>
-            <li><strong>PDF Security:</strong> Protect PDF (add a password) · Unlock PDF (remove one, if you know it) · Sign PDF (draw a signature on a pad, then place/drag/resize it on any page — it's really just the Edit PDF image-overlay flow under the hood)</li>
-            <li>Two things are honestly scoped rather than faked: <strong>PDF to PDF/A</strong> is disclosed as a best-effort structural cleanup, not a certified ISO PDF/A conversion; <strong>OCR PDF</strong> produces an editable Word doc rather than an invisibly-searchable PDF, since that would need word-level bounding boxes a plain-text AI response doesn't provide</li>
+            <li><strong>Convert:</strong> PDF ↔ Word, PowerPoint and Excel in both directions · PDF to JPG (every page → a JPG, as a ZIP) · HTML to PDF (paste a URL to fetch and print it, or paste raw HTML directly) · PDF to Markdown (each page becomes a `## Page N` section — handy for notes or feeding into an LLM)</li>
+            <li><strong>Edit:</strong> Edit PDF (click "Text Daalo"/"Image Daalo" then click any page to drop it there; drag to reposition, resize images, change text font size/color inline) · Watermark (your text stamped on every page — text, opacity, rotation, size and color are all adjustable) · Rotate PDF (90°/180°/270°, applied to every page) · Page Numbers (position and starting number configurable) · Compare PDF (upload two PDFs, see a line-by-line diff per page — added lines in green, removed in red) · PDF Forms (auto-detects existing fillable fields and builds a form to fill them; if a PDF has none, click anywhere on a page to add a brand-new fillable text field instead)</li>
+            <li><strong>PDF Security:</strong> Protect PDF (add a password) · Unlock PDF (remove one, if you know it) · Sign PDF (draw a signature on a pad, then place/drag/resize it on any page — it's really just the Edit PDF image-overlay flow under the hood) · Redact PDF (click-drag a box over anything sensitive — the whole page is rasterized to an image with that area blacked out, so the underlying text is gone for good, not just hidden under a shape)</li>
+            <li><strong>PDF Intelligence:</strong> AI Summarizer (a concise summary + key bullet points, shown right on the page — no file to download) · Translate PDF (AI-translated into one of 10 languages, delivered as a Word document)</li>
+            <li>A few things are honestly scoped rather than faked: <strong>PDF to PDF/A</strong> is disclosed as a best-effort structural cleanup, not a certified ISO PDF/A conversion; <strong>OCR PDF</strong> produces an editable Word doc rather than an invisibly-searchable PDF, since that needs word-level bounding boxes a plain-text AI response doesn't provide; <strong>Translate PDF</strong> outputs a clean new document rather than claiming to preserve the original's exact layout, since reflowing translated text into the same space reliably isn't realistic</li>
           </ul>
           <div class="docs-shot-wrap">
             <img class="docs-shot" src="/docs-assets/pdf-tools-grid.png" alt="PDF Tools grid with category filters" loading="lazy" />
-            <div class="docs-shot-caption">The PDF Tools grid — 25 tools across 5 categories, one click away</div>
+            <div class="docs-shot-caption">The PDF Tools grid — 31 tools across 6 categories, one click away</div>
           </div>
           <div class="docs-shot-row">
             <div>
@@ -1538,9 +1548,29 @@
               <div class="docs-shot-caption">Watermark — text, opacity, rotation, size and color all adjustable</div>
             </div>
           </div>
+          <div class="docs-shot-row">
+            <div>
+              <img class="docs-shot" src="/docs-assets/pdf-compare.png" alt="Compare PDF showing an added and a removed line" loading="lazy" />
+              <div class="docs-shot-caption">Compare PDF — a per-page line diff between two files</div>
+            </div>
+            <div>
+              <img class="docs-shot" src="/docs-assets/pdf-crop.png" alt="Crop PDF with independent margin sliders" loading="lazy" />
+              <div class="docs-shot-caption">Crop PDF — top/bottom/left/right margins, each independently adjustable</div>
+            </div>
+          </div>
+          <div class="docs-shot-row">
+            <div>
+              <img class="docs-shot" src="/docs-assets/pdf-forms.png" alt="PDF Forms detecting and filling an existing field" loading="lazy" />
+              <div class="docs-shot-caption">PDF Forms — an existing field detected automatically, ready to fill</div>
+            </div>
+            <div>
+              <img class="docs-shot" src="/docs-assets/pdf-redact.png" alt="Redact PDF result with a permanently blacked-out area" loading="lazy" />
+              <div class="docs-shot-caption">Redact PDF — the selected area is gone for good, the page is now an image</div>
+            </div>
+          </div>
           <div class="docs-shot-wrap">
-            <img class="docs-shot" src="/docs-assets/pdf-compare.png" alt="Compare PDF showing an added and a removed line" loading="lazy" />
-            <div class="docs-shot-caption">Compare PDF — a per-page line diff between two files</div>
+            <img class="docs-shot" src="/docs-assets/pdf-summarizer.png" alt="AI Summarizer showing a generated summary" loading="lazy" />
+            <div class="docs-shot-caption">AI Summarizer — a concise summary with key points, right on the page</div>
           </div>
         </div>
 
@@ -2195,6 +2225,7 @@
         <button type="button" class="pdft-cat-chip" data-cat="convert" onclick="pdftFilterCategory('convert', this)">Convert PDF</button>
         <button type="button" class="pdft-cat-chip" data-cat="edit" onclick="pdftFilterCategory('edit', this)">Edit PDF</button>
         <button type="button" class="pdft-cat-chip" data-cat="security" onclick="pdftFilterCategory('security', this)">PDF Security</button>
+        <button type="button" class="pdft-cat-chip" data-cat="intelligence" onclick="pdftFilterCategory('intelligence', this)">PDF Intelligence</button>
       </div>
 
       <div class="pdft-tool-grid" id="pdft-tool-grid">
@@ -2323,6 +2354,36 @@
           <div class="pdft-tool-title">Compare PDF</div>
           <div class="pdft-tool-desc">Do PDFs ka text side-by-side compare karo — kya add hua, kya hata, ek nazar mein.</div>
         </button>
+        <button type="button" class="pdft-tool-card" data-cat="organize" onclick="pdftOpenTool('crop')">
+          <span class="pdft-tool-icon" style="background:#ea580c;"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg></span>
+          <div class="pdft-tool-title">Crop PDF</div>
+          <div class="pdft-tool-desc">Margins crop karo — top/bottom/left/right alag-alag control karo, sabhi pages par apply hoga.</div>
+        </button>
+        <button type="button" class="pdft-tool-card" data-cat="edit" onclick="pdftOpenForms()">
+          <span class="pdft-tool-icon" style="background:#7c3aed;"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/><line x1="9" y1="11" x2="12" y2="11"/></svg></span>
+          <div class="pdft-tool-title">PDF Forms</div>
+          <div class="pdft-tool-desc">Existing form fields detect karke fill karo, ya blank PDF par naye fillable text fields add karo.</div>
+        </button>
+        <button type="button" class="pdft-tool-card" data-cat="security" onclick="pdftOpenRedact()">
+          <span class="pdft-tool-icon" style="background:#2563eb;"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 12h8"/></svg></span>
+          <div class="pdft-tool-title">Redact PDF</div>
+          <div class="pdft-tool-desc">Sensitive area par box draw karo — us hisse ka text permanently hata diya jaata hai (page image ban jaata hai).</div>
+        </button>
+        <button type="button" class="pdft-tool-card" data-cat="intelligence" onclick="pdftOpenSummarize()">
+          <span class="pdft-tool-icon" style="background:#7c3aed;"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-4.5 7.4 8.5 8.5 0 0 1-8.9-.4L3 20l1.5-4.6a8.38 8.38 0 0 1-.9-3.9 8.5 8.5 0 0 1 8.5-8.5h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></span>
+          <div class="pdft-tool-title">AI Summarizer</div>
+          <div class="pdft-tool-desc">Lambe PDF ka concise summary AI se turant nikaal do — key points bullet mein.</div>
+        </button>
+        <button type="button" class="pdft-tool-card" data-cat="intelligence" onclick="pdftOpenTool('translate')">
+          <span class="pdft-tool-icon" style="background:#7c3aed;">DOC</span>
+          <div class="pdft-tool-title">Translate PDF</div>
+          <div class="pdft-tool-desc">PDF ka text AI se translate karo (10 languages) — ek clean Word document ban jaata hai.</div>
+        </button>
+        <button type="button" class="pdft-tool-card" data-cat="convert" onclick="pdftOpenTool('to-markdown')">
+          <span class="pdft-tool-icon" style="background:#7c3aed;">MD</span>
+          <div class="pdft-tool-title">PDF to Markdown</div>
+          <div class="pdft-tool-desc">PDF ko Markdown file mein badal do — notes, docs ya LLMs ke liye perfect.</div>
+        </button>
       </div>
     </div>
 
@@ -2445,6 +2506,127 @@
       <div id="pdfc-result" style="display:none; margin-top:20px;">
         <div class="dl-section-label" id="pdfc-result-summary"></div>
         <div id="pdfc-diff-pages"></div>
+      </div>
+    </div>
+
+    <!-- AI Summarizer — koi output file nahi, seedha ek text summary card dikhta hai -->
+    <div id="pdft-summarize-workspace" style="display:none;">
+      <button type="button" class="back-btn" onclick="pdftShowGrid()">← Sab PDF Tools</button>
+      <div class="editor-page-banner">
+        <div class="dl-banner-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-4.5 7.4 8.5 8.5 0 0 1-8.9-.4L3 20l1.5-4.6a8.38 8.38 0 0 1-.9-3.9 8.5 8.5 0 0 1 8.5-8.5h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div>
+        <div>
+          <h2>AI Summarizer</h2>
+          <p>PDF upload karo, AI turant concise summary bana dega</p>
+        </div>
+      </div>
+      <div class="editor-upload-zone" id="pdfs-upload-zone" onclick="document.getElementById('pdfs-file-input').click()">
+        <input type="file" id="pdfs-file-input" accept="application/pdf,.pdf" style="display:none;" onchange="handlePdfsFileSelect(event)" />
+        <div class="editor-upload-icon"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+        <p class="editor-upload-text">Ek PDF file upload karo</p>
+        <p class="editor-upload-hint">PDF — max 30MB</p>
+      </div>
+      <div id="pdfs-file-chip-wrap" style="display:none; margin-top:14px;"><div class="pdft-file-list" id="pdfs-file-chip"></div></div>
+      <button type="button" class="dl-btn dl-btn-green editor-apply-btn" id="pdfs-action-btn" style="margin-top:20px;" disabled onclick="runPdfSummarize()">Summarize Karo</button>
+      <div class="pg-thinking fc-progress-thinking" id="pdfs-thinking">
+        <div class="fc-progress-row">
+          <span class="pg-dot"></span><span class="pg-dot"></span><span class="pg-dot"></span>
+          <span>Summary ban rahi hai...</span>
+          <span class="fc-progress-pct" id="pdfs-pct">0%</span>
+        </div>
+        <div class="fc-progress-track"><div class="fc-progress-fill" id="pdfs-progress-fill"></div></div>
+      </div>
+      <div id="pdfs-result" style="display:none; margin-top:20px;">
+        <div class="dl-section-label">Summary</div>
+        <div class="pdfs-summary-card" id="pdfs-summary-text"></div>
+        <button type="button" class="dl-btn dl-btn-gray" style="margin-top:12px;" onclick="pdfsCopySummary()"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:4px;"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy Karo</button>
+      </div>
+    </div>
+
+    <!-- PDF FORMS — existing AcroForm fields fill karo, ya (agar koi field
+         nahi hai) blank PDF par naye clickable text fields add karo. -->
+    <div id="pdft-forms-workspace" style="display:none;">
+      <button type="button" class="back-btn" onclick="pdftShowGrid()">← Sab PDF Tools</button>
+      <div class="editor-page-banner">
+        <div class="dl-banner-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/><line x1="9" y1="11" x2="12" y2="11"/></svg></div>
+        <div>
+          <h2>PDF Forms</h2>
+          <p>Existing fields fill karo, ya blank PDF par naye fillable text fields add karo</p>
+        </div>
+      </div>
+      <div class="editor-upload-zone" id="pdff-upload-zone" onclick="document.getElementById('pdff-file-input').click()">
+        <input type="file" id="pdff-file-input" accept="application/pdf,.pdf" style="display:none;" onchange="handlePdffFileSelect(event)" />
+        <div class="editor-upload-icon"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/></svg></div>
+        <p class="editor-upload-text">Ek PDF file upload karo</p>
+        <p class="editor-upload-hint">PDF — max 30MB</p>
+      </div>
+      <div class="pg-thinking" id="pdff-load-thinking">
+        <span class="pg-dot"></span><span class="pg-dot"></span><span class="pg-dot"></span>
+        Form fields detect ho rahe hain...
+      </div>
+
+      <div id="pdff-fill-body" style="display:none;">
+        <div class="dl-section-label">Existing Fields Fill Karo</div>
+        <div id="pdff-fill-fields" class="pdft-extra-fields"></div>
+        <button type="button" class="dl-btn dl-btn-green editor-apply-btn" id="pdff-fill-btn" style="margin-top:20px;" onclick="runPdfFormsFill()">Fill &amp; Download</button>
+        <div class="pg-thinking fc-progress-thinking" id="pdff-fill-thinking">
+          <div class="fc-progress-row">
+            <span class="pg-dot"></span><span class="pg-dot"></span><span class="pg-dot"></span>
+            <span>Fill ho raha hai...</span>
+            <span class="fc-progress-pct" id="pdff-fill-pct">0%</span>
+          </div>
+          <div class="fc-progress-track"><div class="fc-progress-fill" id="pdff-fill-progress-fill"></div></div>
+        </div>
+      </div>
+
+      <div id="pdff-create-body" style="display:none;">
+        <div class="editor-apply-hint">Is PDF mein koi form field nahi mila — kisi bhi page par click karke naya text field add karo</div>
+        <div id="pdff-pages-container" class="pdfe-pages-container"></div>
+        <button type="button" class="dl-btn dl-btn-green editor-apply-btn" id="pdff-create-btn" style="margin-top:20px;" onclick="runPdfFormsCreate()">Fields Add Karke Download Karo</button>
+        <div class="pg-thinking fc-progress-thinking" id="pdff-create-thinking">
+          <div class="fc-progress-row">
+            <span class="pg-dot"></span><span class="pg-dot"></span><span class="pg-dot"></span>
+            <span>Fields add ho rahe hain...</span>
+            <span class="fc-progress-pct" id="pdff-create-pct">0%</span>
+          </div>
+          <div class="fc-progress-track"><div class="fc-progress-fill" id="pdff-create-progress-fill"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- REDACT PDF — pages ke upar click-drag karke box banao; server poore
+         page ko (box ke saath) rasterize karta hai taaki underlying text
+         permanently hat jaaye, sirf visually chhupe nahi. -->
+    <div id="pdft-redact-workspace" style="display:none;">
+      <button type="button" class="back-btn" onclick="pdftShowGrid()">← Sab PDF Tools</button>
+      <div class="editor-page-banner">
+        <div class="dl-banner-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 12h8"/></svg></div>
+        <div>
+          <h2>Redact PDF</h2>
+          <p>Sensitive area par click-drag karke box banao — permanent hota hai</p>
+        </div>
+      </div>
+      <div class="editor-upload-zone" id="pdfr-upload-zone" onclick="document.getElementById('pdfr-file-input').click()">
+        <input type="file" id="pdfr-file-input" accept="application/pdf,.pdf" style="display:none;" onchange="handlePdfrFileSelect(event)" />
+        <div class="editor-upload-icon"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/></svg></div>
+        <p class="editor-upload-text">Ek PDF file upload karo</p>
+        <p class="editor-upload-hint">PDF — max 30MB</p>
+      </div>
+      <div class="pg-thinking" id="pdfr-load-thinking">
+        <span class="pg-dot"></span><span class="pg-dot"></span><span class="pg-dot"></span>
+        PDF load ho raha hai...
+      </div>
+      <div id="pdfr-body" style="display:none;">
+        <div class="editor-apply-hint">Kisi bhi page par click-drag karke redact karne wala area select karo</div>
+        <div id="pdfr-pages-container" class="pdfe-pages-container"></div>
+        <button type="button" class="dl-btn dl-btn-green editor-apply-btn" id="pdfr-action-btn" style="margin-top:20px;" onclick="runPdfRedact()">Redact Karo</button>
+        <div class="pg-thinking fc-progress-thinking" id="pdfr-thinking">
+          <div class="fc-progress-row">
+            <span class="pg-dot"></span><span class="pg-dot"></span><span class="pg-dot"></span>
+            <span>Redact ho raha hai...</span>
+            <span class="fc-progress-pct" id="pdfr-pct">0%</span>
+          </div>
+          <div class="fc-progress-track"><div class="fc-progress-fill" id="pdfr-progress-fill"></div></div>
+        </div>
       </div>
     </div>
 
@@ -4270,6 +4452,27 @@
     'html-to-pdf': { endpoint: '/api/pdf-tools/html-to-pdf', inputMode: 'html', badge: 'HTML', badgeColor: '#ea580c',
       title: 'HTML to PDF', desc: 'Kisi bhi webpage ka URL paste karo ya seedha HTML likho.',
       actionLabel: 'PDF Banao', outputKind: 'pdf' },
+    crop: { endpoint: '/api/pdf-tools/crop', field: 'file', multiple: false, minFiles: 1,
+      accept: 'application/pdf,.pdf', badge: 'PDF', badgeColor: '#ea580c', title: 'Crop PDF',
+      desc: 'Margins crop karo, sabhi pages par apply hoga.', uploadText: 'Ek PDF file upload karo',
+      uploadHint: 'PDF — max 30MB', actionLabel: 'Crop Karo', outputKind: 'pdf', extraFields: [
+        { id: 'top', label: 'Top Margin', type: 'range', default: 0, min: 0, max: 40, step: 1, unit: '%' },
+        { id: 'bottom', label: 'Bottom Margin', type: 'range', default: 0, min: 0, max: 40, step: 1, unit: '%' },
+        { id: 'left', label: 'Left Margin', type: 'range', default: 0, min: 0, max: 40, step: 1, unit: '%' },
+        { id: 'right', label: 'Right Margin', type: 'range', default: 0, min: 0, max: 40, step: 1, unit: '%' },
+      ] },
+    translate: { endpoint: '/api/pdf-tools/translate', field: 'file', multiple: false, minFiles: 1,
+      accept: 'application/pdf,.pdf', badge: 'DOC', badgeColor: '#7c3aed', title: 'Translate PDF',
+      desc: 'PDF ka text AI se translate karke ek Word document banao.', uploadText: 'Ek PDF file upload karo',
+      uploadHint: 'PDF — max 30MB', actionLabel: 'Translate Karo', outputKind: 'docx', extraFields: [
+        { id: 'targetLang', label: 'Target Language', type: 'select', default: 'Hindi', options: [
+          'Hindi', 'English', 'Spanish', 'French', 'German', 'Arabic', 'Chinese (Simplified)', 'Japanese', 'Portuguese', 'Russian',
+        ].map(l => ({ value: l, label: l })) },
+      ] },
+    'to-markdown': { endpoint: '/api/pdf-tools/to-markdown', field: 'file', multiple: false, minFiles: 1,
+      accept: 'application/pdf,.pdf', badge: 'MD', badgeColor: '#7c3aed', title: 'PDF to Markdown',
+      desc: 'PDF ko Markdown file mein badal do.', uploadText: 'Ek PDF file upload karo',
+      uploadHint: 'PDF — max 30MB', actionLabel: 'Markdown Banao', outputKind: 'md' },
     compress: { endpoint: '/api/pdf-tools/compress', field: 'file', multiple: false, minFiles: 1,
       accept: 'application/pdf,.pdf', badge: 'PDF', badgeColor: '#16a34a', title: 'Compress PDF',
       desc: 'File size chhota karo.', uploadText: 'Ek PDF file upload karo',
@@ -4313,10 +4516,8 @@
   };
 
   window.pdftShowGrid = () => {
+    pdftHideAllWorkspaces();
     document.getElementById('pdft-grid-view').style.display = 'block';
-    document.getElementById('pdft-workspace').style.display = 'none';
-    document.getElementById('pdft-organize-workspace').style.display = 'none';
-    document.getElementById('pdft-compare-workspace').style.display = 'none';
   };
 
   window.pdftOpenTool = (key) => {
@@ -4324,9 +4525,7 @@
     if (!cfg) return;
     pdftCurrentTool = key;
     pdftQueuedFiles = [];
-    document.getElementById('pdft-grid-view').style.display = 'none';
-    document.getElementById('pdft-organize-workspace').style.display = 'none';
-    document.getElementById('pdft-compare-workspace').style.display = 'none';
+    pdftHideAllWorkspaces();
     document.getElementById('pdft-workspace').style.display = 'block';
     document.getElementById('pdft-ws-icon').innerHTML = `<span style="font-weight:800; font-size:11px; color:${cfg.badgeColor};">${cfg.badge}</span>`;
     document.getElementById('pdft-ws-title').textContent = cfg.title;
@@ -4545,9 +4744,7 @@
   let pdfoFile = null, pdfoDoc = null, pdfoPages = [];
 
   window.pdftOpenOrganize = () => {
-    document.getElementById('pdft-grid-view').style.display = 'none';
-    document.getElementById('pdft-workspace').style.display = 'none';
-    document.getElementById('pdft-compare-workspace').style.display = 'none';
+    pdftHideAllWorkspaces();
     document.getElementById('pdft-organize-workspace').style.display = 'block';
     pdfoFile = null; pdfoDoc = null; pdfoPages = [];
     document.getElementById('pdfo-body').style.display = 'none';
@@ -4671,9 +4868,7 @@
   let pdfcFileA = null, pdfcFileB = null;
 
   window.pdftOpenCompare = () => {
-    document.getElementById('pdft-grid-view').style.display = 'none';
-    document.getElementById('pdft-workspace').style.display = 'none';
-    document.getElementById('pdft-organize-workspace').style.display = 'none';
+    pdftHideAllWorkspaces();
     document.getElementById('pdft-compare-workspace').style.display = 'block';
     pdfcFileA = null; pdfcFileB = null;
     document.getElementById('pdfc-upload-text-a').textContent = 'Pehli PDF upload karo';
@@ -4754,6 +4949,445 @@
     document.getElementById('pdfc-result').style.display = 'block';
     document.getElementById('pdfc-result').scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
+
+  // Har naya bespoke PDF Tools workspace (Organize/Compare/Summarize/Forms/
+  // Redact) ko dusre sabko hide karna hota hai jab wo khud khulta hai —
+  // ek common helper taaki har jagah wahi lambi hide-list na dohrana pade.
+  function pdftHideAllWorkspaces() {
+    document.getElementById('pdft-grid-view').style.display = 'none';
+    document.getElementById('pdft-workspace').style.display = 'none';
+    document.getElementById('pdft-organize-workspace').style.display = 'none';
+    document.getElementById('pdft-compare-workspace').style.display = 'none';
+    document.getElementById('pdft-summarize-workspace').style.display = 'none';
+    document.getElementById('pdft-forms-workspace').style.display = 'none';
+    document.getElementById('pdft-redact-workspace').style.display = 'none';
+  }
+
+  // ════════════════════════════════
+  //  AI SUMMARIZER — koi output file nahi, seedha ek text summary card
+  //  dikhta hai (Compare PDF jaisa hi "read-only inline result" pattern).
+  // ════════════════════════════════
+  let pdfsFile = null;
+
+  window.pdftOpenSummarize = () => {
+    pdftHideAllWorkspaces();
+    document.getElementById('pdft-summarize-workspace').style.display = 'block';
+    pdfsFile = null;
+    document.getElementById('pdfs-file-input').value = '';
+    document.getElementById('pdfs-file-chip-wrap').style.display = 'none';
+    document.getElementById('pdfs-action-btn').disabled = true;
+    document.getElementById('pdfs-result').style.display = 'none';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  window.handlePdfsFileSelect = (event) => {
+    const file = event.target.files[0];
+    event.target.value = '';
+    if (!file) return;
+    if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name)) { showToast('Sirf PDF file allowed hai', 'error'); return; }
+    pdfsFile = file;
+    document.getElementById('pdfs-file-chip').innerHTML = `<div class="pdft-file-row"><span class="pdft-file-row-icon">PDF</span><span class="pdft-file-row-name">${escapeHtml(file.name)}</span><span class="pdft-file-row-size">${pdftFormatBytes(file.size)}</span></div>`;
+    document.getElementById('pdfs-file-chip-wrap').style.display = 'block';
+    document.getElementById('pdfs-action-btn').disabled = false;
+  };
+
+  let pdfsProgressTimer = null;
+  function pdfsStartProgress(estimatedMs) {
+    clearInterval(pdfsProgressTimer);
+    const fill = document.getElementById('pdfs-progress-fill');
+    const pct = document.getElementById('pdfs-pct');
+    fill.style.width = '0%'; pct.textContent = '0%';
+    const start = Date.now();
+    pdfsProgressTimer = setInterval(() => {
+      const shown = Math.min(92, Math.round(92 * (1 - Math.exp(-(Date.now() - start) / estimatedMs))));
+      fill.style.width = `${shown}%`; pct.textContent = `${shown}%`;
+    }, 120);
+  }
+  function pdfsFinishProgress() {
+    clearInterval(pdfsProgressTimer);
+    pdfsProgressTimer = null;
+    document.getElementById('pdfs-progress-fill').style.width = '100%';
+    document.getElementById('pdfs-pct').textContent = '100%';
+  }
+
+  window.runPdfSummarize = async () => {
+    if (!pdfsFile) { showToast('Pehle PDF upload karo', 'error'); return; }
+    const btn = document.getElementById('pdfs-action-btn');
+    btn.disabled = true;
+    document.getElementById('pdfs-result').style.display = 'none';
+    document.getElementById('pdfs-thinking').classList.add('active');
+    pdfsStartProgress(3500);
+    try {
+      const fd = new FormData();
+      fd.append('file', pdfsFile);
+      const res = await fetch(`${BACKEND}/api/pdf-tools/summarize`, { method: 'POST', headers: { Authorization: `Bearer ${authToken}` }, body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || 'Summarize nahi ho paya');
+      pdfsFinishProgress();
+      await new Promise(r => setTimeout(r, 300));
+      document.getElementById('pdfs-summary-text').textContent = data.summary;
+      document.getElementById('pdfs-result').style.display = 'block';
+      document.getElementById('pdfs-result').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      showToast('Summary ready hai! ✓', 'success');
+    } catch (e) {
+      showToast(e.message || 'Summarize nahi ho paya', 'error');
+    } finally {
+      btn.disabled = false;
+      document.getElementById('pdfs-thinking').classList.remove('active');
+    }
+  };
+
+  window.pdfsCopySummary = () => {
+    const text = document.getElementById('pdfs-summary-text').textContent;
+    navigator.clipboard.writeText(text)
+      .then(() => showToast('Copy ho gaya! ✓', 'success'))
+      .catch(() => showToast('Copy nahi ho paya', 'error'));
+  };
+
+  // ════════════════════════════════
+  //  PDF FORMS — existing AcroForm fields fill karo, ya (koi field na ho
+  //  to) pdf.js se pages render karke click-se-place naye text fields
+  //  banao (asli fillable AcroForm fields, koi baked-in overlay nahi).
+  // ════════════════════════════════
+  let pdffFile = null, pdffDoc = null, pdffFieldSeq = 0;
+
+  window.pdftOpenForms = () => {
+    pdftHideAllWorkspaces();
+    document.getElementById('pdft-forms-workspace').style.display = 'block';
+    pdffFile = null; pdffDoc = null; pdffFieldSeq = 0;
+    document.getElementById('pdff-upload-zone').style.display = '';
+    document.getElementById('pdff-file-input').value = '';
+    document.getElementById('pdff-fill-body').style.display = 'none';
+    document.getElementById('pdff-create-body').style.display = 'none';
+    document.getElementById('pdff-fill-fields').innerHTML = '';
+    document.getElementById('pdff-pages-container').innerHTML = '';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  window.handlePdffFileSelect = async (event) => {
+    const file = event.target.files[0];
+    event.target.value = '';
+    if (!file) return;
+    if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name)) { showToast('Sirf PDF file allowed hai', 'error'); return; }
+    pdffFile = file;
+    document.getElementById('pdff-upload-zone').style.display = 'none';
+    document.getElementById('pdff-load-thinking').classList.add('active');
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch(`${BACKEND}/api/pdf-tools/forms/detect`, { method: 'POST', headers: { Authorization: `Bearer ${authToken}` }, body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || 'Detect nahi ho paya');
+
+      if (data.fields.length) {
+        pdffRenderFillFields(data.fields);
+        document.getElementById('pdff-fill-body').style.display = 'block';
+      } else {
+        await loadPdfJs();
+        const arrayBuf = await file.arrayBuffer();
+        pdffDoc = await window.pdfjsLib.getDocument({ data: new Uint8Array(arrayBuf) }).promise;
+        await pdffRenderPagesForCreate();
+        document.getElementById('pdff-create-body').style.display = 'block';
+      }
+    } catch (e) {
+      showToast(e.message || 'PDF process nahi ho payi', 'error');
+      document.getElementById('pdff-upload-zone').style.display = '';
+      pdffFile = null;
+    } finally {
+      document.getElementById('pdff-load-thinking').classList.remove('active');
+    }
+  };
+
+  function pdffRenderFillFields(fields) {
+    const container = document.getElementById('pdff-fill-fields');
+    container.innerHTML = '';
+    fields.forEach(f => {
+      const wrap = document.createElement('div');
+      if (f.type === 'PDFCheckBox') {
+        wrap.innerHTML = `<label style="display:flex; align-items:center; gap:8px; font-size:13.5px; color:var(--text);"><input type="checkbox" id="pdff-val-${escapeHtml(f.name)}" /> ${escapeHtml(f.name)}</label>`;
+      } else {
+        wrap.innerHTML = `<div class="pdft-field-label"><span>${escapeHtml(f.name)}</span></div><input type="text" class="pdft-field-input" id="pdff-val-${escapeHtml(f.name)}" placeholder="Value likho" />`;
+      }
+      container.appendChild(wrap);
+    });
+  }
+
+  window.runPdfFormsFill = async () => {
+    const btn = document.getElementById('pdff-fill-btn');
+    btn.disabled = true;
+    document.getElementById('pdff-fill-thinking').classList.add('active');
+    try {
+      const values = {};
+      document.getElementById('pdff-fill-fields').querySelectorAll('input').forEach(input => {
+        const name = input.id.replace('pdff-val-', '');
+        values[name] = input.type === 'checkbox' ? input.checked : input.value;
+      });
+      const fd = new FormData();
+      fd.append('file', pdffFile);
+      fd.append('values', JSON.stringify(values));
+      const res = await fetch(`${BACKEND}/api/pdf-tools/forms/fill`, { method: 'POST', headers: { Authorization: `Bearer ${authToken}` }, body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || 'Fill nahi ho paya');
+      const fullUrl = data.fileUrl.startsWith('http') ? data.fileUrl : `${BACKEND}${data.fileUrl}`;
+      const fileRes = await fetch(fullUrl);
+      if (!fileRes.ok) throw new Error(`HTTP ${fileRes.status}`);
+      const blob = await fileRes.blob();
+      window.pgOpenGeneratedFileModal('pdf', data.filename, blob);
+      showToast('Form fill ho gaya! ✓', 'success');
+    } catch (e) {
+      showToast(e.message || 'Fill nahi ho paya', 'error');
+    } finally {
+      btn.disabled = false;
+      document.getElementById('pdff-fill-thinking').classList.remove('active');
+    }
+  };
+
+  async function pdffRenderPagesForCreate() {
+    const container = document.getElementById('pdff-pages-container');
+    container.innerHTML = '';
+    const maxWidth = Math.min(800, (document.getElementById('pdf-tools-page').clientWidth - 40) || 800);
+    for (let i = 1; i <= pdffDoc.numPages; i++) {
+      const page = await pdffDoc.getPage(i);
+      const nativeViewport = page.getViewport({ scale: 1 });
+      const renderScale = Math.min(1.6, maxWidth / nativeViewport.width);
+      const viewport = page.getViewport({ scale: renderScale });
+      const wrap = document.createElement('div');
+      wrap.className = 'pdfe-page-wrap';
+      wrap.dataset.page = String(i - 1);
+      wrap.dataset.renderScale = String(renderScale);
+      wrap.style.width = `${viewport.width}px`; wrap.style.height = `${viewport.height}px`;
+      const pageNum = document.createElement('div');
+      pageNum.className = 'pdfe-page-num'; pageNum.textContent = `Page ${i}`;
+      wrap.appendChild(pageNum);
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width; canvas.height = viewport.height;
+      wrap.appendChild(canvas);
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+      canvas.addEventListener('click', (e) => pdffPageClick(e, wrap));
+      container.appendChild(wrap);
+    }
+  }
+
+  function pdffPageClick(e, wrap) {
+    const rect = wrap.getBoundingClientRect();
+    const x = e.clientX - rect.left, y = e.clientY - rect.top;
+    pdffFieldSeq++;
+    const item = document.createElement('div');
+    item.className = 'pdff-field-item';
+    item.style.left = `${x}px`; item.style.top = `${y}px`;
+    item.style.width = '160px'; item.style.height = '26px';
+    item.dataset.name = `field_${pdffFieldSeq}`;
+    item.textContent = item.dataset.name;
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button'; removeBtn.className = 'pdfe-remove';
+    removeBtn.style.display = 'flex';
+    removeBtn.textContent = '×';
+    removeBtn.onmousedown = ev => ev.stopPropagation();
+    removeBtn.onclick = ev => { ev.stopPropagation(); item.remove(); };
+    item.appendChild(removeBtn);
+    wrap.appendChild(item);
+    pdffMakeDraggable(item, wrap);
+  }
+
+  function pdffMakeDraggable(item, wrap) {
+    item.addEventListener('mousedown', (e) => {
+      if (e.target !== item) return; // remove button ka apna stopPropagation hai
+      const startX = e.clientX, startY = e.clientY;
+      const startLeft = parseFloat(item.style.left) || 0, startTop = parseFloat(item.style.top) || 0;
+      function onMove(ev2) {
+        const dx = ev2.clientX - startX, dy = ev2.clientY - startY;
+        if (Math.hypot(dx, dy) < 3) return;
+        let newLeft = startLeft + dx, newTop = startTop + dy;
+        newLeft = Math.max(0, Math.min(wrap.clientWidth - item.offsetWidth, newLeft));
+        newTop = Math.max(0, Math.min(wrap.clientHeight - item.offsetHeight, newTop));
+        item.style.left = `${newLeft}px`; item.style.top = `${newTop}px`;
+      }
+      function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  }
+
+  window.runPdfFormsCreate = async () => {
+    const container = document.getElementById('pdff-pages-container');
+    const placements = [];
+    container.querySelectorAll('.pdfe-page-wrap').forEach(wrap => {
+      const pageIndex = parseInt(wrap.dataset.page, 10);
+      const renderScale = parseFloat(wrap.dataset.renderScale);
+      const canvasHeightPx = wrap.querySelector('canvas').height;
+      wrap.querySelectorAll('.pdff-field-item').forEach(item => {
+        const leftPx = parseFloat(item.style.left) || 0, topPx = parseFloat(item.style.top) || 0;
+        const wPt = item.offsetWidth / renderScale, hPt = item.offsetHeight / renderScale;
+        const xPt = leftPx / renderScale;
+        const yPt = (canvasHeightPx / renderScale) - (topPx / renderScale) - hPt;
+        placements.push({ page: pageIndex, name: item.dataset.name, x: xPt, y: yPt, width: wPt, height: hPt });
+      });
+    });
+    if (!placements.length) { showToast('Kam se kam ek field place karo', 'error'); return; }
+
+    const btn = document.getElementById('pdff-create-btn');
+    btn.disabled = true;
+    document.getElementById('pdff-create-thinking').classList.add('active');
+    try {
+      const fd = new FormData();
+      fd.append('file', pdffFile);
+      fd.append('placements', JSON.stringify(placements));
+      const res = await fetch(`${BACKEND}/api/pdf-tools/forms/create`, { method: 'POST', headers: { Authorization: `Bearer ${authToken}` }, body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || 'Fields add nahi hue');
+      const fullUrl = data.fileUrl.startsWith('http') ? data.fileUrl : `${BACKEND}${data.fileUrl}`;
+      const fileRes = await fetch(fullUrl);
+      if (!fileRes.ok) throw new Error(`HTTP ${fileRes.status}`);
+      const blob = await fileRes.blob();
+      window.pgOpenGeneratedFileModal('pdf', data.filename, blob);
+      showToast('Fields add ho gaye! ✓', 'success');
+    } catch (e) {
+      showToast(e.message || 'Fields add nahi hue', 'error');
+    } finally {
+      btn.disabled = false;
+      document.getElementById('pdff-create-thinking').classList.remove('active');
+    }
+  };
+
+  // ════════════════════════════════
+  //  REDACT PDF — pdf.js se pages render karke click-drag se box banao;
+  //  server poore page ko (box ke saath) rasterize karta hai taaki
+  //  underlying text permanently hat jaaye, sirf visually chhupe nahi.
+  // ════════════════════════════════
+  let pdfrFile = null, pdfrDoc = null;
+
+  window.pdftOpenRedact = () => {
+    pdftHideAllWorkspaces();
+    document.getElementById('pdft-redact-workspace').style.display = 'block';
+    pdfrFile = null; pdfrDoc = null;
+    document.getElementById('pdfr-upload-zone').style.display = '';
+    document.getElementById('pdfr-file-input').value = '';
+    document.getElementById('pdfr-body').style.display = 'none';
+    document.getElementById('pdfr-pages-container').innerHTML = '';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  window.handlePdfrFileSelect = async (event) => {
+    const file = event.target.files[0];
+    event.target.value = '';
+    if (!file) return;
+    if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name)) { showToast('Sirf PDF file allowed hai', 'error'); return; }
+    if (file.size > 30 * 1024 * 1024) { showToast('File bahut badi hai (max 30MB)', 'error'); return; }
+    pdfrFile = file;
+    document.getElementById('pdfr-upload-zone').style.display = 'none';
+    document.getElementById('pdfr-load-thinking').classList.add('active');
+    try {
+      await loadPdfJs();
+      const arrayBuf = await file.arrayBuffer();
+      pdfrDoc = await window.pdfjsLib.getDocument({ data: new Uint8Array(arrayBuf) }).promise;
+      await pdfrRenderPages();
+      document.getElementById('pdfr-body').style.display = 'block';
+    } catch (e) {
+      showToast('PDF load nahi ho payi. Kya ye ek valid PDF hai?', 'error');
+      document.getElementById('pdfr-upload-zone').style.display = '';
+      pdfrFile = null;
+    } finally {
+      document.getElementById('pdfr-load-thinking').classList.remove('active');
+    }
+  };
+
+  async function pdfrRenderPages() {
+    const container = document.getElementById('pdfr-pages-container');
+    container.innerHTML = '';
+    const maxWidth = Math.min(800, (document.getElementById('pdf-tools-page').clientWidth - 40) || 800);
+    for (let i = 1; i <= pdfrDoc.numPages; i++) {
+      const page = await pdfrDoc.getPage(i);
+      const nativeViewport = page.getViewport({ scale: 1 });
+      const renderScale = Math.min(1.6, maxWidth / nativeViewport.width);
+      const viewport = page.getViewport({ scale: renderScale });
+      const wrap = document.createElement('div');
+      wrap.className = 'pdfe-page-wrap';
+      wrap.dataset.page = String(i - 1);
+      wrap.dataset.renderScale = String(renderScale);
+      wrap.style.width = `${viewport.width}px`; wrap.style.height = `${viewport.height}px`;
+      const pageNum = document.createElement('div');
+      pageNum.className = 'pdfe-page-num'; pageNum.textContent = `Page ${i}`;
+      wrap.appendChild(pageNum);
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width; canvas.height = viewport.height;
+      wrap.appendChild(canvas);
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+      pdfrEnableDrawing(wrap, canvas);
+      container.appendChild(wrap);
+    }
+  }
+
+  function pdfrEnableDrawing(wrap, canvas) {
+    canvas.addEventListener('mousedown', (e) => {
+      const rect = wrap.getBoundingClientRect();
+      const startX = e.clientX - rect.left, startY = e.clientY - rect.top;
+      const box = document.createElement('div');
+      box.className = 'pdfr-box';
+      box.style.left = `${startX}px`; box.style.top = `${startY}px`;
+      box.style.width = '0px'; box.style.height = '0px';
+      wrap.appendChild(box);
+
+      function onMove(ev2) {
+        const x = ev2.clientX - rect.left, y = ev2.clientY - rect.top;
+        const left = Math.min(startX, x), top = Math.min(startY, y);
+        box.style.left = `${left}px`; box.style.top = `${top}px`;
+        box.style.width = `${Math.abs(x - startX)}px`; box.style.height = `${Math.abs(y - startY)}px`;
+      }
+      function onUp() {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        if (box.offsetWidth < 6 || box.offsetHeight < 6) { box.remove(); return; }
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button'; removeBtn.className = 'pdfe-remove';
+        removeBtn.style.display = 'flex';
+        removeBtn.textContent = '×';
+        removeBtn.onclick = (ev3) => { ev3.stopPropagation(); box.remove(); };
+        box.appendChild(removeBtn);
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  }
+
+  window.runPdfRedact = async () => {
+    const container = document.getElementById('pdfr-pages-container');
+    const wraps = [...container.querySelectorAll('.pdfe-page-wrap')].sort((a, b) => parseInt(a.dataset.page, 10) - parseInt(b.dataset.page, 10));
+    const redactionsByPage = wraps.map(wrap => {
+      const renderScale = parseFloat(wrap.dataset.renderScale);
+      const canvasHeightPx = wrap.querySelector('canvas').height;
+      return [...wrap.querySelectorAll('.pdfr-box')].map(box => {
+        const leftPx = parseFloat(box.style.left) || 0, topPx = parseFloat(box.style.top) || 0;
+        const wPt = box.offsetWidth / renderScale, hPt = box.offsetHeight / renderScale;
+        const xPt = leftPx / renderScale;
+        const yPt = (canvasHeightPx / renderScale) - (topPx / renderScale) - hPt;
+        return { x: xPt, y: yPt, width: wPt, height: hPt };
+      });
+    });
+    if (!redactionsByPage.some(a => a.length)) { showToast('Kam se kam ek area select karo', 'error'); return; }
+
+    const btn = document.getElementById('pdfr-action-btn');
+    btn.disabled = true;
+    document.getElementById('pdfr-thinking').classList.add('active');
+    try {
+      const fd = new FormData();
+      fd.append('file', pdfrFile);
+      fd.append('redactionsByPage', JSON.stringify(redactionsByPage));
+      const res = await fetch(`${BACKEND}/api/pdf-tools/redact`, { method: 'POST', headers: { Authorization: `Bearer ${authToken}` }, body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || 'Redact nahi ho paya');
+      const fullUrl = data.fileUrl.startsWith('http') ? data.fileUrl : `${BACKEND}${data.fileUrl}`;
+      const fileRes = await fetch(fullUrl);
+      if (!fileRes.ok) throw new Error(`HTTP ${fileRes.status}`);
+      const blob = await fileRes.blob();
+      window.pgOpenGeneratedFileModal('pdf', data.filename, blob);
+      showToast('Redact ho gaya! ✓', 'success');
+    } catch (e) {
+      showToast(e.message || 'Redact nahi ho paya', 'error');
+    } finally {
+      btn.disabled = false;
+      document.getElementById('pdfr-thinking').classList.remove('active');
+    }
+  };
 
   // ════════════════════════════════
   //  EDIT PDF — pdf.js (CDN, lazy-loaded) se pages render karte hain, phir
