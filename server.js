@@ -25,7 +25,11 @@ const PDFDocument = require('pdfkit');
 const { Document: DocxDocument, Packer: DocxPacker, Paragraph: DocxParagraph, HeadingLevel: DocxHeadingLevel, TextRun: DocxTextRun, ImageRun: DocxImageRun } = require('docx');
 const PptxGenJS = require('pptxgenjs');
 const { imageSize } = require('image-size');
-const { PDFDocument: PdfLibDocument, StandardFonts: PdfLibStandardFonts, rgb: pdfLibRgb } = require('pdf-lib');
+const { PDFDocument: PdfLibDocument, StandardFonts: PdfLibStandardFonts, rgb: pdfLibRgb, degrees: pdfLibDegrees } = require('@cantoo/pdf-lib');
+const { chromium } = require('playwright');
+const { diffLines } = require('diff');
+const dns = require('dns').promises;
+const net = require('net');
 require('dotenv').config();
 
 const app  = express();
@@ -1979,6 +1983,483 @@ app.post('/api/pdf-tools/edit', requireAuth, async (req, res) => {
     res.status(500).json({ error: 'PDF edit nahi ho paaya. Kya ye ek valid PDF hai?' });
   }
 });
+
+// ─── PDF TOOLS (extended set) — Watermark, Rotate, Page Numbers, Repair,
+//     PDF/A, Unlock/Protect, Organize, Compare, PDF↔JPG, HTML to PDF, OCR ──
+// @cantoo/pdf-lib ek maintained fork hai jo original pdf-lib se drop-in
+// compatible hai, bas encrypt()/password-load support extra hai (verified
+// isi session mein: encrypt karke password ke saath dobara load hota hai;
+// "unlock" ke liye pages ko fresh document mein copy karna padta hai kyunki
+// sirf re-save karne se bhi encryption dictionary reh jaata hai).
+
+function hexToRgb01(hex) {
+  const m = /^#([0-9a-fA-F]{6})$/.exec(hex || '');
+  const h = m ? m[1] : '888888';
+  return { r: parseInt(h.slice(0, 2), 16) / 255, g: parseInt(h.slice(2, 4), 16) / 255, b: parseInt(h.slice(4, 6), 16) / 255 };
+}
+
+async function watermarkPdf(buffer, { text, opacity, rotation, fontSize, color }) {
+  const doc = await PdfLibDocument.load(buffer, { ignoreEncryption: true });
+  const font = await doc.embedFont(PdfLibStandardFonts.HelveticaBold);
+  const { r, g, b } = hexToRgb01(color);
+  for (const page of doc.getPages()) {
+    const { width, height } = page.getSize();
+    const textWidth = font.widthOfTextAtSize(text, fontSize);
+    page.drawText(text, {
+      x: width / 2 - textWidth / 2, y: height / 2, size: fontSize, font,
+      color: pdfLibRgb(r, g, b), opacity, rotate: pdfLibDegrees(rotation),
+    });
+  }
+  return Buffer.from(await doc.save());
+}
+
+async function rotatePdfBuffer(buffer, angle) {
+  const doc = await PdfLibDocument.load(buffer, { ignoreEncryption: true });
+  for (const page of doc.getPages()) {
+    page.setRotation(pdfLibDegrees((page.getRotation().angle + angle + 360) % 360));
+  }
+  return Buffer.from(await doc.save());
+}
+
+async function addPageNumbersToPdf(buffer, { position, startNumber }) {
+  const doc = await PdfLibDocument.load(buffer, { ignoreEncryption: true });
+  const font = await doc.embedFont(PdfLibStandardFonts.Helvetica);
+  doc.getPages().forEach((page, i) => {
+    const { width, height } = page.getSize();
+    const label = String(startNumber + i);
+    const size = 11;
+    const textWidth = font.widthOfTextAtSize(label, size);
+    const x = position === 'bottom-left' ? 30 : position === 'bottom-right' ? width - 30 - textWidth : width / 2 - textWidth / 2;
+    const y = position === 'top-center' ? height - 30 : 20;
+    page.drawText(label, { x, y, size, font, color: pdfLibRgb(0.35, 0.35, 0.35) });
+  });
+  return Buffer.from(await doc.save());
+}
+
+// pdf-lib se corruption "fix" karna best-effort hi hai — bas lenient parsing
+// ke saath load karke ek clean re-save kar dete hain (kai chhoti-mooti xref/
+// structural issues isi se theek ho jaati hain). Har corruption fix nahi
+// hoga — agar file bilkul hi load na ho paaye to error hi sahi jawab hai.
+async function repairPdfBuffer(buffer) {
+  const doc = await PdfLibDocument.load(buffer, { ignoreEncryption: true, throwOnInvalidObject: false });
+  return Buffer.from(await doc.save());
+}
+
+// IMPORTANT: ye ek asli, certified PDF/A conversion NAHI hai (wo ICC color
+// profiles, XMP metadata, font-embedding guarantees jaisi cheezein maangta
+// hai jo pdf-lib provide nahi karta) — sirf structural cleanup (object
+// streams off, metadata clear) karta hai. UI mein bhi yahi disclose hota hai.
+async function pdfToPdfABestEffort(buffer) {
+  const doc = await PdfLibDocument.load(buffer, { ignoreEncryption: true });
+  doc.setProducer('PastePro'); doc.setCreator('PastePro PDF Tools');
+  return Buffer.from(await doc.save({ useObjectStreams: false }));
+}
+
+async function unlockPdfBuffer(buffer, password) {
+  const doc = await PdfLibDocument.load(buffer, { password });
+  // Sirf re-save karne se bhi encryption dictionary reh jaata hai — isliye
+  // pages ko ek fresh, kabhi-encrypt-na-hue document mein copy karte hain.
+  const fresh = await PdfLibDocument.create();
+  const copied = await fresh.copyPages(doc, doc.getPageIndices());
+  copied.forEach(p => fresh.addPage(p));
+  return Buffer.from(await fresh.save());
+}
+
+async function protectPdfBuffer(buffer, password) {
+  const doc = await PdfLibDocument.load(buffer, { ignoreEncryption: true });
+  doc.encrypt({ userPassword: password, ownerPassword: password, permissions: { printing: 'highResolution' } });
+  return Buffer.from(await doc.save());
+}
+
+async function organizePdfBuffer(buffer, pageOrder) {
+  const src = await PdfLibDocument.load(buffer, { ignoreEncryption: true });
+  const fresh = await PdfLibDocument.create();
+  const copied = await fresh.copyPages(src, pageOrder);
+  copied.forEach(p => fresh.addPage(p));
+  return Buffer.from(await fresh.save());
+}
+
+async function comparePdfTexts(bufferA, bufferB) {
+  const pagesA = await extractPdfPages(bufferA);
+  const pagesB = await extractPdfPages(bufferB);
+  const maxPages = Math.max(pagesA.length, pagesB.length);
+  const pageDiffs = [];
+  let totalAdded = 0, totalRemoved = 0;
+  for (let i = 0; i < maxPages; i++) {
+    const parts = diffLines(pagesA[i] || '', pagesB[i] || '');
+    let changed = false;
+    parts.forEach(p => { if (p.added) { totalAdded++; changed = true; } if (p.removed) { totalRemoved++; changed = true; } });
+    pageDiffs.push({ page: i + 1, changed, parts: parts.map(p => ({ value: p.value, added: !!p.added, removed: !!p.removed })) });
+  }
+  return { pageDiffs, totalAdded, totalRemoved, pagesA: pagesA.length, pagesB: pagesB.length };
+}
+
+// pdf.js sirf browser/ESM-friendly hai — server-side rasterize (real page
+// image chahiye) ke liye Playwright ka headless Chromium isi client-side
+// pdf.js build ko load karta hai jo Edit PDF mein bhi use hota hai, taaki
+// dono jagah rendering behavior consistent rahe.
+async function renderPdfPagesToImages(buffer, { scale = 1.8, format = 'jpeg', quality = 0.85 } = {}) {
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    await page.setContent('<!doctype html><html><body></body></html>');
+    await page.addScriptTag({ url: `${PDFJS_CDN_BASE}/pdf.min.js` });
+    const base64 = buffer.toString('base64');
+    const dataUrls = await page.evaluate(async ({ base64, scale, format, quality, workerSrc }) => {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const doc = await window.pdfjsLib.getDocument({ data: bytes }).promise;
+      const out = [];
+      for (let i = 1; i <= doc.numPages; i++) {
+        const p = await doc.getPage(i);
+        const viewport = p.getViewport({ scale });
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width; canvas.height = viewport.height;
+        await p.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+        out.push(canvas.toDataURL(`image/${format}`, quality));
+      }
+      return out;
+    }, { base64, scale, format, quality, workerSrc: `${PDFJS_CDN_BASE}/pdf.worker.min.js` });
+    return dataUrls.map(u => Buffer.from(u.split(',')[1], 'base64'));
+  } finally {
+    await browser.close();
+  }
+}
+const PDFJS_CDN_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174';
+
+async function pdfToJpgZip(buffer) {
+  const images = await renderPdfPagesToImages(buffer, { format: 'jpeg', quality: 0.85, scale: 1.8 });
+  const zip = new AdmZip();
+  images.forEach((img, i) => zip.addFile(`page-${i + 1}.jpg`, img));
+  return { buffer: zip.toBuffer(), count: images.length };
+}
+
+// SSRF guard — HTML to PDF ek URL bhi accept karta hai jo server khud fetch
+// karta hai, isliye private/internal network addresses (localhost, LAN
+// ranges, cloud metadata endpoint) ko explicitly block karna zaroori hai.
+// (DNS-rebinding se poori tarah immune nahi hai — resolve-then-connect ke
+// beech theoretically DNS badal sakta hai — par casual SSRF attempts ke
+// against ye proportionate protection hai.)
+function isPrivateIp(ip) {
+  if (net.isIP(ip) === 4) {
+    const p = ip.split('.').map(Number);
+    return p[0] === 10 || p[0] === 127 || p[0] === 0 || (p[0] === 169 && p[1] === 254) || (p[0] === 172 && p[1] >= 16 && p[1] <= 31) || (p[0] === 192 && p[1] === 168);
+  }
+  if (net.isIP(ip) === 6) {
+    const l = ip.toLowerCase();
+    return l === '::1' || l.startsWith('fc') || l.startsWith('fd') || l.startsWith('fe80');
+  }
+  return true;
+}
+async function assertUrlIsSafeToFetch(urlStr) {
+  let u;
+  try { u = new URL(urlStr); } catch { throw new Error('URL invalid hai'); }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') throw new Error('Sirf http/https URLs allowed hain');
+  if (u.hostname === 'localhost') throw new Error('Ye URL allowed nahi hai');
+  let addresses;
+  try { addresses = await dns.lookup(u.hostname, { all: true }); } catch { throw new Error('URL resolve nahi ho paya'); }
+  if (!addresses.length || addresses.some(a => isPrivateIp(a.address))) throw new Error('Ye URL allowed nahi hai');
+  return u;
+}
+
+async function htmlToPdfBuffer(input) {
+  const trimmed = input.trim();
+  const isUrl = /^https?:\/\/\S+$/i.test(trimmed) && !/\s/.test(trimmed);
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    if (isUrl) {
+      const safeUrl = await assertUrlIsSafeToFetch(trimmed);
+      await page.goto(safeUrl.toString(), { waitUntil: 'networkidle', timeout: 20000 });
+    } else {
+      await page.setContent(trimmed, { waitUntil: 'networkidle', timeout: 20000 });
+    }
+    const pdfBytes = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '20px', bottom: '20px', left: '20px', right: '20px' } });
+    return Buffer.from(pdfBytes);
+  } finally {
+    await browser.close();
+  }
+}
+
+// OCR PDF — scanned/image-based PDFs mein koi embedded text nahi hota,
+// isliye pehle Playwright se rasterize karte hain, phir har page image
+// Playground jaisa hi vision model OCR se guzarte hain (ek-ek karke, rate
+// limit se bachne ke liye). Result ek Word document hai (invisible-layer
+// wali "searchable PDF" nahi bana sakte — uske liye word-level bounding
+// boxes chahiye hote jo ek plain-text vision response nahi deta).
+async function ocrImageBuffer(buffer, mime) {
+  const dataUrl = `data:${mime};base64,${buffer.toString('base64')}`;
+  const upstream = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENROUTER_API_KEY}` },
+    body: JSON.stringify({
+      model: OPENROUTER_VISION_MODEL,
+      stream: false,
+      messages: [
+        { role: 'system', content: 'Is image mein jo bhi text likha hai wo bilkul verbatim nikaal ke do — line breaks jitna ho sake wahi rakho. Sirf extracted text likho, koi extra comment nahi. Agar text na ho to sirf likho: (no text found)' },
+        { role: 'user', content: [{ type: 'image_url', image_url: { url: dataUrl } }] },
+      ],
+    }),
+  });
+  if (!upstream.ok) throw new Error(`OpenRouter HTTP ${upstream.status}`);
+  const data = await upstream.json();
+  return data.choices?.[0]?.message?.content || '';
+}
+
+async function ocrPdfToDocxBuffer(buffer) {
+  if (!OPENROUTER_API_KEY) throw new Error('NO_API_KEY');
+  const images = await renderPdfPagesToImages(buffer, { format: 'jpeg', quality: 0.9, scale: 2 });
+  const pageTexts = [];
+  for (const img of images) {
+    try { pageTexts.push((await ocrImageBuffer(img, 'image/jpeg')).trim()); }
+    catch { pageTexts.push('(is page se text nahi nikal paaye)'); }
+  }
+  const fullText = pageTexts.map((t, i) => `--- Page ${i + 1} ---\n${t}`).join('\n\n');
+  if (!fullText.trim()) throw new Error('NO_TEXT');
+  return generateDocxBuffer(fullText);
+}
+
+app.post('/api/pdf-tools/jpg-to-pdf', requireAuth, withPdfToolUpload(pdfToolUpload.array('files', 20), async (req, res) => {
+  const files = req.files || [];
+  if (!files.length) return res.status(400).json({ error: 'Koi image nahi mili' });
+  const invalid = files.find(f => f.mimetype !== 'image/png' && f.mimetype !== 'image/jpeg');
+  if (invalid) return res.status(400).json({ error: 'Sirf PNG ya JPEG images allowed hain' });
+  try {
+    const buffer = await generateImagePdfBuffer(files.map(f => ({ buffer: f.buffer, mime: f.mimetype })));
+    const uid = req.user.id;
+    const outName = `${uid.slice(0, 8)}_${Date.now()}_pt.pdf`;
+    fs.writeFileSync(path.join(DOWNLOADS_DIR, outName), buffer);
+    logActivity(req, 'pdf_jpg_to_pdf', { count: files.length });
+    res.json({ success: true, fileUrl: `/files/${outName}`, filename: outName });
+  } catch (err) {
+    console.error('jpg-to-pdf error:', err);
+    res.status(500).json({ error: 'PDF banane mein error aayi' });
+  }
+}));
+
+app.post('/api/pdf-tools/watermark', requireAuth, withPdfToolUpload(pdfToolUpload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Koi PDF file nahi mili' });
+  const errMsg = pdfMimeCheck(req.file);
+  if (errMsg) return res.status(400).json({ error: errMsg });
+  const text = String(req.body.text || '').slice(0, 60).trim();
+  if (!text) return res.status(400).json({ error: 'Watermark text likho' });
+  const opacity = Math.min(1, Math.max(0.05, Number(req.body.opacity) || 0.3));
+  const rotation = Math.min(90, Math.max(-90, Number(req.body.rotation) || -45));
+  const fontSize = Math.min(120, Math.max(10, Number(req.body.fontSize) || 48));
+  const color = /^#[0-9a-fA-F]{6}$/.test(req.body.color || '') ? req.body.color : '#888888';
+  try {
+    const buffer = await watermarkPdf(req.file.buffer, { text, opacity, rotation, fontSize, color });
+    const uid = req.user.id;
+    const outName = `${uid.slice(0, 8)}_${Date.now()}_pt.pdf`;
+    fs.writeFileSync(path.join(DOWNLOADS_DIR, outName), buffer);
+    logActivity(req, 'pdf_watermark', {});
+    res.json({ success: true, fileUrl: `/files/${outName}`, filename: outName });
+  } catch (err) {
+    console.error('watermark error:', err);
+    res.status(500).json({ error: 'Watermark lagane mein error aayi. Kya ye ek valid PDF hai?' });
+  }
+}));
+
+app.post('/api/pdf-tools/rotate', requireAuth, withPdfToolUpload(pdfToolUpload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Koi PDF file nahi mili' });
+  const errMsg = pdfMimeCheck(req.file);
+  if (errMsg) return res.status(400).json({ error: errMsg });
+  const angle = [90, 180, 270].includes(Number(req.body.angle)) ? Number(req.body.angle) : 90;
+  try {
+    const buffer = await rotatePdfBuffer(req.file.buffer, angle);
+    const uid = req.user.id;
+    const outName = `${uid.slice(0, 8)}_${Date.now()}_pt.pdf`;
+    fs.writeFileSync(path.join(DOWNLOADS_DIR, outName), buffer);
+    logActivity(req, 'pdf_rotate', { angle });
+    res.json({ success: true, fileUrl: `/files/${outName}`, filename: outName });
+  } catch (err) {
+    console.error('rotate error:', err);
+    res.status(500).json({ error: 'Rotate nahi ho paaya. Kya ye ek valid PDF hai?' });
+  }
+}));
+
+app.post('/api/pdf-tools/page-numbers', requireAuth, withPdfToolUpload(pdfToolUpload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Koi PDF file nahi mili' });
+  const errMsg = pdfMimeCheck(req.file);
+  if (errMsg) return res.status(400).json({ error: errMsg });
+  const position = ['bottom-left', 'bottom-center', 'bottom-right', 'top-center'].includes(req.body.position) ? req.body.position : 'bottom-center';
+  const startNumber = Math.max(1, Math.min(9999, parseInt(req.body.startNumber, 10) || 1));
+  try {
+    const buffer = await addPageNumbersToPdf(req.file.buffer, { position, startNumber });
+    const uid = req.user.id;
+    const outName = `${uid.slice(0, 8)}_${Date.now()}_pt.pdf`;
+    fs.writeFileSync(path.join(DOWNLOADS_DIR, outName), buffer);
+    logActivity(req, 'pdf_page_numbers', {});
+    res.json({ success: true, fileUrl: `/files/${outName}`, filename: outName });
+  } catch (err) {
+    console.error('page-numbers error:', err);
+    res.status(500).json({ error: 'Page numbers add nahi ho paaye. Kya ye ek valid PDF hai?' });
+  }
+}));
+
+app.post('/api/pdf-tools/repair', requireAuth, withPdfToolUpload(pdfToolUpload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Koi PDF file nahi mili' });
+  const errMsg = pdfMimeCheck(req.file);
+  if (errMsg) return res.status(400).json({ error: errMsg });
+  try {
+    const buffer = await repairPdfBuffer(req.file.buffer);
+    const uid = req.user.id;
+    const outName = `${uid.slice(0, 8)}_${Date.now()}_pt.pdf`;
+    fs.writeFileSync(path.join(DOWNLOADS_DIR, outName), buffer);
+    logActivity(req, 'pdf_repair', {});
+    res.json({ success: true, fileUrl: `/files/${outName}`, filename: outName });
+  } catch (err) {
+    console.error('repair error:', err);
+    res.status(500).json({ error: 'Ye file repair nahi ho paayi — damage bahut zyada hai' });
+  }
+}));
+
+app.post('/api/pdf-tools/pdf-to-pdfa', requireAuth, withPdfToolUpload(pdfToolUpload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Koi PDF file nahi mili' });
+  const errMsg = pdfMimeCheck(req.file);
+  if (errMsg) return res.status(400).json({ error: errMsg });
+  try {
+    const buffer = await pdfToPdfABestEffort(req.file.buffer);
+    const uid = req.user.id;
+    const outName = `${uid.slice(0, 8)}_${Date.now()}_pt.pdf`;
+    fs.writeFileSync(path.join(DOWNLOADS_DIR, outName), buffer);
+    logActivity(req, 'pdf_to_pdfa', {});
+    res.json({ success: true, fileUrl: `/files/${outName}`, filename: outName });
+  } catch (err) {
+    console.error('pdf-to-pdfa error:', err);
+    res.status(500).json({ error: 'Convert nahi ho paaya. Kya ye ek valid PDF hai?' });
+  }
+}));
+
+app.post('/api/pdf-tools/unlock', requireAuth, withPdfToolUpload(pdfToolUpload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Koi PDF file nahi mili' });
+  const errMsg = pdfMimeCheck(req.file);
+  if (errMsg) return res.status(400).json({ error: errMsg });
+  const password = String(req.body.password || '');
+  if (!password) return res.status(400).json({ error: 'PDF ka password daalo' });
+  try {
+    const buffer = await unlockPdfBuffer(req.file.buffer, password);
+    const uid = req.user.id;
+    const outName = `${uid.slice(0, 8)}_${Date.now()}_pt.pdf`;
+    fs.writeFileSync(path.join(DOWNLOADS_DIR, outName), buffer);
+    logActivity(req, 'pdf_unlock', {});
+    res.json({ success: true, fileUrl: `/files/${outName}`, filename: outName });
+  } catch (err) {
+    res.status(400).json({ error: 'Password galat hai ya file corrupt hai' });
+  }
+}));
+
+app.post('/api/pdf-tools/protect', requireAuth, withPdfToolUpload(pdfToolUpload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Koi PDF file nahi mili' });
+  const errMsg = pdfMimeCheck(req.file);
+  if (errMsg) return res.status(400).json({ error: errMsg });
+  const password = String(req.body.password || '');
+  if (password.length < 4) return res.status(400).json({ error: 'Password kam se kam 4 characters ka hona chahiye' });
+  try {
+    const buffer = await protectPdfBuffer(req.file.buffer, password);
+    const uid = req.user.id;
+    const outName = `${uid.slice(0, 8)}_${Date.now()}_pt.pdf`;
+    fs.writeFileSync(path.join(DOWNLOADS_DIR, outName), buffer);
+    logActivity(req, 'pdf_protect', {});
+    res.json({ success: true, fileUrl: `/files/${outName}`, filename: outName });
+  } catch (err) {
+    console.error('protect error:', err);
+    res.status(500).json({ error: 'Password lagane mein error aayi. Kya ye ek valid PDF hai?' });
+  }
+}));
+
+app.post('/api/pdf-tools/organize', requireAuth, withPdfToolUpload(pdfToolUpload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Koi PDF file nahi mili' });
+  const errMsg = pdfMimeCheck(req.file);
+  if (errMsg) return res.status(400).json({ error: errMsg });
+  let pageOrder;
+  try { pageOrder = JSON.parse(req.body.pageOrder || '[]'); } catch { return res.status(400).json({ error: 'Page order invalid hai' }); }
+  if (!Array.isArray(pageOrder) || !pageOrder.length || !pageOrder.every(n => Number.isInteger(n) && n >= 0)) {
+    return res.status(400).json({ error: 'Kam se kam ek page rakho' });
+  }
+  try {
+    const buffer = await organizePdfBuffer(req.file.buffer, pageOrder);
+    const uid = req.user.id;
+    const outName = `${uid.slice(0, 8)}_${Date.now()}_pt.pdf`;
+    fs.writeFileSync(path.join(DOWNLOADS_DIR, outName), buffer);
+    logActivity(req, 'pdf_organize', { pageCount: pageOrder.length });
+    res.json({ success: true, fileUrl: `/files/${outName}`, filename: outName });
+  } catch (err) {
+    console.error('organize error:', err);
+    res.status(500).json({ error: 'Organize nahi ho paaya. Kya ye ek valid PDF hai?' });
+  }
+}));
+
+app.post('/api/pdf-tools/compare', requireAuth, withPdfToolUpload(pdfToolUpload.fields([{ name: 'fileA', maxCount: 1 }, { name: 'fileB', maxCount: 1 }]), async (req, res) => {
+  const fileA = req.files?.fileA?.[0], fileB = req.files?.fileB?.[0];
+  if (!fileA || !fileB) return res.status(400).json({ error: 'Dono PDF files upload karo' });
+  const errA = pdfMimeCheck(fileA), errB = pdfMimeCheck(fileB);
+  if (errA || errB) return res.status(400).json({ error: 'Sirf PDF files allowed hain' });
+  try {
+    const result = await comparePdfTexts(fileA.buffer, fileB.buffer);
+    logActivity(req, 'pdf_compare', {});
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('compare error:', err);
+    res.status(500).json({ error: 'Compare nahi ho paaya. Kya dono valid PDF hain?' });
+  }
+}));
+
+app.post('/api/pdf-tools/pdf-to-jpg', requireAuth, withPdfToolUpload(pdfToolUpload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Koi PDF file nahi mili' });
+  const errMsg = pdfMimeCheck(req.file);
+  if (errMsg) return res.status(400).json({ error: errMsg });
+  try {
+    const { buffer, count } = await pdfToJpgZip(req.file.buffer);
+    const uid = req.user.id;
+    const outName = `${uid.slice(0, 8)}_${Date.now()}_pt.zip`;
+    fs.writeFileSync(path.join(DOWNLOADS_DIR, outName), buffer);
+    logActivity(req, 'pdf_to_jpg', { pageCount: count });
+    res.json({ success: true, fileUrl: `/files/${outName}`, filename: outName, pageCount: count });
+  } catch (err) {
+    console.error('pdf-to-jpg error:', err);
+    res.status(500).json({ error: 'JPG banane mein error aayi' });
+  }
+}));
+
+const MAX_HTML_TO_PDF_CHARS = 300000;
+app.post('/api/pdf-tools/html-to-pdf', requireAuth, async (req, res) => {
+  const html = typeof req.body.html === 'string' ? req.body.html : '';
+  if (!html.trim()) return res.status(400).json({ error: 'HTML ya URL daalo' });
+  if (html.length > MAX_HTML_TO_PDF_CHARS) return res.status(400).json({ error: 'Content bahut bada hai' });
+  try {
+    const buffer = await htmlToPdfBuffer(html);
+    const uid = req.user.id;
+    const outName = `${uid.slice(0, 8)}_${Date.now()}_pt.pdf`;
+    fs.writeFileSync(path.join(DOWNLOADS_DIR, outName), buffer);
+    logActivity(req, 'html_to_pdf', {});
+    res.json({ success: true, fileUrl: `/files/${outName}`, filename: outName });
+  } catch (err) {
+    console.error('html-to-pdf error:', err);
+    res.status(400).json({ error: err.message && /allowed nahi|invalid hai|resolve nahi/.test(err.message) ? err.message : 'PDF banane mein error aayi. Kya HTML/URL valid hai?' });
+  }
+});
+
+app.post('/api/pdf-tools/ocr', requireAuth, withPdfToolUpload(pdfToolUpload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Koi PDF file nahi mili' });
+  const errMsg = pdfMimeCheck(req.file);
+  if (errMsg) return res.status(400).json({ error: errMsg });
+  if (!OPENROUTER_API_KEY) return res.status(500).json({ error: 'OpenRouter API key server par configure nahi hai' });
+  try {
+    const buffer = await ocrPdfToDocxBuffer(req.file.buffer);
+    const uid = req.user.id;
+    const outName = `${uid.slice(0, 8)}_${Date.now()}_pt.docx`;
+    fs.writeFileSync(path.join(DOWNLOADS_DIR, outName), buffer);
+    logActivity(req, 'pdf_ocr', {});
+    res.json({ success: true, fileUrl: `/files/${outName}`, filename: outName });
+  } catch (err) {
+    if (err.message === 'NO_TEXT') return res.status(400).json({ error: 'Is PDF ke images se koi text nahi nikal paaye' });
+    console.error('ocr error:', err);
+    res.status(500).json({ error: 'OCR nahi ho paaya. Dobara try karo' });
+  }
+}));
 
 // ─── PLAYGROUND QUERY — OpenRouter se streamed jawab ──────
 // Ek waqt mein ek user ki ek hi query process hoti hai (jaise download wala rate limit).

@@ -466,6 +466,33 @@
     .pdft-file-row-size { flex-shrink:0; color:var(--muted); font-size:11.5px; }
     .pdft-file-row-remove { flex-shrink:0; width:22px; height:22px; border-radius:50%; border:none; background:rgba(230,57,70,0.14); color:#e63946; font-size:14px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; }
     .pdft-add-more-btn { align-self:flex-start; }
+    .pdft-extra-fields { display:flex; flex-direction:column; gap:14px; margin-top:16px; }
+    .pdft-field-label { font-size:11.5px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; color:var(--muted); margin-bottom:6px; display:flex; justify-content:space-between; }
+    .pdft-field-label .pdft-field-value { color:var(--text); text-transform:none; letter-spacing:normal; font-weight:600; }
+    .pdft-field-input { width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:var(--card); color:var(--text); font-family:'Space Grotesk',sans-serif; font-size:13.5px; box-sizing:border-box; }
+    .pdft-field-input[type="range"] { padding:0; height:6px; accent-color:var(--green); }
+    .pdft-field-input[type="color"] { padding:2px; height:38px; cursor:pointer; }
+    .pdft-field-select { width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:var(--card); color:var(--text); font-family:'Space Grotesk',sans-serif; font-size:13.5px; box-sizing:border-box; }
+
+    /* ORGANIZE PDF — page thumbnails with reorder/delete controls */
+    .pdfo-thumb-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:16px; margin-top:20px; }
+    .pdfo-thumb-card { border:1px solid var(--border); border-radius:10px; background:var(--card); padding:8px; text-align:center; }
+    .pdfo-thumb-card img { width:100%; border-radius:6px; display:block; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.2); }
+    .pdfo-thumb-label { font-size:11.5px; color:var(--muted); margin:6px 0; font-weight:700; }
+    .pdfo-thumb-controls { display:flex; justify-content:center; gap:6px; }
+    .pdfo-thumb-btn { width:24px; height:24px; border-radius:6px; border:1px solid var(--border); background:var(--surface); color:var(--text); cursor:pointer; font-size:12px; display:flex; align-items:center; justify-content:center; }
+    .pdfo-thumb-btn:disabled { opacity:0.3; cursor:not-allowed; }
+    .pdfo-thumb-btn.pdfo-remove { color:#ef4444; }
+
+    /* COMPARE PDF — dual upload + per-page line diff */
+    .pdfc-upload-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+    @media(max-width:700px){ .pdfc-upload-row { grid-template-columns:1fr; } }
+    .pdfc-diff-page { border:1px solid var(--border); border-radius:10px; padding:14px 16px; margin-bottom:14px; background:var(--surface); }
+    .pdfc-diff-page-title { font-size:11.5px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; color:var(--muted); margin-bottom:8px; }
+    .pdfc-diff-page-title .pdfc-same-badge { color:var(--green); }
+    .pdfc-diff-line { font-family:'Space Grotesk',sans-serif; font-size:13px; white-space:pre-wrap; padding:2px 6px; border-radius:4px; line-height:1.6; }
+    .pdfc-diff-added { background:rgba(46,196,182,0.16); color:var(--text); }
+    .pdfc-diff-removed { background:rgba(230,57,70,0.16); color:var(--text); text-decoration:line-through; opacity:0.8; }
 
     /* EDIT PDF — visual canvas editor: pdf.js render + draggable/resizable
        absolutely-positioned overlays on top of each page's canvas. */
@@ -492,6 +519,11 @@
     .pdfe-mini-btn { width:20px; height:20px; border:none; border-radius:5px; background:#3a3f4d; color:#fff; font-size:12px; cursor:pointer; padding:0; }
     .pdfe-mini-size-label { color:#fff; font-size:11.5px; min-width:18px; text-align:center; }
     .pdfe-mini-color { width:20px; height:20px; border:none; border-radius:5px; padding:0; background:none; cursor:pointer; }
+    .pdfe-sign-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:100; display:flex; align-items:center; justify-content:center; padding:20px; }
+    .pdfe-sign-modal { background:var(--card); border-radius:14px; padding:24px; max-width:560px; width:100%; }
+    .pdfe-sign-modal-title { font-family:'Space Grotesk',sans-serif; font-weight:800; font-size:16px; margin-bottom:14px; color:var(--text); }
+    #pdfe-sign-canvas { width:100%; height:200px; background:#fff; border-radius:10px; border:1px solid var(--border); touch-action:none; cursor:crosshair; display:block; }
+    .pdfe-sign-modal-actions { display:flex; gap:10px; margin-top:16px; justify-content:flex-end; }
 
     /* TOAST */
     .toast { position:fixed; bottom:32px; right:32px; padding:14px 22px; background:var(--card); border:1px solid var(--border); border-radius:12px; font-size:14px; font-weight:600; box-shadow:0 8px 32px rgba(0,0,0,0.4); transform:translateY(80px); opacity:0; transition:all 0.3s cubic-bezier(0.34,1.56,0.64,1); z-index:999; max-width:320px; }
@@ -2142,6 +2174,7 @@
         <button type="button" class="pdft-cat-chip" data-cat="optimize" onclick="pdftFilterCategory('optimize', this)">Optimize PDF</button>
         <button type="button" class="pdft-cat-chip" data-cat="convert" onclick="pdftFilterCategory('convert', this)">Convert PDF</button>
         <button type="button" class="pdft-cat-chip" data-cat="edit" onclick="pdftFilterCategory('edit', this)">Edit PDF</button>
+        <button type="button" class="pdft-cat-chip" data-cat="security" onclick="pdftFilterCategory('security', this)">PDF Security</button>
       </div>
 
       <div class="pdft-tool-grid" id="pdft-tool-grid">
@@ -2195,6 +2228,81 @@
           <div class="pdft-tool-title">Edit PDF</div>
           <div class="pdft-tool-desc">PDF ke kisi bhi page par text ya image daalo — click karke drag-drop se position set karo.</div>
         </button>
+        <button type="button" class="pdft-tool-card" data-cat="convert" onclick="pdftOpenTool('jpg-to-pdf')">
+          <span class="pdft-tool-icon" style="background:#ca8a04;">JPG</span>
+          <div class="pdft-tool-title">JPG to PDF</div>
+          <div class="pdft-tool-desc">Ek ya zyada JPG/PNG images ko ek PDF mein convert karo, seconds mein.</div>
+        </button>
+        <button type="button" class="pdft-tool-card" data-cat="convert" onclick="pdftOpenTool('pdf-to-jpg')">
+          <span class="pdft-tool-icon" style="background:#ca8a04;">JPG</span>
+          <div class="pdft-tool-title">PDF to JPG</div>
+          <div class="pdft-tool-desc">Har PDF page ko ek JPG image bana do — sab ek ZIP mein mil jaayengi.</div>
+        </button>
+        <button type="button" class="pdft-tool-card" data-cat="organize" onclick="pdftOpenTool('scan-to-pdf')">
+          <span class="pdft-tool-icon" style="background:#ca8a04;">PDF</span>
+          <div class="pdft-tool-title">Scan to PDF</div>
+          <div class="pdft-tool-desc">Camera se document ki photos kheecho (ya upload karo), ek PDF ban jaayegi.</div>
+        </button>
+        <button type="button" class="pdft-tool-card" data-cat="security" onclick="showPdfEdit()">
+          <span class="pdft-tool-icon" style="background:#7c3aed;"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4z"/></svg></span>
+          <div class="pdft-tool-title">Sign PDF</div>
+          <div class="pdft-tool-desc">Apna signature draw karo aur PDF ke kisi bhi page par drag karke place karo.</div>
+        </button>
+        <button type="button" class="pdft-tool-card" data-cat="edit" onclick="pdftOpenTool('watermark')">
+          <span class="pdft-tool-icon" style="background:#be185d;"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="8" rx="2"/><path d="M9 10v4M15 10v4"/><rect x="5" y="16" width="14" height="6" rx="2"/></svg></span>
+          <div class="pdft-tool-title">Watermark</div>
+          <div class="pdft-tool-desc">Apna text sabhi pages par stamp kar do — opacity, rotation aur size control karo.</div>
+        </button>
+        <button type="button" class="pdft-tool-card" data-cat="edit" onclick="pdftOpenTool('rotate')">
+          <span class="pdft-tool-icon" style="background:#c026d3;"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></span>
+          <div class="pdft-tool-title">Rotate PDF</div>
+          <div class="pdft-tool-desc">Sabhi pages ko 90°, 180° ya 270° rotate kar do, jaise chahiye.</div>
+        </button>
+        <button type="button" class="pdft-tool-card" data-cat="convert" onclick="pdftOpenTool('html-to-pdf')">
+          <span class="pdft-tool-icon" style="background:#ea580c;">HTML</span>
+          <div class="pdft-tool-title">HTML to PDF</div>
+          <div class="pdft-tool-desc">Kisi bhi webpage ka URL paste karo (ya seedha HTML likho) — PDF ban jaayegi.</div>
+        </button>
+        <button type="button" class="pdft-tool-card" data-cat="security" onclick="pdftOpenTool('unlock')">
+          <span class="pdft-tool-icon" style="background:#2563eb;"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg></span>
+          <div class="pdft-tool-title">Unlock PDF</div>
+          <div class="pdft-tool-desc">PDF ka password pata ho to hata do — freely use kar sakte ho phir.</div>
+        </button>
+        <button type="button" class="pdft-tool-card" data-cat="security" onclick="pdftOpenTool('protect')">
+          <span class="pdft-tool-icon" style="background:#2563eb;"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
+          <div class="pdft-tool-title">Protect PDF</div>
+          <div class="pdft-tool-desc">PDF par password laga do — sirf wahi khol paayega jise password pata ho.</div>
+        </button>
+        <button type="button" class="pdft-tool-card" data-cat="organize" onclick="pdftOpenOrganize()">
+          <span class="pdft-tool-icon" style="background:#ea580c;"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3L4 7l4 4"/><path d="M4 7h16"/><path d="M16 21l4-4-4-4"/><path d="M20 17H4"/></svg></span>
+          <div class="pdft-tool-title">Organize PDF</div>
+          <div class="pdft-tool-desc">Pages ko drag-jaisa reorder karo, ya kisi bhi page ko delete kar do.</div>
+        </button>
+        <button type="button" class="pdft-tool-card" data-cat="convert" onclick="pdftOpenTool('pdf-to-pdfa')">
+          <span class="pdft-tool-icon" style="background:#0891b2;">A</span>
+          <div class="pdft-tool-title">PDF to PDF/A</div>
+          <div class="pdft-tool-desc">Long-term archival ke liye best-effort structural cleanup (pura ISO-certified PDF/A nahi hai).</div>
+        </button>
+        <button type="button" class="pdft-tool-card" data-cat="optimize" onclick="pdftOpenTool('repair')">
+          <span class="pdft-tool-icon" style="background:#16a34a;"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94z"/></svg></span>
+          <div class="pdft-tool-title">Repair PDF</div>
+          <div class="pdft-tool-desc">Damaged/corrupt PDF ko best-effort re-build karke theek karne ki koshish karo.</div>
+        </button>
+        <button type="button" class="pdft-tool-card" data-cat="edit" onclick="pdftOpenTool('page-numbers')">
+          <span class="pdft-tool-icon" style="background:#be185d;">1 2</span>
+          <div class="pdft-tool-title">Page Numbers</div>
+          <div class="pdft-tool-desc">Sabhi pages par number add karo — position aur starting number choose karo.</div>
+        </button>
+        <button type="button" class="pdft-tool-card" data-cat="optimize" onclick="pdftOpenTool('ocr')">
+          <span class="pdft-tool-icon" style="background:#16a34a;">OCR</span>
+          <div class="pdft-tool-title">OCR PDF</div>
+          <div class="pdft-tool-desc">Scanned/image-based PDF ka text OCR se nikaal ke ek Word file bana do.</div>
+        </button>
+        <button type="button" class="pdft-tool-card" data-cat="edit" onclick="pdftOpenCompare()">
+          <span class="pdft-tool-icon" style="background:#2563eb;"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="7" height="16" rx="1"/><rect x="14" y="4" width="7" height="16" rx="1"/></svg></span>
+          <div class="pdft-tool-title">Compare PDF</div>
+          <div class="pdft-tool-desc">Do PDFs ka text side-by-side compare karo — kya add hua, kya hata, ek nazar mein.</div>
+        </button>
       </div>
     </div>
 
@@ -2221,6 +2329,13 @@
         <div id="pdft-file-list" class="pdft-file-list"></div>
       </div>
 
+      <!-- HTML to PDF ke liye upload-zone ki jagah ye dikhta hai -->
+      <div id="pdft-html-input-wrap" style="display:none;">
+        <textarea id="pdft-html-input" class="editor-text-input" style="min-height:220px;" maxlength="300000" placeholder="Kisi bhi webpage ka URL paste karo (https://...) — ya seedha HTML likho" oninput="pdftUpdateActionState()"></textarea>
+      </div>
+
+      <div id="pdft-extra-fields" class="pdft-extra-fields"></div>
+
       <button type="button" class="dl-btn dl-btn-green editor-apply-btn" id="pdft-action-btn" style="margin-top:20px;" disabled onclick="runPdftTool()"></button>
       <div class="editor-apply-hint" id="pdft-action-hint">File "canvas" mein khulegi — wahin se download bhi kar sakte ho</div>
 
@@ -2238,6 +2353,78 @@
         <div class="dl-section-label" id="pdft-result-label">Ready Hai!</div>
         <div id="pdft-result-stats" style="color:var(--muted); font-size:13.5px; margin-bottom:14px;"></div>
         <a id="pdft-download-link" href="#" class="dl-btn dl-btn-green" download><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download Karo</a>
+      </div>
+    </div>
+
+    <!-- Organize PDF — page thumbnails, reorder/delete (pdf.js render, koi backend generation yahan nahi) -->
+    <div id="pdft-organize-workspace" style="display:none;">
+      <button type="button" class="back-btn" onclick="pdftShowGrid()">← Sab PDF Tools</button>
+      <div class="editor-page-banner">
+        <div class="dl-banner-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3L4 7l4 4"/><path d="M4 7h16"/><path d="M16 21l4-4-4-4"/><path d="M20 17H4"/></svg></div>
+        <div>
+          <h2>Organize PDF</h2>
+          <p>Pages ko upar/neeche move karo ya delete karo, phir naya PDF banao</p>
+        </div>
+      </div>
+      <div class="editor-upload-zone" id="pdfo-upload-zone" onclick="document.getElementById('pdfo-file-input').click()">
+        <input type="file" id="pdfo-file-input" accept="application/pdf,.pdf" style="display:none;" onchange="handlePdfoFileSelect(event)" />
+        <div class="editor-upload-icon"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/></svg></div>
+        <p class="editor-upload-text">Ek PDF file upload karo</p>
+        <p class="editor-upload-hint">PDF — max 30MB</p>
+      </div>
+      <div class="pg-thinking" id="pdfo-load-thinking">
+        <span class="pg-dot"></span><span class="pg-dot"></span><span class="pg-dot"></span>
+        PDF load ho raha hai...
+      </div>
+      <div id="pdfo-body" style="display:none;">
+        <div class="pdfo-thumb-grid" id="pdfo-thumb-grid"></div>
+        <button type="button" class="dl-btn dl-btn-green editor-apply-btn" id="pdfo-action-btn" style="margin-top:20px;" onclick="runPdfOrganize()">Organize Karo</button>
+        <div class="editor-apply-hint">File "canvas" mein khulegi — wahin se download bhi kar sakte ho</div>
+        <div class="pg-thinking fc-progress-thinking" id="pdfo-thinking">
+          <div class="fc-progress-row">
+            <span class="pg-dot"></span><span class="pg-dot"></span><span class="pg-dot"></span>
+            <span>Organize ho raha hai...</span>
+            <span class="fc-progress-pct" id="pdfo-pct">0%</span>
+          </div>
+          <div class="fc-progress-track"><div class="fc-progress-fill" id="pdfo-progress-fill"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Compare PDF — do PDFs ka per-page line-diff (client-side render, koi output file nahi) -->
+    <div id="pdft-compare-workspace" style="display:none;">
+      <button type="button" class="back-btn" onclick="pdftShowGrid()">← Sab PDF Tools</button>
+      <div class="editor-page-banner">
+        <div class="dl-banner-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="7" height="16" rx="1"/><rect x="14" y="4" width="7" height="16" rx="1"/></svg></div>
+        <div>
+          <h2>Compare PDF</h2>
+          <p>Do PDFs ka text side-by-side compare karo — kya add hua, kya hata</p>
+        </div>
+      </div>
+      <div class="pdfc-upload-row">
+        <div class="editor-upload-zone" id="pdfc-upload-zone-a" onclick="document.getElementById('pdfc-file-input-a').click()">
+          <input type="file" id="pdfc-file-input-a" accept="application/pdf,.pdf" style="display:none;" onchange="handlePdfcFileSelect(event,'A')" />
+          <div class="editor-upload-icon"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+          <p class="editor-upload-text" id="pdfc-upload-text-a">Pehli PDF upload karo</p>
+        </div>
+        <div class="editor-upload-zone" id="pdfc-upload-zone-b" onclick="document.getElementById('pdfc-file-input-b').click()">
+          <input type="file" id="pdfc-file-input-b" accept="application/pdf,.pdf" style="display:none;" onchange="handlePdfcFileSelect(event,'B')" />
+          <div class="editor-upload-icon"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+          <p class="editor-upload-text" id="pdfc-upload-text-b">Dusri PDF upload karo</p>
+        </div>
+      </div>
+      <button type="button" class="dl-btn dl-btn-green editor-apply-btn" id="pdfc-action-btn" style="margin-top:20px;" disabled onclick="runPdfCompare()">Compare Karo</button>
+      <div class="pg-thinking fc-progress-thinking" id="pdfc-thinking">
+        <div class="fc-progress-row">
+          <span class="pg-dot"></span><span class="pg-dot"></span><span class="pg-dot"></span>
+          <span>Compare ho raha hai...</span>
+          <span class="fc-progress-pct" id="pdfc-pct">0%</span>
+        </div>
+        <div class="fc-progress-track"><div class="fc-progress-fill" id="pdfc-progress-fill"></div></div>
+      </div>
+      <div id="pdfc-result" style="display:none; margin-top:20px;">
+        <div class="dl-section-label" id="pdfc-result-summary"></div>
+        <div id="pdfc-diff-pages"></div>
       </div>
     </div>
 
@@ -2276,6 +2463,7 @@
       <div class="pdfe-toolbar">
         <button type="button" class="pdfe-tool-btn" id="pdfe-add-text-btn" onclick="pdfeStartAddText()"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>Text Daalo</button>
         <button type="button" class="pdfe-tool-btn" onclick="document.getElementById('pdfe-image-input').click()"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>Image Daalo</button>
+        <button type="button" class="pdfe-tool-btn" onclick="pdfeOpenSignaturePad()"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18z"/></svg>Sign Karo</button>
         <input type="file" id="pdfe-image-input" accept="image/png,image/jpeg" style="display:none;" onchange="pdfeHandleImageSelect(event)" />
         <span class="pdfe-hint" id="pdfe-mode-hint"></span>
         <div style="flex:1;"></div>
@@ -2293,6 +2481,20 @@
       </div>
 
       <div id="pdfe-pages-container" class="pdfe-pages-container"></div>
+    </div>
+
+    <!-- Sign PDF — signature draw karo, "Use Signature" ke baad ek normal
+         image overlay ban jaata hai (upar ka "Image Daalo" flow hi reuse hota hai). -->
+    <div id="pdfe-sign-modal" class="pdfe-sign-modal-overlay" style="display:none;">
+      <div class="pdfe-sign-modal">
+        <div class="pdfe-sign-modal-title">Apna Signature Draw Karo</div>
+        <canvas id="pdfe-sign-canvas"></canvas>
+        <div class="pdfe-sign-modal-actions">
+          <button type="button" class="dl-btn dl-btn-gray" onclick="pdfeClearSignature()">Clear</button>
+          <button type="button" class="dl-btn dl-btn-gray" onclick="pdfeCloseSignatureModal()">Cancel</button>
+          <button type="button" class="dl-btn dl-btn-green" onclick="pdfeUseSignature()">Use Signature</button>
+        </div>
+      </div>
     </div>
 
   </div>
@@ -3982,7 +4184,72 @@
     split: { endpoint: '/api/pdf-tools/split', field: 'file', multiple: false, minFiles: 1,
       accept: 'application/pdf,.pdf', badge: 'PDF', badgeColor: '#e63946', title: 'Split PDF',
       desc: 'Har page ko apni alag PDF file bana do.', uploadText: 'Ek PDF file upload karo',
-      uploadHint: 'PDF — max 30MB, kam se kam 2 pages honi chahiye', actionLabel: 'Split Karo', outputKind: 'zip' },
+      uploadHint: 'PDF — max 30MB, kam se kam 2 pages honi chahiye', actionLabel: 'Split Karo', outputKind: 'zip', zipItemLabel: 'PDF files' },
+    'jpg-to-pdf': { endpoint: '/api/pdf-tools/jpg-to-pdf', field: 'files', multiple: true, minFiles: 1,
+      accept: 'image/png,image/jpeg', badge: 'PDF', badgeColor: '#e63946', title: 'JPG to PDF',
+      desc: 'Ek ya zyada images ko ek PDF mein convert karo.', uploadText: 'Ek ya zyada images upload karo',
+      uploadHint: 'PNG/JPEG — max 20 images', actionLabel: 'PDF Banao', outputKind: 'pdf' },
+    'scan-to-pdf': { endpoint: '/api/pdf-tools/jpg-to-pdf', field: 'files', multiple: true, minFiles: 1,
+      accept: 'image/png,image/jpeg', captureAttr: true, badge: 'PDF', badgeColor: '#e63946', title: 'Scan to PDF',
+      desc: 'Camera se document ki photo kheecho, PDF ban jaayegi.', uploadText: 'Photo kheecho ya upload karo',
+      uploadHint: 'PNG/JPEG — max 20 images', actionLabel: 'PDF Banao', outputKind: 'pdf' },
+    'pdf-to-jpg': { endpoint: '/api/pdf-tools/pdf-to-jpg', field: 'file', multiple: false, minFiles: 1,
+      accept: 'application/pdf,.pdf', badge: 'JPG', badgeColor: '#ca8a04', title: 'PDF to JPG',
+      desc: 'Har PDF page ek JPG image ban jaata hai.', uploadText: 'Ek PDF file upload karo',
+      uploadHint: 'PDF — max 30MB', actionLabel: 'JPG Banao', outputKind: 'zip', zipItemLabel: 'JPG images' },
+    watermark: { endpoint: '/api/pdf-tools/watermark', field: 'file', multiple: false, minFiles: 1,
+      accept: 'application/pdf,.pdf', badge: 'PDF', badgeColor: '#be185d', title: 'Watermark',
+      desc: 'Apna text sabhi pages par stamp kar do.', uploadText: 'Ek PDF file upload karo',
+      uploadHint: 'PDF — max 30MB', actionLabel: 'Watermark Lagao', outputKind: 'pdf', extraFields: [
+        { id: 'text', label: 'Watermark Text', type: 'text', default: 'CONFIDENTIAL', maxlength: 60 },
+        { id: 'opacity', label: 'Opacity', type: 'range', default: 30, min: 5, max: 100, step: 5, unit: '%' },
+        { id: 'rotation', label: 'Rotation', type: 'range', default: -45, min: -90, max: 90, step: 5, unit: '°' },
+        { id: 'fontSize', label: 'Font Size', type: 'range', default: 48, min: 10, max: 120, step: 2, unit: 'px' },
+        { id: 'color', label: 'Color', type: 'color', default: '#888888' },
+      ] },
+    rotate: { endpoint: '/api/pdf-tools/rotate', field: 'file', multiple: false, minFiles: 1,
+      accept: 'application/pdf,.pdf', badge: 'PDF', badgeColor: '#c026d3', title: 'Rotate PDF',
+      desc: 'Sabhi pages ko rotate kar do.', uploadText: 'Ek PDF file upload karo',
+      uploadHint: 'PDF — max 30MB', actionLabel: 'Rotate Karo', outputKind: 'pdf', extraFields: [
+        { id: 'angle', label: 'Rotate Karo', type: 'select', default: '90', options: [
+          { value: '90', label: '90° (Clockwise)' }, { value: '180', label: '180°' }, { value: '270', label: '270° (Anti-clockwise)' },
+        ] },
+      ] },
+    'page-numbers': { endpoint: '/api/pdf-tools/page-numbers', field: 'file', multiple: false, minFiles: 1,
+      accept: 'application/pdf,.pdf', badge: 'PDF', badgeColor: '#be185d', title: 'Page Numbers',
+      desc: 'Sabhi pages par number add karo.', uploadText: 'Ek PDF file upload karo',
+      uploadHint: 'PDF — max 30MB', actionLabel: 'Numbers Add Karo', outputKind: 'pdf', extraFields: [
+        { id: 'position', label: 'Position', type: 'select', default: 'bottom-center', options: [
+          { value: 'bottom-center', label: 'Bottom Center' }, { value: 'bottom-left', label: 'Bottom Left' },
+          { value: 'bottom-right', label: 'Bottom Right' }, { value: 'top-center', label: 'Top Center' },
+        ] },
+        { id: 'startNumber', label: 'Start Number', type: 'number', default: 1, min: 1, max: 9999 },
+      ] },
+    unlock: { endpoint: '/api/pdf-tools/unlock', field: 'file', multiple: false, minFiles: 1,
+      accept: 'application/pdf,.pdf', badge: 'PDF', badgeColor: '#2563eb', title: 'Unlock PDF',
+      desc: 'Password pata ho to hata do.', uploadText: 'Ek password-protected PDF upload karo',
+      uploadHint: 'PDF — max 30MB', actionLabel: 'Unlock Karo', outputKind: 'pdf',
+      extraFields: [{ id: 'password', label: 'PDF Ka Current Password', type: 'password', default: '' }] },
+    protect: { endpoint: '/api/pdf-tools/protect', field: 'file', multiple: false, minFiles: 1,
+      accept: 'application/pdf,.pdf', badge: 'PDF', badgeColor: '#2563eb', title: 'Protect PDF',
+      desc: 'PDF par password laga do.', uploadText: 'Ek PDF file upload karo',
+      uploadHint: 'PDF — max 30MB', actionLabel: 'Protect Karo', outputKind: 'pdf',
+      extraFields: [{ id: 'password', label: 'Naya Password Set Karo', type: 'password', default: '' }] },
+    'pdf-to-pdfa': { endpoint: '/api/pdf-tools/pdf-to-pdfa', field: 'file', multiple: false, minFiles: 1,
+      accept: 'application/pdf,.pdf', badge: 'A', badgeColor: '#0891b2', title: 'PDF to PDF/A',
+      desc: 'Best-effort archival cleanup — ye ek ISO-certified PDF/A conversion nahi hai, sirf structural cleanup hai.',
+      uploadText: 'Ek PDF file upload karo', uploadHint: 'PDF — max 30MB', actionLabel: 'Convert Karo', outputKind: 'pdf' },
+    repair: { endpoint: '/api/pdf-tools/repair', field: 'file', multiple: false, minFiles: 1,
+      accept: 'application/pdf,.pdf', badge: 'PDF', badgeColor: '#16a34a', title: 'Repair PDF',
+      desc: 'Damaged/corrupt PDF ko best-effort theek karne ki koshish karo.', uploadText: 'Ek PDF file upload karo',
+      uploadHint: 'PDF — max 30MB', actionLabel: 'Repair Karo', outputKind: 'pdf' },
+    ocr: { endpoint: '/api/pdf-tools/ocr', field: 'file', multiple: false, minFiles: 1,
+      accept: 'application/pdf,.pdf', badge: 'PDF', badgeColor: '#16a34a', title: 'OCR PDF',
+      desc: 'Scanned/image-based PDF ka text OCR se nikaal ke Word file banao.', uploadText: 'Ek scanned PDF upload karo',
+      uploadHint: 'PDF — max 30MB', actionLabel: 'OCR Karo', outputKind: 'docx' },
+    'html-to-pdf': { endpoint: '/api/pdf-tools/html-to-pdf', inputMode: 'html', badge: 'HTML', badgeColor: '#ea580c',
+      title: 'HTML to PDF', desc: 'Kisi bhi webpage ka URL paste karo ya seedha HTML likho.',
+      actionLabel: 'PDF Banao', outputKind: 'pdf' },
     compress: { endpoint: '/api/pdf-tools/compress', field: 'file', multiple: false, minFiles: 1,
       accept: 'application/pdf,.pdf', badge: 'PDF', badgeColor: '#16a34a', title: 'Compress PDF',
       desc: 'File size chhota karo.', uploadText: 'Ek PDF file upload karo',
@@ -4028,6 +4295,8 @@
   window.pdftShowGrid = () => {
     document.getElementById('pdft-grid-view').style.display = 'block';
     document.getElementById('pdft-workspace').style.display = 'none';
+    document.getElementById('pdft-organize-workspace').style.display = 'none';
+    document.getElementById('pdft-compare-workspace').style.display = 'none';
   };
 
   window.pdftOpenTool = (key) => {
@@ -4036,27 +4305,73 @@
     pdftCurrentTool = key;
     pdftQueuedFiles = [];
     document.getElementById('pdft-grid-view').style.display = 'none';
+    document.getElementById('pdft-organize-workspace').style.display = 'none';
+    document.getElementById('pdft-compare-workspace').style.display = 'none';
     document.getElementById('pdft-workspace').style.display = 'block';
     document.getElementById('pdft-ws-icon').innerHTML = `<span style="font-weight:800; font-size:11px; color:${cfg.badgeColor};">${cfg.badge}</span>`;
     document.getElementById('pdft-ws-title').textContent = cfg.title;
     document.getElementById('pdft-ws-desc').textContent = cfg.desc;
-    document.getElementById('pdft-upload-text').textContent = cfg.uploadText;
-    document.getElementById('pdft-upload-hint').textContent = cfg.uploadHint;
     document.getElementById('pdft-action-btn').textContent = cfg.actionLabel;
     document.getElementById('pdft-action-btn').disabled = true;
     document.getElementById('pdft-action-hint').textContent = cfg.outputKind === 'zip'
       ? 'ZIP file seedha download ho jaayegi'
       : 'File "canvas" mein khulegi — wahin se download bhi kar sakte ho';
-    const input = document.getElementById('pdft-file-input');
-    input.accept = cfg.accept;
-    input.multiple = cfg.multiple;
-    input.value = '';
+
+    const isHtmlMode = cfg.inputMode === 'html';
+    document.getElementById('pdft-upload-zone').style.display = isHtmlMode ? 'none' : '';
+    document.getElementById('pdft-html-input-wrap').style.display = isHtmlMode ? 'block' : 'none';
+    document.getElementById('pdft-html-input').value = '';
+
+    if (!isHtmlMode) {
+      document.getElementById('pdft-upload-text').textContent = cfg.uploadText;
+      document.getElementById('pdft-upload-hint').textContent = cfg.uploadHint;
+      const input = document.getElementById('pdft-file-input');
+      input.accept = cfg.accept;
+      input.multiple = !!cfg.multiple;
+      if (cfg.captureAttr) input.setAttribute('capture', 'environment'); else input.removeAttribute('capture');
+      input.value = '';
+    }
+
     document.getElementById('pdft-file-list-wrap').style.display = 'none';
     document.getElementById('pdft-file-list').innerHTML = '';
+    pdftRenderExtraFields(cfg);
     document.getElementById('pdft-result').style.display = 'none';
     document.getElementById('pdft-thinking').classList.remove('active');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  // extraFields (Watermark/Rotate/Page Numbers/Unlock/Protect) ek generic
+  // config-driven form ban jaate hain — naya tool add karna ho to bas ek
+  // extraFields array likhna hota hai, koi naya HTML nahi.
+  function pdftRenderExtraFields(cfg) {
+    const container = document.getElementById('pdft-extra-fields');
+    container.innerHTML = '';
+    (cfg.extraFields || []).forEach(f => {
+      const wrap = document.createElement('div');
+      if (f.type === 'range') {
+        wrap.innerHTML = `<div class="pdft-field-label"><span>${escapeHtml(f.label)}</span><span class="pdft-field-value" id="pdft-field-${f.id}-value">${f.default}${f.unit || ''}</span></div><input type="range" class="pdft-field-input" id="pdft-field-${f.id}" min="${f.min}" max="${f.max}" step="${f.step}" value="${f.default}" oninput="document.getElementById('pdft-field-${f.id}-value').textContent = this.value + '${f.unit || ''}'" />`;
+      } else if (f.type === 'select') {
+        wrap.innerHTML = `<div class="pdft-field-label"><span>${escapeHtml(f.label)}</span></div><select class="pdft-field-select" id="pdft-field-${f.id}">${f.options.map(o => `<option value="${o.value}"${o.value === f.default ? ' selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}</select>`;
+      } else if (f.type === 'color') {
+        wrap.innerHTML = `<div class="pdft-field-label"><span>${escapeHtml(f.label)}</span></div><input type="color" class="pdft-field-input" id="pdft-field-${f.id}" value="${f.default}" />`;
+      } else {
+        const extraAttrs = [f.maxlength ? `maxlength="${f.maxlength}"` : '', f.min !== undefined ? `min="${f.min}"` : '', f.max !== undefined ? `max="${f.max}"` : '', f.type === 'password' ? 'placeholder="Password yahan likho" autocomplete="new-password"' : ''].filter(Boolean).join(' ');
+        wrap.innerHTML = `<div class="pdft-field-label"><span>${escapeHtml(f.label)}</span></div><input type="${f.type}" class="pdft-field-input" id="pdft-field-${f.id}" value="${escapeHtml(String(f.default))}" ${extraAttrs} />`;
+      }
+      container.appendChild(wrap);
+    });
+  }
+
+  function pdftCollectExtraFieldValues(cfg) {
+    const values = {};
+    (cfg.extraFields || []).forEach(f => {
+      const el = document.getElementById(`pdft-field-${f.id}`);
+      let v = el ? el.value : f.default;
+      if (f.id === 'opacity' && f.type === 'range') v = String(Number(v) / 100);
+      values[f.id] = v;
+    });
+    return values;
+  }
 
   function pdftFileIconLabel(name) {
     return (name.split('.').pop() || '').toUpperCase().slice(0, 3);
@@ -4067,9 +4382,14 @@
     return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
   }
 
-  function pdftUpdateActionState() {
+  window.pdftUpdateActionState = function() {
     const cfg = PDFT_TOOLS[pdftCurrentTool];
-    document.getElementById('pdft-action-btn').disabled = pdftQueuedFiles.length < (cfg.minFiles || 1);
+    if (!cfg) return;
+    if (cfg.inputMode === 'html') {
+      document.getElementById('pdft-action-btn').disabled = !document.getElementById('pdft-html-input').value.trim();
+    } else {
+      document.getElementById('pdft-action-btn').disabled = pdftQueuedFiles.length < (cfg.minFiles || 1);
+    }
   }
 
   function pdftRenderFileList() {
@@ -4126,21 +4446,40 @@
 
   window.runPdftTool = async () => {
     const cfg = PDFT_TOOLS[pdftCurrentTool];
-    if (!cfg || pdftQueuedFiles.length < (cfg.minFiles || 1)) { showToast('Pehle file(s) upload karo', 'error'); return; }
+    if (!cfg) return;
+    const isHtmlMode = cfg.inputMode === 'html';
+    if (isHtmlMode) {
+      if (!document.getElementById('pdft-html-input').value.trim()) { showToast('URL ya HTML daalo', 'error'); return; }
+    } else if (pdftQueuedFiles.length < (cfg.minFiles || 1)) {
+      showToast('Pehle file(s) upload karo', 'error'); return;
+    }
 
     const btn = document.getElementById('pdft-action-btn');
     btn.disabled = true;
     document.getElementById('pdft-result').style.display = 'none';
     document.getElementById('pdft-thinking-text').textContent = `${cfg.title} ho raha hai...`;
     document.getElementById('pdft-thinking').classList.add('active');
-    pdftStartProgress(Math.max(1500, pdftQueuedFiles.length * 1200));
-
-    const fd = new FormData();
-    if (cfg.multiple) pdftQueuedFiles.forEach(f => fd.append(cfg.field, f));
-    else fd.append(cfg.field, pdftQueuedFiles[0]);
+    // OCR/HTML-to-PDF/PDF-to-JPG ek headless browser + (OCR ke liye) ek AI
+    // call bhi involve karte hain, isliye inka estimated time zyada rakha hai.
+    const heavy = /ocr|pdf-to-jpg|html-to-pdf/.test(cfg.endpoint);
+    pdftStartProgress(Math.max(heavy ? 3500 : 1500, (isHtmlMode ? 1 : pdftQueuedFiles.length) * (heavy ? 2500 : 1200)));
 
     try {
-      const res = await fetch(`${BACKEND}${cfg.endpoint}`, { method: 'POST', headers: { Authorization: `Bearer ${authToken}` }, body: fd });
+      let res;
+      if (isHtmlMode) {
+        res = await fetch(`${BACKEND}${cfg.endpoint}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+          body: JSON.stringify({ html: document.getElementById('pdft-html-input').value }),
+        });
+      } else {
+        const fd = new FormData();
+        if (cfg.multiple) pdftQueuedFiles.forEach(f => fd.append(cfg.field, f));
+        else fd.append(cfg.field, pdftQueuedFiles[0]);
+        const extra = pdftCollectExtraFieldValues(cfg);
+        Object.entries(extra).forEach(([k, v]) => fd.append(k, v));
+        res = await fetch(`${BACKEND}${cfg.endpoint}`, { method: 'POST', headers: { Authorization: `Bearer ${authToken}` }, body: fd });
+      }
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.success) throw new Error(data.error || 'Kaam nahi ho paya');
 
@@ -4154,8 +4493,8 @@
       if (cfg.outputKind === 'zip') {
         if (pdftZipObjectUrl) URL.revokeObjectURL(pdftZipObjectUrl);
         pdftZipObjectUrl = URL.createObjectURL(blob);
-        document.getElementById('pdft-result-label').textContent = 'Split Ho Gaya!';
-        document.getElementById('pdft-result-stats').textContent = `${data.pageCount} pages — har ek apni alag PDF file, ek ZIP mein.`;
+        document.getElementById('pdft-result-label').textContent = `${cfg.title} Ho Gaya!`;
+        document.getElementById('pdft-result-stats').textContent = `${data.pageCount} ${cfg.zipItemLabel || 'files'} — ek ZIP mein.`;
         const dlLink = document.getElementById('pdft-download-link');
         dlLink.href = pdftZipObjectUrl;
         dlLink.download = data.filename;
@@ -4178,6 +4517,223 @@
       document.getElementById('pdft-thinking').classList.remove('active');
     }
   };
+
+  // ════════════════════════════════
+  //  ORGANIZE PDF — page thumbnails (pdf.js) + reorder (up/down) / delete,
+  //  phir final order /api/pdf-tools/organize ko bhejte hain.
+  // ════════════════════════════════
+  let pdfoFile = null, pdfoDoc = null, pdfoPages = [];
+
+  window.pdftOpenOrganize = () => {
+    document.getElementById('pdft-grid-view').style.display = 'none';
+    document.getElementById('pdft-workspace').style.display = 'none';
+    document.getElementById('pdft-compare-workspace').style.display = 'none';
+    document.getElementById('pdft-organize-workspace').style.display = 'block';
+    pdfoFile = null; pdfoDoc = null; pdfoPages = [];
+    document.getElementById('pdfo-body').style.display = 'none';
+    document.getElementById('pdfo-upload-zone').style.display = '';
+    document.getElementById('pdfo-file-input').value = '';
+    document.getElementById('pdfo-thumb-grid').innerHTML = '';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  window.handlePdfoFileSelect = async (event) => {
+    const file = event.target.files[0];
+    event.target.value = '';
+    if (!file) return;
+    if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name)) { showToast('Sirf PDF file allowed hai', 'error'); return; }
+    if (file.size > 30 * 1024 * 1024) { showToast('File bahut badi hai (max 30MB)', 'error'); return; }
+
+    pdfoFile = file;
+    document.getElementById('pdfo-upload-zone').style.display = 'none';
+    document.getElementById('pdfo-load-thinking').classList.add('active');
+    try {
+      await loadPdfJs();
+      const arrayBuf = await file.arrayBuffer();
+      pdfoDoc = await window.pdfjsLib.getDocument({ data: new Uint8Array(arrayBuf) }).promise;
+      pdfoPages = [];
+      for (let i = 0; i < pdfoDoc.numPages; i++) {
+        const page = await pdfoDoc.getPage(i + 1);
+        const viewport = page.getViewport({ scale: 0.4 });
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width; canvas.height = viewport.height;
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+        pdfoPages.push({ originalIndex: i, thumbUrl: canvas.toDataURL('image/png') });
+      }
+      pdfoRenderThumbGrid();
+      document.getElementById('pdfo-body').style.display = 'block';
+    } catch (e) {
+      showToast('PDF load nahi ho payi. Kya ye ek valid PDF hai?', 'error');
+      document.getElementById('pdfo-upload-zone').style.display = '';
+      pdfoFile = null;
+    } finally {
+      document.getElementById('pdfo-load-thinking').classList.remove('active');
+    }
+  };
+
+  function pdfoRenderThumbGrid() {
+    const grid = document.getElementById('pdfo-thumb-grid');
+    grid.innerHTML = '';
+    pdfoPages.forEach((p, i) => {
+      const card = document.createElement('div');
+      card.className = 'pdfo-thumb-card';
+      card.innerHTML = `<img src="${p.thumbUrl}" alt="Page ${p.originalIndex + 1}" /><div class="pdfo-thumb-label">Page ${p.originalIndex + 1}</div><div class="pdfo-thumb-controls"><button type="button" class="pdfo-thumb-btn" ${i === 0 ? 'disabled' : ''} onclick="pdfoMovePage(${i},-1)">↑</button><button type="button" class="pdfo-thumb-btn" ${i === pdfoPages.length - 1 ? 'disabled' : ''} onclick="pdfoMovePage(${i},1)">↓</button><button type="button" class="pdfo-thumb-btn pdfo-remove" onclick="pdfoRemovePage(${i})">×</button></div>`;
+      grid.appendChild(card);
+    });
+    document.getElementById('pdfo-action-btn').disabled = pdfoPages.length === 0;
+  }
+
+  window.pdfoMovePage = (index, dir) => {
+    const target = index + dir;
+    if (target < 0 || target >= pdfoPages.length) return;
+    [pdfoPages[index], pdfoPages[target]] = [pdfoPages[target], pdfoPages[index]];
+    pdfoRenderThumbGrid();
+  };
+
+  window.pdfoRemovePage = (index) => {
+    pdfoPages.splice(index, 1);
+    pdfoRenderThumbGrid();
+  };
+
+  let pdfoProgressTimer = null;
+  function pdfoStartProgress(estimatedMs) {
+    clearInterval(pdfoProgressTimer);
+    const fill = document.getElementById('pdfo-progress-fill');
+    const pct = document.getElementById('pdfo-pct');
+    fill.style.width = '0%'; pct.textContent = '0%';
+    const start = Date.now();
+    pdfoProgressTimer = setInterval(() => {
+      const shown = Math.min(92, Math.round(92 * (1 - Math.exp(-(Date.now() - start) / estimatedMs))));
+      fill.style.width = `${shown}%`; pct.textContent = `${shown}%`;
+    }, 120);
+  }
+  function pdfoFinishProgress() {
+    clearInterval(pdfoProgressTimer);
+    pdfoProgressTimer = null;
+    document.getElementById('pdfo-progress-fill').style.width = '100%';
+    document.getElementById('pdfo-pct').textContent = '100%';
+  }
+
+  window.runPdfOrganize = async () => {
+    if (!pdfoFile || !pdfoPages.length) { showToast('Kam se kam ek page rakho', 'error'); return; }
+    const btn = document.getElementById('pdfo-action-btn');
+    btn.disabled = true;
+    document.getElementById('pdfo-thinking').classList.add('active');
+    pdfoStartProgress(Math.max(1500, pdfoPages.length * 300));
+    try {
+      const fd = new FormData();
+      fd.append('file', pdfoFile);
+      fd.append('pageOrder', JSON.stringify(pdfoPages.map(p => p.originalIndex)));
+      const res = await fetch(`${BACKEND}/api/pdf-tools/organize`, { method: 'POST', headers: { Authorization: `Bearer ${authToken}` }, body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || 'Organize nahi ho paya');
+      const fullUrl = data.fileUrl.startsWith('http') ? data.fileUrl : `${BACKEND}${data.fileUrl}`;
+      const fileRes = await fetch(fullUrl);
+      if (!fileRes.ok) throw new Error(`HTTP ${fileRes.status}`);
+      const blob = await fileRes.blob();
+      pdfoFinishProgress();
+      await new Promise(r => setTimeout(r, 300));
+      window.pgOpenGeneratedFileModal('pdf', data.filename, blob);
+      showToast('PDF organize ho gayi! ✓', 'success');
+    } catch (e) {
+      showToast(e.message || 'Organize nahi ho paya', 'error');
+    } finally {
+      btn.disabled = false;
+      document.getElementById('pdfo-thinking').classList.remove('active');
+    }
+  };
+
+  // ════════════════════════════════
+  //  COMPARE PDF — dono PDFs se text nikaal ke (pdfjs-dist, server-side)
+  //  line-by-line diff dikhata hai. Koi output file nahi banti, sirf ek
+  //  read-only comparison view hai.
+  // ════════════════════════════════
+  let pdfcFileA = null, pdfcFileB = null;
+
+  window.pdftOpenCompare = () => {
+    document.getElementById('pdft-grid-view').style.display = 'none';
+    document.getElementById('pdft-workspace').style.display = 'none';
+    document.getElementById('pdft-organize-workspace').style.display = 'none';
+    document.getElementById('pdft-compare-workspace').style.display = 'block';
+    pdfcFileA = null; pdfcFileB = null;
+    document.getElementById('pdfc-upload-text-a').textContent = 'Pehli PDF upload karo';
+    document.getElementById('pdfc-upload-text-b').textContent = 'Dusri PDF upload karo';
+    document.getElementById('pdfc-file-input-a').value = '';
+    document.getElementById('pdfc-file-input-b').value = '';
+    document.getElementById('pdfc-action-btn').disabled = true;
+    document.getElementById('pdfc-result').style.display = 'none';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  window.handlePdfcFileSelect = (event, which) => {
+    const file = event.target.files[0];
+    event.target.value = '';
+    if (!file) return;
+    if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name)) { showToast('Sirf PDF file allowed hai', 'error'); return; }
+    if (which === 'A') { pdfcFileA = file; document.getElementById('pdfc-upload-text-a').textContent = file.name; }
+    else { pdfcFileB = file; document.getElementById('pdfc-upload-text-b').textContent = file.name; }
+    document.getElementById('pdfc-action-btn').disabled = !(pdfcFileA && pdfcFileB);
+  };
+
+  let pdfcProgressTimer = null;
+  function pdfcStartProgress(estimatedMs) {
+    clearInterval(pdfcProgressTimer);
+    const fill = document.getElementById('pdfc-progress-fill');
+    const pct = document.getElementById('pdfc-pct');
+    fill.style.width = '0%'; pct.textContent = '0%';
+    const start = Date.now();
+    pdfcProgressTimer = setInterval(() => {
+      const shown = Math.min(92, Math.round(92 * (1 - Math.exp(-(Date.now() - start) / estimatedMs))));
+      fill.style.width = `${shown}%`; pct.textContent = `${shown}%`;
+    }, 120);
+  }
+  function pdfcFinishProgress() {
+    clearInterval(pdfcProgressTimer);
+    pdfcProgressTimer = null;
+    document.getElementById('pdfc-progress-fill').style.width = '100%';
+    document.getElementById('pdfc-pct').textContent = '100%';
+  }
+
+  window.runPdfCompare = async () => {
+    if (!pdfcFileA || !pdfcFileB) { showToast('Dono PDF files upload karo', 'error'); return; }
+    const btn = document.getElementById('pdfc-action-btn');
+    btn.disabled = true;
+    document.getElementById('pdfc-result').style.display = 'none';
+    document.getElementById('pdfc-thinking').classList.add('active');
+    pdfcStartProgress(2500);
+    try {
+      const fd = new FormData();
+      fd.append('fileA', pdfcFileA);
+      fd.append('fileB', pdfcFileB);
+      const res = await fetch(`${BACKEND}/api/pdf-tools/compare`, { method: 'POST', headers: { Authorization: `Bearer ${authToken}` }, body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || 'Compare nahi ho paya');
+      pdfcFinishProgress();
+      await new Promise(r => setTimeout(r, 300));
+      pdfcRenderDiff(data);
+      showToast('Compare ho gaya! ✓', 'success');
+    } catch (e) {
+      showToast(e.message || 'Compare nahi ho paya', 'error');
+    } finally {
+      btn.disabled = false;
+      document.getElementById('pdfc-thinking').classList.remove('active');
+    }
+  };
+
+  function pdfcRenderDiff(data) {
+    document.getElementById('pdfc-result-summary').textContent = data.totalAdded === 0 && data.totalRemoved === 0
+      ? 'Dono PDFs ka text bilkul same hai ✓'
+      : `${data.totalAdded} lines add hue, ${data.totalRemoved} lines hataye gaye`;
+
+    document.getElementById('pdfc-diff-pages').innerHTML = data.pageDiffs.map(pd => {
+      const body = pd.changed
+        ? pd.parts.map(part => `<div class="pdfc-diff-line ${part.added ? 'pdfc-diff-added' : part.removed ? 'pdfc-diff-removed' : ''}">${escapeHtml(part.value)}</div>`).join('')
+        : `<div class="pdfc-diff-line">${escapeHtml(pd.parts[0]?.value || '(khaali)')}</div>`;
+      return `<div class="pdfc-diff-page"><div class="pdfc-diff-page-title">${pd.changed ? `Page ${pd.page} — Different` : `Page ${pd.page} — <span class="pdfc-same-badge">Same</span>`}</div>${body}</div>`;
+    }).join('');
+    document.getElementById('pdfc-result').style.display = 'block';
+    document.getElementById('pdfc-result').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
 
   // ════════════════════════════════
   //  EDIT PDF — pdf.js (CDN, lazy-loaded) se pages render karte hain, phir
@@ -4301,6 +4857,57 @@
       img.src = dataUrl;
     };
     reader.readAsDataURL(file);
+  };
+
+  // Sign PDF — signature ek "Image Daalo" jaisa hi overlay ban jaata hai
+  // (transparent-background PNG, kyunki canvas kabhi white fill nahi hota),
+  // isliye "Use Signature" ke baad wahi image-placement flow reuse hota hai.
+  window.pdfeOpenSignaturePad = () => {
+    document.getElementById('pdfe-sign-modal').style.display = 'flex';
+    const canvas = document.getElementById('pdfe-sign-canvas');
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width; canvas.height = rect.height;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+
+    let drawing = false;
+    function pos(e) {
+      const r = canvas.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      return { x: clientX - r.left, y: clientY - r.top };
+    }
+    function start(e) { drawing = true; const p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); e.preventDefault(); }
+    function move(e) { if (!drawing) return; const p = pos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); e.preventDefault(); }
+    function end() { drawing = false; }
+
+    canvas.onmousedown = start; canvas.onmousemove = move; canvas.onmouseup = end; canvas.onmouseleave = end;
+    canvas.ontouchstart = start; canvas.ontouchmove = move; canvas.ontouchend = end;
+  };
+
+  window.pdfeClearSignature = () => {
+    const canvas = document.getElementById('pdfe-sign-canvas');
+    canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+  };
+
+  window.pdfeCloseSignatureModal = () => {
+    document.getElementById('pdfe-sign-modal').style.display = 'none';
+  };
+
+  window.pdfeUseSignature = () => {
+    const canvas = document.getElementById('pdfe-sign-canvas');
+    const ctx = canvas.getContext('2d');
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    let hasInk = false;
+    for (let i = 3; i < imgData.length; i += 4) { if (imgData[i] > 0) { hasInk = true; break; } }
+    if (!hasInk) { showToast('Pehle signature draw karo', 'error'); return; }
+
+    pdfePendingImageDataUrl = canvas.toDataURL('image/png');
+    pdfePendingImageNatural = { width: canvas.width, height: canvas.height };
+    pdfeMode = 'image';
+    document.getElementById('pdfe-mode-hint').textContent = 'Kisi bhi page par click karo signature place karne ke liye';
+    document.getElementById('pdfe-sign-modal').style.display = 'none';
   };
 
   function pdfePageClick(e, wrap) {
