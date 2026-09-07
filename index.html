@@ -492,6 +492,11 @@
     .pg-dot { width:6px; height:6px; border-radius:50%; background:var(--green); animation:pgPulse 1.2s ease-in-out infinite; }
     .pg-dot:nth-child(2){ animation-delay:0.2s; }
     .pg-dot:nth-child(3){ animation-delay:0.4s; }
+    .fc-progress-thinking { flex-direction:column; align-items:stretch; gap:10px; }
+    .fc-progress-row { display:flex; align-items:center; gap:8px; }
+    .fc-progress-pct { margin-left:auto; font-weight:800; color:var(--green); font-variant-numeric:tabular-nums; }
+    .fc-progress-track { width:100%; height:6px; border-radius:99px; background:rgba(127,127,127,0.2); overflow:hidden; }
+    .fc-progress-fill { height:100%; width:0%; background:var(--green); border-radius:99px; transition:width 0.25s ease; }
     @keyframes pgPulse { 0%,80%,100%{opacity:0.25; transform:scale(0.8);} 40%{opacity:1; transform:scale(1);} }
 
     /* PLAYGROUND QUERY — full-page ChatGPT-style layout */
@@ -1909,9 +1914,13 @@
         <button type="button" class="dl-btn dl-btn-green editor-apply-btn" id="fc-generate-btn" style="margin-top:20px;" onclick="generateFcFile()"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:4px;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>Generate &amp; Preview</button>
         <div class="editor-apply-hint">File "canvas" mein khulegi — wahin se download bhi kar sakte ho</div>
 
-        <div class="pg-thinking" id="fc-generate-thinking">
-          <span class="pg-dot"></span><span class="pg-dot"></span><span class="pg-dot"></span>
-          File ban rahi hai...
+        <div class="pg-thinking fc-progress-thinking" id="fc-generate-thinking">
+          <div class="fc-progress-row">
+            <span class="pg-dot"></span><span class="pg-dot"></span><span class="pg-dot"></span>
+            <span id="fc-generate-thinking-text">File ban rahi hai...</span>
+            <span class="fc-progress-pct" id="fc-generate-pct">0%</span>
+          </div>
+          <div class="fc-progress-track"><div class="fc-progress-fill" id="fc-generate-progress-fill"></div></div>
         </div>
       </div>
     </div>
@@ -3428,6 +3437,33 @@
     document.getElementById('fc-image-preview-wrap').style.display = 'none';
   };
 
+  // File generate karna ek hi synchronous request hai — server se real
+  // progress events nahi milte — isliye ek believable simulated percentage
+  // dikhate hain: shuru mein tez badhta hai, estimatedMs (image count ke
+  // hisaab se) ke paas jaate-jaate slow ho jaata hai (kabhi khud 92% se
+  // aage nahi jaata), aur response aane par turant 100% pe snap hota hai.
+  let fcProgressTimer = null;
+  function fcStartProgress(estimatedMs) {
+    clearInterval(fcProgressTimer);
+    const fill = document.getElementById('fc-generate-progress-fill');
+    const pct = document.getElementById('fc-generate-pct');
+    fill.style.width = '0%';
+    pct.textContent = '0%';
+    const start = Date.now();
+    fcProgressTimer = setInterval(() => {
+      const elapsed = Date.now() - start;
+      const shown = Math.min(92, Math.round(92 * (1 - Math.exp(-elapsed / estimatedMs))));
+      fill.style.width = `${shown}%`;
+      pct.textContent = `${shown}%`;
+    }, 120);
+  }
+  function fcFinishProgress() {
+    clearInterval(fcProgressTimer);
+    fcProgressTimer = null;
+    document.getElementById('fc-generate-progress-fill').style.width = '100%';
+    document.getElementById('fc-generate-pct').textContent = '100%';
+  }
+
   window.generateFcFile = async () => {
     const isImageMode = fcMode === 'image';
     if (isImageMode && !fcImageDataUrls.length) { showToast('Pehle image(s) upload karo', 'error'); return; }
@@ -3435,7 +3471,10 @@
 
     const btn = document.getElementById('fc-generate-btn');
     btn.disabled = true;
+    document.getElementById('fc-generate-thinking-text').textContent = isImageMode ? 'Images se file ban rahi hai...' : 'File ban rahi hai...';
     document.getElementById('fc-generate-thinking').classList.add('active');
+    const estimatedMs = isImageMode ? Math.max(1500, fcImageDataUrls.length * 900) : 1800;
+    fcStartProgress(estimatedMs);
     try {
       const res = await fetch(`${BACKEND}/${isImageMode ? 'api/doc-tool/images-to-file' : 'api/playground/generate-file'}`, {
         method: 'POST',
@@ -3451,9 +3490,12 @@
       const fileRes = await fetch(fullUrl);
       if (!fileRes.ok) throw new Error(`HTTP ${fileRes.status}`);
       const blob = await fileRes.blob();
+      fcFinishProgress();
+      await new Promise(r => setTimeout(r, 300));
       window.pgOpenGeneratedFileModal(fcSelectedFormat, data.filename, blob);
       showToast('File ready hai! ✓', 'success');
     } catch (e) {
+      clearInterval(fcProgressTimer);
       showToast(e.message || 'File generate nahi ho payi', 'error');
     } finally {
       btn.disabled = false;
