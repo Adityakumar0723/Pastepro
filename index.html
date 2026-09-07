@@ -152,6 +152,13 @@
     .auth-brand-features li { font-size:14px; color:var(--text); line-height:1.4; }
     .auth-form-panel { padding:48px 40px; display:flex; flex-direction:column; justify-content:center; }
     .auth-title { font-family:'Syne',sans-serif; font-size:28px; font-weight:800; margin-bottom: 8px; }
+    .auth-mascot { display:flex; justify-content:center; margin-bottom:6px; animation:authMascotBob 3.2s ease-in-out infinite; }
+    .auth-mascot svg { overflow:visible; }
+    @keyframes authMascotBob { 0%, 100% { transform:translateY(0); } 50% { transform:translateY(-3px); } }
+    .auth-mascot-eyes { transition:opacity 0.2s ease; }
+    .auth-mascot-eyes.hide { opacity:0; }
+    .auth-mascot-hands { opacity:0; transform:translateY(16px); transform-origin:60px 55px; transition:opacity 0.25s ease, transform 0.25s ease; }
+    .auth-mascot-hands.show { opacity:1; transform:translateY(0); }
     .auth-sub { color:var(--muted); font-size:15px; margin-bottom:32px; }
     @media (max-width: 760px) {
       .auth-split { grid-template-columns: 1fr; min-height:0; }
@@ -882,6 +889,36 @@
 
       <!-- Login / Signup form -->
       <div class="auth-form-panel">
+        <!-- Mascot — naam/email type karte waqt aankhein dheere-dheere idhar-udhar
+             ghoomti hain, password field pe focus karte hi sharma ke haathon se
+             aankhein dhak leta hai (privacy ka fun visual cue). Purely decorative,
+             koi form logic isse depend nahi karta. -->
+        <div class="auth-mascot" id="auth-mascot" aria-hidden="true">
+          <svg viewBox="0 0 120 120" width="84" height="84">
+            <circle cx="26" cy="26" r="15" fill="#c97b3d"/>
+            <circle cx="94" cy="26" r="15" fill="#c97b3d"/>
+            <circle cx="26" cy="26" r="7" fill="#f2c894"/>
+            <circle cx="94" cy="26" r="7" fill="#f2c894"/>
+            <circle cx="60" cy="62" r="46" fill="#e8a15c"/>
+            <ellipse cx="60" cy="78" rx="19" ry="13" fill="#fff3e0"/>
+            <ellipse cx="60" cy="74" rx="5.5" ry="3.5" fill="#4a3220"/>
+            <path d="M52 84 Q60 90 68 84" stroke="#4a3220" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+            <g id="auth-mascot-eyes" class="auth-mascot-eyes">
+              <ellipse cx="42" cy="54" rx="9" ry="11" fill="#fff"/>
+              <ellipse cx="78" cy="54" rx="9" ry="11" fill="#fff"/>
+              <circle id="auth-mascot-pupil-l" cx="42" cy="54" r="4.5" fill="#2b2118"/>
+              <circle id="auth-mascot-pupil-r" cx="78" cy="54" r="4.5" fill="#2b2118"/>
+            </g>
+            <g id="auth-mascot-hands" class="auth-mascot-hands">
+              <ellipse cx="42" cy="55" rx="15" ry="13" fill="#e8a15c" stroke="#c97b3d" stroke-width="2"/>
+              <ellipse cx="78" cy="55" rx="15" ry="13" fill="#e8a15c" stroke="#c97b3d" stroke-width="2"/>
+              <ellipse cx="35" cy="50" rx="4" ry="5" fill="#e8a15c" stroke="#c97b3d" stroke-width="1.5"/>
+              <ellipse cx="49" cy="50" rx="4" ry="5" fill="#e8a15c" stroke="#c97b3d" stroke-width="1.5"/>
+              <ellipse cx="71" cy="50" rx="4" ry="5" fill="#e8a15c" stroke="#c97b3d" stroke-width="1.5"/>
+              <ellipse cx="85" cy="50" rx="4" ry="5" fill="#e8a15c" stroke="#c97b3d" stroke-width="1.5"/>
+            </g>
+          </svg>
+        </div>
         <div class="auth-title">Welcome</div>
         <div class="auth-sub">Sign in to start downloading videos for free.</div>
         <div class="tabs">
@@ -1893,6 +1930,61 @@
     document.getElementById('forgot-form').style.display = 'none';
     document.getElementById('reset-form').style.display  = 'none';
   };
+
+  // ════════════════════════════════
+  //  AUTH MASCOT — email/naam type karte waqt aankhein halka sa idhar-udhar
+  //  ghoomti hain (caret position ke hisaab se), password field focus hote
+  //  hi sharma ke haathon se aankhein dhak leta hai. Sirf decorative hai —
+  //  login/signup ki koi bhi logic isse depend nahi karti, isliye agar kisi
+  //  bhi wajah se element na milein to chup-chaap kuch nahi karta.
+  // ════════════════════════════════
+  (() => {
+    const eyesGroup = document.getElementById('auth-mascot-eyes');
+    const handsGroup = document.getElementById('auth-mascot-hands');
+    const pupilL = document.getElementById('auth-mascot-pupil-l');
+    const pupilR = document.getElementById('auth-mascot-pupil-r');
+    if (!eyesGroup || !handsGroup || !pupilL || !pupilR) return;
+
+    function lookAt(offsetX) {
+      const clamped = Math.max(-5, Math.min(5, offsetX));
+      pupilL.setAttribute('cx', 42 + clamped);
+      pupilR.setAttribute('cx', 78 + clamped);
+    }
+    function resetLook() { lookAt(0); }
+
+    function onTextFieldActivity(e) {
+      const input = e.target;
+      const len = input.value.length;
+      const caret = typeof input.selectionStart === 'number' ? input.selectionStart : len;
+      const ratio = len ? caret / len : 0.5;
+      lookAt((ratio - 0.5) * 10);
+    }
+
+    function coverEyes() {
+      eyesGroup.classList.add('hide');
+      handsGroup.classList.add('show');
+    }
+    function uncoverEyes() {
+      eyesGroup.classList.remove('hide');
+      handsGroup.classList.remove('show');
+      resetLook();
+    }
+
+    ['l-email', 's-name', 's-email', 'f-email'].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('input', onTextFieldActivity);
+      el.addEventListener('focus', onTextFieldActivity);
+      el.addEventListener('blur', resetLook);
+    });
+
+    ['l-pass', 's-pass', 'r-pass'].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('focus', coverEyes);
+      el.addEventListener('blur', uncoverEyes);
+    });
+  })();
 
   // Forgot/reset password — tabs ki jagah ye do forms dikhte hain
   window.showForgotForm = () => {
