@@ -112,6 +112,10 @@
     main:has(#file-converter-page.show) .hero { display: none; }
     main:has(#media-converter-page.show) { max-width: 100%; padding-top: 24px; padding-bottom: 24px; }
     main:has(#media-converter-page.show) .hero { display: none; }
+    main:has(#pdf-tools-page.show) { max-width: 100%; padding-top: 24px; padding-bottom: 24px; }
+    main:has(#pdf-tools-page.show) .hero { display: none; }
+    main:has(#pdf-edit-page.show) { max-width: 100%; padding-top: 24px; padding-bottom: 24px; }
+    main:has(#pdf-edit-page.show) .hero { display: none; }
     main:has(#playground-page.show) { max-width: 1800px; padding-top: 24px; padding-bottom: 24px; padding-left: 16px; padding-right: 16px; }
     main:has(#playground-page.show) .hero { display: none; }
     main:has(#auth-view:not([style*="none"])) { max-width: 1040px; }
@@ -443,6 +447,51 @@
     .fc-mode-tabs { margin-bottom:16px; }
     .mc-preview-empty { color:var(--muted); font-size:13px; text-align:center; padding:60px 20px; }
     @media(max-width:900px){ .editor-studio { grid-template-columns:1fr; } .editor-preview-col { position:static; } }
+
+    /* PDF TOOLS — category filter chips + tool grid (iLovePDF-jaisa layout) */
+    .pdft-cat-row { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:22px; }
+    .pdft-cat-chip { padding:8px 16px; border-radius:99px; border:1px solid var(--border); background:var(--card); color:var(--muted); font-family:'Space Grotesk',sans-serif; font-size:12.5px; font-weight:700; cursor:pointer; transition:all 0.2s; }
+    .pdft-cat-chip:hover { border-color:var(--green); color:var(--text); }
+    .pdft-cat-chip.active { background:var(--text); color:var(--bg); border-color:var(--text); }
+    .pdft-tool-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:16px; }
+    .pdft-tool-card { display:flex; flex-direction:column; align-items:flex-start; gap:10px; padding:20px; border-radius:14px; border:1px solid var(--border); background:var(--card); text-align:left; cursor:pointer; transition:all 0.2s; }
+    .pdft-tool-card:hover { border-color:var(--green); transform:translateY(-2px); box-shadow:0 8px 20px rgba(0,0,0,0.12); }
+    .pdft-tool-icon { flex-shrink:0; width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:800; color:#fff; }
+    .pdft-tool-title { font-family:'Space Grotesk',sans-serif; font-size:15.5px; font-weight:800; color:var(--text); }
+    .pdft-tool-desc { font-size:12.5px; line-height:1.5; color:var(--muted); }
+    .pdft-file-list { display:flex; flex-direction:column; gap:8px; margin-bottom:14px; }
+    .pdft-file-row { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:var(--card); font-size:13px; }
+    .pdft-file-row-icon { flex-shrink:0; width:28px; height:28px; border-radius:7px; background:#e63946; display:flex; align-items:center; justify-content:center; font-size:8.5px; font-weight:800; color:#fff; }
+    .pdft-file-row-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; color:var(--text); }
+    .pdft-file-row-size { flex-shrink:0; color:var(--muted); font-size:11.5px; }
+    .pdft-file-row-remove { flex-shrink:0; width:22px; height:22px; border-radius:50%; border:none; background:rgba(230,57,70,0.14); color:#e63946; font-size:14px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+    .pdft-add-more-btn { align-self:flex-start; }
+
+    /* EDIT PDF — visual canvas editor: pdf.js render + draggable/resizable
+       absolutely-positioned overlays on top of each page's canvas. */
+    .pdfe-toolbar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:18px; position:sticky; top:0; background:var(--bg); padding:10px 0; z-index:5; }
+    .pdfe-tool-btn { display:flex; align-items:center; gap:6px; padding:9px 14px; border-radius:10px; border:1px solid var(--border); background:var(--card); color:var(--text); font-family:'Space Grotesk',sans-serif; font-size:12.5px; font-weight:700; cursor:pointer; }
+    .pdfe-tool-btn.active { border-color:var(--green); background:rgba(46,196,182,0.14); color:var(--green); }
+    .pdfe-hint { color:var(--muted); font-size:12px; }
+    .pdfe-pages-container { display:flex; flex-direction:column; align-items:center; gap:28px; }
+    .pdfe-page-wrap { position:relative; box-shadow:0 4px 20px rgba(0,0,0,0.25); background:#fff; }
+    .pdfe-page-wrap canvas { display:block; }
+    .pdfe-page-num { position:absolute; top:-22px; left:0; color:var(--muted); font-size:11.5px; font-weight:700; }
+    .pdfe-item { position:absolute; }
+    .pdfe-item-text { width:auto; height:auto; min-width:20px; }
+    .pdfe-text-content { min-width:20px; min-height:1.2em; padding:2px 4px; cursor:move; outline:1px dashed transparent; white-space:pre; font-family:Helvetica,Arial,sans-serif; }
+    .pdfe-item:hover .pdfe-text-content, .pdfe-item:focus-within .pdfe-text-content { outline-color:#2563eb; }
+    .pdfe-image-content { width:100%; height:100%; display:block; cursor:move; outline:1px dashed transparent; }
+    .pdfe-item:hover .pdfe-image-content { outline-color:#2563eb; }
+    .pdfe-remove { position:absolute; top:-10px; right:-10px; width:20px; height:20px; border-radius:50%; border:none; background:#ef4444; color:#fff; font-size:12px; line-height:1; cursor:pointer; display:none; align-items:center; justify-content:center; z-index:2; padding:0; }
+    .pdfe-item:hover .pdfe-remove, .pdfe-item:focus-within .pdfe-remove { display:flex; }
+    .pdfe-resize-handle { position:absolute; bottom:-6px; right:-6px; width:14px; height:14px; border-radius:3px; background:#2563eb; cursor:nwse-resize; display:none; z-index:2; }
+    .pdfe-item:hover .pdfe-resize-handle { display:block; }
+    .pdfe-mini-toolbar { position:absolute; top:-38px; left:0; display:none; align-items:center; gap:6px; background:#1f2430; border-radius:8px; padding:5px 8px; box-shadow:0 4px 12px rgba(0,0,0,0.3); z-index:3; white-space:nowrap; }
+    .pdfe-item:focus-within .pdfe-mini-toolbar { display:flex; }
+    .pdfe-mini-btn { width:20px; height:20px; border:none; border-radius:5px; background:#3a3f4d; color:#fff; font-size:12px; cursor:pointer; padding:0; }
+    .pdfe-mini-size-label { color:#fff; font-size:11.5px; min-width:18px; text-align:center; }
+    .pdfe-mini-color { width:20px; height:20px; border:none; border-radius:5px; padding:0; background:none; cursor:pointer; }
 
     /* TOAST */
     .toast { position:fixed; bottom:32px; right:32px; padding:14px 22px; background:var(--card); border:1px solid var(--border); border-radius:12px; font-size:14px; font-weight:600; box-shadow:0 8px 32px rgba(0,0,0,0.4); transform:translateY(80px); opacity:0; transition:all 0.3s cubic-bezier(0.34,1.56,0.64,1); z-index:999; max-width:320px; }
@@ -831,6 +880,7 @@
       <button class="sidebar-item" onclick="showVideoEditor()"><span class="sidebar-item-icon" style="background:var(--accent);"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg></span>Video Editor</button>
       <button class="sidebar-item" onclick="showFileConverter()"><span class="sidebar-item-icon" style="background:#14b8a6;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>File Converter</button>
       <button class="sidebar-item" onclick="showMediaConverter()"><span class="sidebar-item-icon" style="background:#f59e0b;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></span>Media Converter</button>
+      <button class="sidebar-item" onclick="showPdfTools()"><span class="sidebar-item-icon" style="background:#e63946;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/><line x1="9" y1="11" x2="12" y2="11"/></svg></span>PDF Tools</button>
     </div>
   </div>
 
@@ -2001,6 +2051,184 @@
 
   </div>
 
+  <!-- PDF TOOLS PAGE — Merge/Split/Compress/Convert grid, iLovePDF-jaisa —
+       Edit PDF is a card here too but opens its own dedicated page (#pdf-edit-page)
+       since it's a full visual canvas editor, not an upload+convert flow. -->
+  <div id="pdf-tools-page" class="download-page">
+
+    <button class="back-btn" onclick="goHome()">← Wapas Jaao</button>
+
+    <div class="editor-page-banner">
+      <div class="dl-banner-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/><line x1="9" y1="11" x2="12" y2="11"/></svg></div>
+      <div>
+        <h2>PDF Tools</h2>
+        <p>Merge, split, compress karo — ya kisi bhi format se PDF banao/convert karo</p>
+      </div>
+    </div>
+
+    <!-- Grid view -->
+    <div id="pdft-grid-view">
+      <div class="pdft-cat-row" id="pdft-cat-row">
+        <button type="button" class="pdft-cat-chip active" data-cat="all" onclick="pdftFilterCategory('all', this)">All</button>
+        <button type="button" class="pdft-cat-chip" data-cat="organize" onclick="pdftFilterCategory('organize', this)">Organize PDF</button>
+        <button type="button" class="pdft-cat-chip" data-cat="optimize" onclick="pdftFilterCategory('optimize', this)">Optimize PDF</button>
+        <button type="button" class="pdft-cat-chip" data-cat="convert" onclick="pdftFilterCategory('convert', this)">Convert PDF</button>
+        <button type="button" class="pdft-cat-chip" data-cat="edit" onclick="pdftFilterCategory('edit', this)">Edit PDF</button>
+      </div>
+
+      <div class="pdft-tool-grid" id="pdft-tool-grid">
+        <button type="button" class="pdft-tool-card" data-cat="organize" onclick="pdftOpenTool('merge')">
+          <span class="pdft-tool-icon" style="background:#e63946;"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M8 21H3v-5"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg></span>
+          <div class="pdft-tool-title">Merge PDF</div>
+          <div class="pdft-tool-desc">Do ya zyada PDF files ko ek hi PDF mein jod do, jis order mein upload karo usi order mein.</div>
+        </button>
+        <button type="button" class="pdft-tool-card" data-cat="organize" onclick="pdftOpenTool('split')">
+          <span class="pdft-tool-icon" style="background:#e63946;"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l7 7"/><path d="M21 21l-7-7"/><path d="M3 10V3h7"/><path d="M21 14v7h-7"/></svg></span>
+          <div class="pdft-tool-title">Split PDF</div>
+          <div class="pdft-tool-desc">Har page ko apni alag PDF file bana do — ek ZIP mein sab mil jaayengi.</div>
+        </button>
+        <button type="button" class="pdft-tool-card" data-cat="optimize" onclick="pdftOpenTool('compress')">
+          <span class="pdft-tool-icon" style="background:#16a34a;"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg></span>
+          <div class="pdft-tool-title">Compress PDF</div>
+          <div class="pdft-tool-desc">File size chhota karo, quality ke saath compromise kiye bina jitna ho sake.</div>
+        </button>
+        <button type="button" class="pdft-tool-card" data-cat="convert" onclick="pdftOpenTool('pdf-to-word')">
+          <span class="pdft-tool-icon" style="background:#2b579a;">DOC</span>
+          <div class="pdft-tool-title">PDF to Word</div>
+          <div class="pdft-tool-desc">PDF ka text nikaal ke ek edit-karne-laayak DOCX file bana do.</div>
+        </button>
+        <button type="button" class="pdft-tool-card" data-cat="convert" onclick="pdftOpenTool('pdf-to-pptx')">
+          <span class="pdft-tool-icon" style="background:#d24726;">PPT</span>
+          <div class="pdft-tool-title">PDF to PowerPoint</div>
+          <div class="pdft-tool-desc">Har PDF page apni ek slide ban jaata hai — turant editable PPTX.</div>
+        </button>
+        <button type="button" class="pdft-tool-card" data-cat="convert" onclick="pdftOpenTool('pdf-to-excel')">
+          <span class="pdft-tool-icon" style="background:#217346;">XLS</span>
+          <div class="pdft-tool-title">PDF to Excel</div>
+          <div class="pdft-tool-desc">PDF ka content ek row-by-row Excel spreadsheet mein nikaal do.</div>
+        </button>
+        <button type="button" class="pdft-tool-card" data-cat="convert" onclick="pdftOpenTool('word-to-pdf')">
+          <span class="pdft-tool-icon" style="background:#e63946;">PDF</span>
+          <div class="pdft-tool-title">Word to PDF</div>
+          <div class="pdft-tool-desc">DOC/DOCX file ko ek clean, sabke liye khulne-laayak PDF bana do.</div>
+        </button>
+        <button type="button" class="pdft-tool-card" data-cat="convert" onclick="pdftOpenTool('pptx-to-pdf')">
+          <span class="pdft-tool-icon" style="background:#e63946;">PDF</span>
+          <div class="pdft-tool-title">PowerPoint to PDF</div>
+          <div class="pdft-tool-desc">PPT/PPTX slideshow ko ek PDF mein badal do, dekhna ho ya share karna ho.</div>
+        </button>
+        <button type="button" class="pdft-tool-card" data-cat="convert" onclick="pdftOpenTool('excel-to-pdf')">
+          <span class="pdft-tool-icon" style="background:#e63946;">PDF</span>
+          <div class="pdft-tool-title">Excel to PDF</div>
+          <div class="pdft-tool-desc">XLS/XLSX spreadsheet ko padhne-mein-aasaan PDF mein convert karo.</div>
+        </button>
+        <button type="button" class="pdft-tool-card" data-cat="edit" onclick="showPdfEdit()">
+          <span class="pdft-tool-icon" style="background:#7c3aed;"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4z"/></svg></span>
+          <div class="pdft-tool-title">Edit PDF</div>
+          <div class="pdft-tool-desc">PDF ke kisi bhi page par text ya image daalo — click karke drag-drop se position set karo.</div>
+        </button>
+      </div>
+    </div>
+
+    <!-- Single-tool workspace (config-driven — ek hi generic UI, 9 tools ke liye) -->
+    <div id="pdft-workspace" style="display:none;">
+      <button type="button" class="back-btn" onclick="pdftShowGrid()">← Sab PDF Tools</button>
+
+      <div class="editor-page-banner">
+        <div class="dl-banner-icon" id="pdft-ws-icon"></div>
+        <div>
+          <h2 id="pdft-ws-title"></h2>
+          <p id="pdft-ws-desc"></p>
+        </div>
+      </div>
+
+      <div class="editor-upload-zone" id="pdft-upload-zone" onclick="document.getElementById('pdft-file-input').click()">
+        <input type="file" id="pdft-file-input" style="display:none;" onchange="handlePdftFileSelect(event)" />
+        <div class="editor-upload-icon"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/></svg></div>
+        <p class="editor-upload-text" id="pdft-upload-text">File upload karo</p>
+        <p class="editor-upload-hint" id="pdft-upload-hint"></p>
+      </div>
+
+      <div id="pdft-file-list-wrap" style="display:none; margin-top:14px;">
+        <div id="pdft-file-list" class="pdft-file-list"></div>
+      </div>
+
+      <button type="button" class="dl-btn dl-btn-green editor-apply-btn" id="pdft-action-btn" style="margin-top:20px;" disabled onclick="runPdftTool()"></button>
+      <div class="editor-apply-hint" id="pdft-action-hint">File "canvas" mein khulegi — wahin se download bhi kar sakte ho</div>
+
+      <div class="pg-thinking fc-progress-thinking" id="pdft-thinking">
+        <div class="fc-progress-row">
+          <span class="pg-dot"></span><span class="pg-dot"></span><span class="pg-dot"></span>
+          <span id="pdft-thinking-text">Process ho raha hai...</span>
+          <span class="fc-progress-pct" id="pdft-pct">0%</span>
+        </div>
+        <div class="fc-progress-track"><div class="fc-progress-fill" id="pdft-progress-fill"></div></div>
+      </div>
+
+      <!-- Sirf ZIP (Split) aur Compress ke stats ke liye — baaki sab canvas modal mein khulte hain -->
+      <div class="editor-result" id="pdft-result" style="display:none;">
+        <div class="dl-section-label" id="pdft-result-label">Ready Hai!</div>
+        <div id="pdft-result-stats" style="color:var(--muted); font-size:13.5px; margin-bottom:14px;"></div>
+        <a id="pdft-download-link" href="#" class="dl-btn dl-btn-green" download><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download Karo</a>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- EDIT PDF PAGE — visual canvas editor: PDF upload karo, text/image daalo,
+       click-place + drag-drop se position set karo, phir naya PDF banao.
+       Client-side pdf.js (CDN, lazy-loaded — pehli baar isi page par aane
+       par fetch hota hai) render karta hai; server (pdf-lib) sirf final
+       edits ko asli PDF coordinates par draw karta hai. -->
+  <div id="pdf-edit-page" class="download-page">
+
+    <button class="back-btn" onclick="showPdfTools()">← PDF Tools</button>
+
+    <div class="editor-page-banner">
+      <div class="dl-banner-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4z"/></svg></div>
+      <div>
+        <h2>Edit PDF</h2>
+        <p>PDF upload karo, text/image daalo — click karke place karo, drag karke position set karo</p>
+      </div>
+    </div>
+
+    <div id="pdfe-upload-zone" class="editor-upload-zone" onclick="document.getElementById('pdfe-file-input').click()">
+      <input type="file" id="pdfe-file-input" accept="application/pdf,.pdf" style="display:none;" onchange="handlePdfeFileSelect(event)" />
+      <div class="editor-upload-icon"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/></svg></div>
+      <p class="editor-upload-text">Ek PDF file upload karo</p>
+      <p class="editor-upload-hint">PDF — max 30MB</p>
+    </div>
+
+    <div class="pg-thinking" id="pdfe-load-thinking">
+      <span class="pg-dot"></span><span class="pg-dot"></span><span class="pg-dot"></span>
+      PDF load ho raha hai...
+    </div>
+
+    <div id="pdfe-editor-body" style="display:none;">
+      <div class="pdfe-toolbar">
+        <button type="button" class="pdfe-tool-btn" id="pdfe-add-text-btn" onclick="pdfeStartAddText()"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>Text Daalo</button>
+        <button type="button" class="pdfe-tool-btn" onclick="document.getElementById('pdfe-image-input').click()"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>Image Daalo</button>
+        <input type="file" id="pdfe-image-input" accept="image/png,image/jpeg" style="display:none;" onchange="pdfeHandleImageSelect(event)" />
+        <span class="pdfe-hint" id="pdfe-mode-hint"></span>
+        <div style="flex:1;"></div>
+        <button type="button" class="dl-btn dl-btn-gray" onclick="resetPdfEdit()">Doosri PDF upload karo</button>
+        <button type="button" class="dl-btn dl-btn-green" id="pdfe-save-btn" onclick="savePdfEdit()"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:4px;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>Save &amp; Preview</button>
+      </div>
+
+      <div class="pg-thinking fc-progress-thinking" id="pdfe-save-thinking">
+        <div class="fc-progress-row">
+          <span class="pg-dot"></span><span class="pg-dot"></span><span class="pg-dot"></span>
+          <span id="pdfe-save-thinking-text">Save ho raha hai...</span>
+          <span class="fc-progress-pct" id="pdfe-save-pct">0%</span>
+        </div>
+        <div class="fc-progress-track"><div class="fc-progress-fill" id="pdfe-save-progress-fill"></div></div>
+      </div>
+
+      <div id="pdfe-pages-container" class="pdfe-pages-container"></div>
+    </div>
+
+  </div>
+
 </main>
 
 <div class="toast" id="toast"></div>
@@ -2316,6 +2544,8 @@
     document.getElementById('video-editor-page').classList.remove('show');
     document.getElementById('file-converter-page').classList.remove('show');
     document.getElementById('media-converter-page').classList.remove('show');
+    document.getElementById('pdf-tools-page').classList.remove('show');
+    document.getElementById('pdf-edit-page').classList.remove('show');
     stopSearchPlayer();
   }
 
@@ -2331,6 +2561,8 @@
     document.getElementById('video-editor-page').classList.remove('show');
     document.getElementById('file-converter-page').classList.remove('show');
     document.getElementById('media-converter-page').classList.remove('show');
+    document.getElementById('pdf-tools-page').classList.remove('show');
+    document.getElementById('pdf-edit-page').classList.remove('show');
     stopSearchPlayer();
     document.getElementById('header-user').style.display = 'none';
   }
@@ -2345,6 +2577,8 @@
     document.getElementById('video-editor-page').classList.remove('show');
     document.getElementById('file-converter-page').classList.remove('show');
     document.getElementById('media-converter-page').classList.remove('show');
+    document.getElementById('pdf-tools-page').classList.remove('show');
+    document.getElementById('pdf-edit-page').classList.remove('show');
     stopSearchPlayer();
     stopMedia(document.getElementById('dl-preview-video'));
     stopMedia(document.getElementById('dl-preview-audio'));
@@ -2396,6 +2630,8 @@
     document.getElementById('video-editor-page').classList.remove('show');
     document.getElementById('file-converter-page').classList.remove('show');
     document.getElementById('media-converter-page').classList.remove('show');
+    document.getElementById('pdf-tools-page').classList.remove('show');
+    document.getElementById('pdf-edit-page').classList.remove('show');
     stopSearchPlayer();
     document.getElementById('auth-view').style.display = 'none';
     document.getElementById('app-view').style.display = 'block';
@@ -2419,6 +2655,8 @@
     document.getElementById('video-editor-page').classList.remove('show');
     document.getElementById('file-converter-page').classList.remove('show');
     document.getElementById('media-converter-page').classList.remove('show');
+    document.getElementById('pdf-tools-page').classList.remove('show');
+    document.getElementById('pdf-edit-page').classList.remove('show');
     stopSearchPlayer();
     document.getElementById('docs-page').classList.add('show');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -2437,6 +2675,8 @@
     document.getElementById('video-editor-page').classList.remove('show');
     document.getElementById('file-converter-page').classList.remove('show');
     document.getElementById('media-converter-page').classList.remove('show');
+    document.getElementById('pdf-tools-page').classList.remove('show');
+    document.getElementById('pdf-edit-page').classList.remove('show');
     stopSearchPlayer();
     document.getElementById('settings-page').classList.add('show');
     updateSettingsThemeButtons();
@@ -2962,6 +3202,8 @@
     document.getElementById('video-editor-page').classList.remove('show');
     document.getElementById('file-converter-page').classList.remove('show');
     document.getElementById('media-converter-page').classList.remove('show');
+    document.getElementById('pdf-tools-page').classList.remove('show');
+    document.getElementById('pdf-edit-page').classList.remove('show');
     stopSearchPlayer();
     document.getElementById('playground-page').classList.add('show');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -3291,6 +3533,8 @@
     document.getElementById('video-editor-page').classList.remove('show');
     document.getElementById('file-converter-page').classList.remove('show');
     document.getElementById('media-converter-page').classList.remove('show');
+    document.getElementById('pdf-tools-page').classList.remove('show');
+    document.getElementById('pdf-edit-page').classList.remove('show');
     document.getElementById('search-page').classList.add('show');
     const ytTab = document.querySelector('.splat-tab[data-plat="youtube"]');
     if (ytTab) setSearchPlatform('youtube', ytTab);
@@ -3330,6 +3574,8 @@
     document.getElementById('search-page').classList.remove('show');
     document.getElementById('video-editor-page').classList.remove('show');
     document.getElementById('media-converter-page').classList.remove('show');
+    document.getElementById('pdf-tools-page').classList.remove('show');
+    document.getElementById('pdf-edit-page').classList.remove('show');
     document.getElementById('file-converter-page').classList.add('show');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -3347,8 +3593,51 @@
     document.getElementById('search-page').classList.remove('show');
     document.getElementById('video-editor-page').classList.remove('show');
     document.getElementById('file-converter-page').classList.remove('show');
+    document.getElementById('pdf-tools-page').classList.remove('show');
+    document.getElementById('pdf-edit-page').classList.remove('show');
     document.getElementById('media-converter-page').classList.add('show');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  window.showPdfTools = () => {
+    closeSidebar();
+    if (!(currentUser && authToken)) { showAuth(); showToast('Pehle login karo','error'); return; }
+    logVisit('pdf_tools_page');
+    document.getElementById('auth-view').style.display = 'none';
+    document.getElementById('app-view').style.display = 'none';
+    document.getElementById('download-page').classList.remove('show');
+    document.getElementById('docs-page').classList.remove('show');
+    document.getElementById('settings-page').classList.remove('show');
+    document.getElementById('playground-page').classList.remove('show');
+    document.getElementById('search-page').classList.remove('show');
+    document.getElementById('video-editor-page').classList.remove('show');
+    document.getElementById('file-converter-page').classList.remove('show');
+    document.getElementById('media-converter-page').classList.remove('show');
+    document.getElementById('pdf-edit-page').classList.remove('show');
+    document.getElementById('pdf-tools-page').classList.add('show');
+    pdftShowGrid();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  window.showPdfEdit = () => {
+    closeSidebar();
+    if (!(currentUser && authToken)) { showAuth(); showToast('Pehle login karo','error'); return; }
+    logVisit('pdf_edit_page');
+    document.getElementById('auth-view').style.display = 'none';
+    document.getElementById('app-view').style.display = 'none';
+    document.getElementById('download-page').classList.remove('show');
+    document.getElementById('docs-page').classList.remove('show');
+    document.getElementById('settings-page').classList.remove('show');
+    document.getElementById('playground-page').classList.remove('show');
+    document.getElementById('search-page').classList.remove('show');
+    document.getElementById('video-editor-page').classList.remove('show');
+    document.getElementById('file-converter-page').classList.remove('show');
+    document.getElementById('media-converter-page').classList.remove('show');
+    document.getElementById('pdf-tools-page').classList.remove('show');
+    document.getElementById('pdf-edit-page').classList.add('show');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    resetPdfEdit();
+    loadPdfJs().catch(() => {}); // preload — asli error handling upload-time pe hoti hai
   };
 
   // ════════════════════════════════
@@ -3609,6 +3898,585 @@
     }
   };
   const AUDIO_FORMATS_CLIENT = { mp3:1, m4a:1, wav:1, flac:1, opus:1 };
+
+  // ════════════════════════════════
+  //  PDF TOOLS — Merge/Split/Compress/Convert, ek hi config-driven generic
+  //  workspace reuse karte hain (9 tools mein sirf endpoint/labels/accept
+  //  badalta hai, baaki upload->progress->result flow bilkul same hai).
+  //  Edit PDF is a card yahan bhi hai, par wo showPdfEdit() se apna alag
+  //  page kholta hai (visual canvas editor, is generic flow mein fit nahi hota).
+  // ════════════════════════════════
+  const PDFT_TOOLS = {
+    merge: { endpoint: '/api/pdf-tools/merge', field: 'files', multiple: true, minFiles: 2,
+      accept: 'application/pdf,.pdf', badge: 'PDF', badgeColor: '#e63946', title: 'Merge PDF',
+      desc: 'Do ya zyada PDF files ko ek hi PDF mein jod do.', uploadText: 'PDF files upload karo (kam se kam 2)',
+      uploadHint: 'PDF — ek file max 30MB, max 10 files', actionLabel: 'Merge Karo', outputKind: 'pdf' },
+    split: { endpoint: '/api/pdf-tools/split', field: 'file', multiple: false, minFiles: 1,
+      accept: 'application/pdf,.pdf', badge: 'PDF', badgeColor: '#e63946', title: 'Split PDF',
+      desc: 'Har page ko apni alag PDF file bana do.', uploadText: 'Ek PDF file upload karo',
+      uploadHint: 'PDF — max 30MB, kam se kam 2 pages honi chahiye', actionLabel: 'Split Karo', outputKind: 'zip' },
+    compress: { endpoint: '/api/pdf-tools/compress', field: 'file', multiple: false, minFiles: 1,
+      accept: 'application/pdf,.pdf', badge: 'PDF', badgeColor: '#16a34a', title: 'Compress PDF',
+      desc: 'File size chhota karo.', uploadText: 'Ek PDF file upload karo',
+      uploadHint: 'PDF — max 30MB', actionLabel: 'Compress Karo', outputKind: 'pdf' },
+    'pdf-to-word': { endpoint: '/api/pdf-tools/pdf-to-word', field: 'file', multiple: false, minFiles: 1,
+      accept: 'application/pdf,.pdf', badge: 'PDF', badgeColor: '#e63946', title: 'PDF to Word',
+      desc: 'PDF ka text nikaal ke DOCX bana do.', uploadText: 'Ek PDF file upload karo',
+      uploadHint: 'PDF — max 30MB', actionLabel: 'Word Mein Convert Karo', outputKind: 'docx' },
+    'pdf-to-pptx': { endpoint: '/api/pdf-tools/pdf-to-pptx', field: 'file', multiple: false, minFiles: 1,
+      accept: 'application/pdf,.pdf', badge: 'PDF', badgeColor: '#e63946', title: 'PDF to PowerPoint',
+      desc: 'Har page apni slide ban jaati hai.', uploadText: 'Ek PDF file upload karo',
+      uploadHint: 'PDF — max 30MB', actionLabel: 'PowerPoint Mein Convert Karo', outputKind: 'pptx' },
+    'pdf-to-excel': { endpoint: '/api/pdf-tools/pdf-to-excel', field: 'file', multiple: false, minFiles: 1,
+      accept: 'application/pdf,.pdf', badge: 'PDF', badgeColor: '#e63946', title: 'PDF to Excel',
+      desc: 'PDF ka content Excel rows mein nikaal do.', uploadText: 'Ek PDF file upload karo',
+      uploadHint: 'PDF — max 30MB', actionLabel: 'Excel Mein Convert Karo', outputKind: 'xlsx' },
+    'word-to-pdf': { endpoint: '/api/pdf-tools/word-to-pdf', field: 'file', multiple: false, minFiles: 1,
+      accept: '.docx', badge: 'DOC', badgeColor: '#2b579a', title: 'Word to PDF',
+      desc: 'DOCX ko PDF bana do.', uploadText: 'Ek DOCX file upload karo',
+      uploadHint: 'DOCX — max 30MB', actionLabel: 'PDF Mein Convert Karo', outputKind: 'pdf' },
+    'pptx-to-pdf': { endpoint: '/api/pdf-tools/pptx-to-pdf', field: 'file', multiple: false, minFiles: 1,
+      accept: '.pptx', badge: 'PPT', badgeColor: '#d24726', title: 'PowerPoint to PDF',
+      desc: 'PPTX ko PDF bana do.', uploadText: 'Ek PPTX file upload karo',
+      uploadHint: 'PPTX — max 30MB', actionLabel: 'PDF Mein Convert Karo', outputKind: 'pdf' },
+    'excel-to-pdf': { endpoint: '/api/pdf-tools/excel-to-pdf', field: 'file', multiple: false, minFiles: 1,
+      accept: '.xlsx', badge: 'XLS', badgeColor: '#217346', title: 'Excel to PDF',
+      desc: 'XLSX ko PDF bana do.', uploadText: 'Ek XLSX file upload karo',
+      uploadHint: 'XLSX — max 30MB', actionLabel: 'PDF Mein Convert Karo', outputKind: 'pdf' },
+  };
+
+  let pdftCurrentTool = null;
+  let pdftQueuedFiles = [];
+  let pdftZipObjectUrl = null;
+
+  window.pdftFilterCategory = (cat, btnEl) => {
+    document.getElementById('pdft-cat-row').querySelectorAll('.pdft-cat-chip').forEach(c => c.classList.remove('active'));
+    btnEl.classList.add('active');
+    document.getElementById('pdft-tool-grid').querySelectorAll('.pdft-tool-card').forEach(card => {
+      card.style.display = (cat === 'all' || card.dataset.cat === cat) ? '' : 'none';
+    });
+  };
+
+  window.pdftShowGrid = () => {
+    document.getElementById('pdft-grid-view').style.display = 'block';
+    document.getElementById('pdft-workspace').style.display = 'none';
+  };
+
+  window.pdftOpenTool = (key) => {
+    const cfg = PDFT_TOOLS[key];
+    if (!cfg) return;
+    pdftCurrentTool = key;
+    pdftQueuedFiles = [];
+    document.getElementById('pdft-grid-view').style.display = 'none';
+    document.getElementById('pdft-workspace').style.display = 'block';
+    document.getElementById('pdft-ws-icon').innerHTML = `<span style="font-weight:800; font-size:11px; color:${cfg.badgeColor};">${cfg.badge}</span>`;
+    document.getElementById('pdft-ws-title').textContent = cfg.title;
+    document.getElementById('pdft-ws-desc').textContent = cfg.desc;
+    document.getElementById('pdft-upload-text').textContent = cfg.uploadText;
+    document.getElementById('pdft-upload-hint').textContent = cfg.uploadHint;
+    document.getElementById('pdft-action-btn').textContent = cfg.actionLabel;
+    document.getElementById('pdft-action-btn').disabled = true;
+    document.getElementById('pdft-action-hint').textContent = cfg.outputKind === 'zip'
+      ? 'ZIP file seedha download ho jaayegi'
+      : 'File "canvas" mein khulegi — wahin se download bhi kar sakte ho';
+    const input = document.getElementById('pdft-file-input');
+    input.accept = cfg.accept;
+    input.multiple = cfg.multiple;
+    input.value = '';
+    document.getElementById('pdft-file-list-wrap').style.display = 'none';
+    document.getElementById('pdft-file-list').innerHTML = '';
+    document.getElementById('pdft-result').style.display = 'none';
+    document.getElementById('pdft-thinking').classList.remove('active');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  function pdftFileIconLabel(name) {
+    return (name.split('.').pop() || '').toUpperCase().slice(0, 3);
+  }
+  function pdftFormatBytes(bytes) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  }
+
+  function pdftUpdateActionState() {
+    const cfg = PDFT_TOOLS[pdftCurrentTool];
+    document.getElementById('pdft-action-btn').disabled = pdftQueuedFiles.length < (cfg.minFiles || 1);
+  }
+
+  function pdftRenderFileList() {
+    const wrap = document.getElementById('pdft-file-list-wrap');
+    const list = document.getElementById('pdft-file-list');
+    list.innerHTML = '';
+    if (!pdftQueuedFiles.length) { wrap.style.display = 'none'; pdftUpdateActionState(); return; }
+    wrap.style.display = 'block';
+    pdftQueuedFiles.forEach((file, i) => {
+      const row = document.createElement('div');
+      row.className = 'pdft-file-row';
+      row.innerHTML = `<span class="pdft-file-row-icon">${escapeHtml(pdftFileIconLabel(file.name))}</span><span class="pdft-file-row-name">${escapeHtml(file.name)}</span><span class="pdft-file-row-size">${pdftFormatBytes(file.size)}</span><button type="button" class="pdft-file-row-remove" onclick="removePdftFile(${i})">×</button>`;
+      list.appendChild(row);
+    });
+    pdftUpdateActionState();
+  }
+
+  window.removePdftFile = (index) => {
+    pdftQueuedFiles.splice(index, 1);
+    pdftRenderFileList();
+  };
+
+  // Upload zone hamesha clickable rehta hai — single-file tools mein nayi
+  // selection purani ko replace karti hai, merge (multiple) mein naye files
+  // list mein jud jaate hain taaki ek-ek karke bhi PDFs add kar sako.
+  window.handlePdftFileSelect = (event) => {
+    const cfg = PDFT_TOOLS[pdftCurrentTool];
+    const files = Array.from(event.target.files || []);
+    event.target.value = '';
+    if (!files.length) return;
+    pdftQueuedFiles = cfg.multiple ? pdftQueuedFiles.concat(files).slice(0, 10) : [files[0]];
+    pdftRenderFileList();
+  };
+
+  let pdftProgressTimer = null;
+  function pdftStartProgress(estimatedMs) {
+    clearInterval(pdftProgressTimer);
+    const fill = document.getElementById('pdft-progress-fill');
+    const pct = document.getElementById('pdft-pct');
+    fill.style.width = '0%'; pct.textContent = '0%';
+    const start = Date.now();
+    pdftProgressTimer = setInterval(() => {
+      const elapsed = Date.now() - start;
+      const shown = Math.min(92, Math.round(92 * (1 - Math.exp(-elapsed / estimatedMs))));
+      fill.style.width = `${shown}%`; pct.textContent = `${shown}%`;
+    }, 120);
+  }
+  function pdftFinishProgress() {
+    clearInterval(pdftProgressTimer);
+    pdftProgressTimer = null;
+    document.getElementById('pdft-progress-fill').style.width = '100%';
+    document.getElementById('pdft-pct').textContent = '100%';
+  }
+
+  window.runPdftTool = async () => {
+    const cfg = PDFT_TOOLS[pdftCurrentTool];
+    if (!cfg || pdftQueuedFiles.length < (cfg.minFiles || 1)) { showToast('Pehle file(s) upload karo', 'error'); return; }
+
+    const btn = document.getElementById('pdft-action-btn');
+    btn.disabled = true;
+    document.getElementById('pdft-result').style.display = 'none';
+    document.getElementById('pdft-thinking-text').textContent = `${cfg.title} ho raha hai...`;
+    document.getElementById('pdft-thinking').classList.add('active');
+    pdftStartProgress(Math.max(1500, pdftQueuedFiles.length * 1200));
+
+    const fd = new FormData();
+    if (cfg.multiple) pdftQueuedFiles.forEach(f => fd.append(cfg.field, f));
+    else fd.append(cfg.field, pdftQueuedFiles[0]);
+
+    try {
+      const res = await fetch(`${BACKEND}${cfg.endpoint}`, { method: 'POST', headers: { Authorization: `Bearer ${authToken}` }, body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || 'Kaam nahi ho paya');
+
+      const fullUrl = data.fileUrl.startsWith('http') ? data.fileUrl : `${BACKEND}${data.fileUrl}`;
+      const fileRes = await fetch(fullUrl);
+      if (!fileRes.ok) throw new Error(`HTTP ${fileRes.status}`);
+      const blob = await fileRes.blob();
+      pdftFinishProgress();
+      await new Promise(r => setTimeout(r, 300));
+
+      if (cfg.outputKind === 'zip') {
+        if (pdftZipObjectUrl) URL.revokeObjectURL(pdftZipObjectUrl);
+        pdftZipObjectUrl = URL.createObjectURL(blob);
+        document.getElementById('pdft-result-label').textContent = 'Split Ho Gaya!';
+        document.getElementById('pdft-result-stats').textContent = `${data.pageCount} pages — har ek apni alag PDF file, ek ZIP mein.`;
+        const dlLink = document.getElementById('pdft-download-link');
+        dlLink.href = pdftZipObjectUrl;
+        dlLink.download = data.filename;
+        document.getElementById('pdft-result').style.display = 'block';
+        document.getElementById('pdft-result').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        window.pgOpenGeneratedFileModal(cfg.outputKind, data.filename, blob);
+      }
+
+      if (pdftCurrentTool === 'compress' && typeof data.originalSize === 'number' && typeof data.compressedSize === 'number') {
+        const savedPct = data.originalSize > 0 ? Math.round((1 - data.compressedSize / data.originalSize) * 100) : 0;
+        showToast(savedPct > 0 ? `${pdftFormatBytes(data.originalSize)} → ${pdftFormatBytes(data.compressedSize)} (${savedPct}% chhota) ✓` : 'Compress ho gaya, is PDF mein zyada structural overhead nahi tha ✓', 'success');
+      } else {
+        showToast(`${cfg.title} ho gaya! ✓`, 'success');
+      }
+    } catch (e) {
+      showToast(e.message || 'Kaam nahi ho paya', 'error');
+    } finally {
+      pdftUpdateActionState();
+      document.getElementById('pdft-thinking').classList.remove('active');
+    }
+  };
+
+  // ════════════════════════════════
+  //  EDIT PDF — pdf.js (CDN, lazy-loaded) se pages render karte hain, phir
+  //  har page canvas ke upar draggable/resizable text-ya-image overlays
+  //  daalte hain. "Save & Preview" un overlays ki final pixel-position ko
+  //  PDF point-coordinates mein convert karke /api/pdf-tools/edit ko bhejta
+  //  hai, jo pdf-lib se asli PDF par draw karta hai.
+  // ════════════════════════════════
+  const PDFJS_CDN_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174';
+  let pdfjsLoadPromise = null;
+  function loadPdfJs() {
+    if (window.pdfjsLib) return Promise.resolve();
+    if (pdfjsLoadPromise) return pdfjsLoadPromise;
+    pdfjsLoadPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = `${PDFJS_CDN_BASE}/pdf.min.js`;
+      script.onload = () => {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = `${PDFJS_CDN_BASE}/pdf.worker.min.js`;
+        resolve();
+      };
+      script.onerror = () => { pdfjsLoadPromise = null; reject(new Error('PDF editor library load nahi ho payi — internet check karo')); };
+      document.head.appendChild(script);
+    });
+    return pdfjsLoadPromise;
+  }
+
+  let pdfeFile = null, pdfeDoc = null, pdfeMode = null;
+  let pdfePendingImageDataUrl = null, pdfePendingImageNatural = null;
+
+  window.resetPdfEdit = () => {
+    pdfeFile = null; pdfeDoc = null; pdfeMode = null;
+    pdfePendingImageDataUrl = null; pdfePendingImageNatural = null;
+    document.getElementById('pdfe-pages-container').innerHTML = '';
+    document.getElementById('pdfe-editor-body').style.display = 'none';
+    document.getElementById('pdfe-upload-zone').style.display = '';
+    document.getElementById('pdfe-file-input').value = '';
+    document.getElementById('pdfe-image-input').value = '';
+    document.getElementById('pdfe-add-text-btn').classList.remove('active');
+    document.getElementById('pdfe-mode-hint').textContent = '';
+  };
+
+  window.handlePdfeFileSelect = async (event) => {
+    const file = event.target.files[0];
+    event.target.value = '';
+    if (!file) return;
+    if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name)) { showToast('Sirf PDF file allowed hai', 'error'); return; }
+    if (file.size > 30 * 1024 * 1024) { showToast('File bahut badi hai (max 30MB)', 'error'); return; }
+
+    pdfeFile = file;
+    document.getElementById('pdfe-upload-zone').style.display = 'none';
+    document.getElementById('pdfe-load-thinking').classList.add('active');
+    try {
+      await loadPdfJs();
+      const arrayBuf = await file.arrayBuffer();
+      pdfeDoc = await window.pdfjsLib.getDocument({ data: new Uint8Array(arrayBuf) }).promise;
+      await pdfeRenderAllPages();
+      document.getElementById('pdfe-editor-body').style.display = 'block';
+    } catch (e) {
+      showToast(e.message || 'PDF load nahi ho payi. Kya ye ek valid PDF hai?', 'error');
+      document.getElementById('pdfe-upload-zone').style.display = '';
+      pdfeFile = null;
+    } finally {
+      document.getElementById('pdfe-load-thinking').classList.remove('active');
+    }
+  };
+
+  async function pdfeRenderAllPages() {
+    const container = document.getElementById('pdfe-pages-container');
+    container.innerHTML = '';
+    const maxWidth = Math.min(800, (document.getElementById('pdf-edit-page').clientWidth - 40) || 800);
+    for (let i = 1; i <= pdfeDoc.numPages; i++) {
+      const page = await pdfeDoc.getPage(i);
+      const nativeViewport = page.getViewport({ scale: 1 });
+      const renderScale = Math.min(1.6, maxWidth / nativeViewport.width);
+      const viewport = page.getViewport({ scale: renderScale });
+
+      const wrap = document.createElement('div');
+      wrap.className = 'pdfe-page-wrap';
+      wrap.dataset.page = String(i - 1);
+      wrap.dataset.renderScale = String(renderScale);
+      wrap.style.width = `${viewport.width}px`;
+      wrap.style.height = `${viewport.height}px`;
+
+      const pageNum = document.createElement('div');
+      pageNum.className = 'pdfe-page-num';
+      pageNum.textContent = `Page ${i}`;
+      wrap.appendChild(pageNum);
+
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      wrap.appendChild(canvas);
+
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+      canvas.addEventListener('click', (e) => pdfePageClick(e, wrap));
+      container.appendChild(wrap);
+    }
+  }
+
+  window.pdfeStartAddText = () => {
+    pdfeMode = pdfeMode === 'text' ? null : 'text';
+    document.getElementById('pdfe-add-text-btn').classList.toggle('active', pdfeMode === 'text');
+    document.getElementById('pdfe-mode-hint').textContent = pdfeMode === 'text' ? 'Kisi bhi page par click karo text daalne ke liye' : '';
+  };
+
+  window.pdfeHandleImageSelect = (event) => {
+    const file = event.target.files[0];
+    event.target.value = '';
+    if (!file) return;
+    if (file.type !== 'image/png' && file.type !== 'image/jpeg') { showToast('Sirf PNG/JPEG images allowed hain', 'error'); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result);
+      const img = new Image();
+      img.onload = () => {
+        pdfePendingImageDataUrl = dataUrl;
+        pdfePendingImageNatural = { width: img.naturalWidth, height: img.naturalHeight };
+        pdfeMode = 'image';
+        document.getElementById('pdfe-mode-hint').textContent = 'Kisi bhi page par click karo image daalne ke liye';
+      };
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  function pdfePageClick(e, wrap) {
+    if (!pdfeMode) return;
+    const rect = wrap.getBoundingClientRect();
+    const x = e.clientX - rect.left, y = e.clientY - rect.top;
+    if (pdfeMode === 'text') {
+      pdfeAddTextItem(wrap, x, y);
+    } else if (pdfeMode === 'image') {
+      pdfeAddImageItem(wrap, x, y);
+      pdfePendingImageDataUrl = null;
+    }
+    pdfeMode = null;
+    document.getElementById('pdfe-add-text-btn').classList.remove('active');
+    document.getElementById('pdfe-mode-hint').textContent = '';
+  }
+
+  function pdfeMakeRemoveBtn(itemEl) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pdfe-remove';
+    btn.textContent = '×';
+    btn.onmousedown = (ev) => ev.stopPropagation();
+    btn.onclick = (ev) => { ev.stopPropagation(); itemEl.remove(); };
+    return btn;
+  }
+
+  // Chhota drag threshold (3px) rakha hai taaki text overlay par ek plain
+  // click (edit karne ke liye focus/caret placement) drag na trigger kare —
+  // sirf genuine mouse-movement hi position change karta hai.
+  function pdfeMakeDraggable(itemEl, wrap) {
+    const content = itemEl.querySelector('.pdfe-text-content, .pdfe-image-content');
+    content.addEventListener('mousedown', (e) => {
+      const startX = e.clientX, startY = e.clientY;
+      const startLeft = parseFloat(itemEl.style.left) || 0;
+      const startTop = parseFloat(itemEl.style.top) || 0;
+      function onMove(ev2) {
+        const dx = ev2.clientX - startX, dy = ev2.clientY - startY;
+        if (Math.hypot(dx, dy) < 3) return;
+        let newLeft = startLeft + dx, newTop = startTop + dy;
+        newLeft = Math.max(0, Math.min(wrap.clientWidth - itemEl.offsetWidth, newLeft));
+        newTop = Math.max(0, Math.min(wrap.clientHeight - itemEl.offsetHeight, newTop));
+        itemEl.style.left = `${newLeft}px`;
+        itemEl.style.top = `${newTop}px`;
+      }
+      function onUp() {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  }
+
+  function pdfeMakeResizable(itemEl, wrap, aspectRatio) {
+    const handle = document.createElement('div');
+    handle.className = 'pdfe-resize-handle';
+    itemEl.appendChild(handle);
+    handle.addEventListener('mousedown', (e) => {
+      e.stopPropagation(); e.preventDefault();
+      const startX = e.clientX;
+      const startW = itemEl.offsetWidth;
+      const leftPx = parseFloat(itemEl.style.left) || 0;
+      function onMove(ev2) {
+        const dx = ev2.clientX - startX;
+        let newW = Math.max(20, startW + dx);
+        newW = Math.min(newW, wrap.clientWidth - leftPx);
+        itemEl.style.width = `${newW}px`;
+        itemEl.style.height = `${newW / aspectRatio}px`;
+      }
+      function onUp() {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  }
+
+  function pdfePlaceCaretAtEnd(el) {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(false);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  function pdfeAddTextItem(wrap, x, y) {
+    const item = document.createElement('div');
+    item.className = 'pdfe-item pdfe-item-text';
+    item.style.left = `${x}px`;
+    item.style.top = `${y}px`;
+    item.dataset.fontSize = '18';
+    item.dataset.color = '#ff0000';
+
+    const content = document.createElement('div');
+    content.className = 'pdfe-text-content';
+    content.contentEditable = 'true';
+    content.textContent = 'Naya Text';
+    content.style.fontSize = '18px';
+    content.style.color = '#ff0000';
+    item.appendChild(content);
+
+    const miniToolbar = document.createElement('div');
+    miniToolbar.className = 'pdfe-mini-toolbar';
+    miniToolbar.innerHTML = `<button type="button" class="pdfe-mini-btn" onmousedown="event.preventDefault()" onclick="pdfeChangeFontSize(this,-2)">−</button><span class="pdfe-mini-size-label">18</span><button type="button" class="pdfe-mini-btn" onmousedown="event.preventDefault()" onclick="pdfeChangeFontSize(this,2)">+</button><input type="color" class="pdfe-mini-color" value="#ff0000" onmousedown="event.stopPropagation()" oninput="pdfeChangeColor(this)" />`;
+    item.appendChild(miniToolbar);
+    item.appendChild(pdfeMakeRemoveBtn(item));
+
+    wrap.appendChild(item);
+    pdfeMakeDraggable(item, wrap);
+    content.focus();
+    pdfePlaceCaretAtEnd(content);
+  }
+
+  window.pdfeChangeFontSize = (btnEl, delta) => {
+    const item = btnEl.closest('.pdfe-item');
+    const content = item.querySelector('.pdfe-text-content');
+    const label = item.querySelector('.pdfe-mini-size-label');
+    const size = Math.max(8, Math.min(96, (parseInt(item.dataset.fontSize, 10) || 18) + delta));
+    item.dataset.fontSize = String(size);
+    content.style.fontSize = `${size}px`;
+    label.textContent = String(size);
+  };
+  window.pdfeChangeColor = (inputEl) => {
+    const item = inputEl.closest('.pdfe-item');
+    item.dataset.color = inputEl.value;
+    item.querySelector('.pdfe-text-content').style.color = inputEl.value;
+  };
+
+  function pdfeAddImageItem(wrap, x, y) {
+    const naturalW = pdfePendingImageNatural.width, naturalH = pdfePendingImageNatural.height;
+    const w = Math.min(160, wrap.clientWidth * 0.4, naturalW);
+    const h = w * (naturalH / naturalW);
+
+    const item = document.createElement('div');
+    item.className = 'pdfe-item pdfe-item-image';
+    item.style.left = `${x}px`;
+    item.style.top = `${y}px`;
+    item.style.width = `${w}px`;
+    item.style.height = `${h}px`;
+    item.dataset.imageData = pdfePendingImageDataUrl;
+
+    const img = document.createElement('img');
+    img.className = 'pdfe-image-content';
+    img.src = pdfePendingImageDataUrl;
+    item.appendChild(img);
+    item.appendChild(pdfeMakeRemoveBtn(item));
+
+    wrap.appendChild(item);
+    pdfeMakeDraggable(item, wrap);
+    pdfeMakeResizable(item, wrap, naturalW / naturalH);
+  }
+
+  let pdfeProgressTimer = null;
+  function pdfeStartSaveProgress(estimatedMs) {
+    clearInterval(pdfeProgressTimer);
+    const fill = document.getElementById('pdfe-save-progress-fill');
+    const pct = document.getElementById('pdfe-save-pct');
+    fill.style.width = '0%'; pct.textContent = '0%';
+    const start = Date.now();
+    pdfeProgressTimer = setInterval(() => {
+      const shown = Math.min(92, Math.round(92 * (1 - Math.exp(-(Date.now() - start) / estimatedMs))));
+      fill.style.width = `${shown}%`; pct.textContent = `${shown}%`;
+    }, 120);
+  }
+  function pdfeFinishSaveProgress() {
+    clearInterval(pdfeProgressTimer);
+    pdfeProgressTimer = null;
+    document.getElementById('pdfe-save-progress-fill').style.width = '100%';
+    document.getElementById('pdfe-save-pct').textContent = '100%';
+  }
+
+  function pdfeFileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result).split(',')[1]);
+      reader.onerror = () => reject(new Error('File read nahi ho payi'));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  window.savePdfEdit = async () => {
+    const container = document.getElementById('pdfe-pages-container');
+    const edits = [];
+    container.querySelectorAll('.pdfe-page-wrap').forEach(wrap => {
+      const pageIndex = parseInt(wrap.dataset.page, 10);
+      const renderScale = parseFloat(wrap.dataset.renderScale);
+      const canvasHeightPx = wrap.querySelector('canvas').height;
+      wrap.querySelectorAll('.pdfe-item').forEach(item => {
+        const leftPx = parseFloat(item.style.left) || 0;
+        const topPx = parseFloat(item.style.top) || 0;
+        const xPt = leftPx / renderScale;
+
+        if (item.classList.contains('pdfe-item-text')) {
+          const text = item.querySelector('.pdfe-text-content').textContent.trim();
+          if (!text) return;
+          const fontSizePt = (parseInt(item.dataset.fontSize, 10) || 18) / renderScale;
+          // Overlay ka top-pixel PDF ke top se measure hota hai, par drawText
+          // bottom-left origin + baseline expect karta hai — isliye page height
+          // se subtract karke ulta karte hain, aur baseline ko approx font-size
+          // jitna neeche shift karte hain (Helvetica ka ascent ~= font size).
+          const yPt = (canvasHeightPx / renderScale) - (topPx / renderScale) - fontSizePt;
+          edits.push({ page: pageIndex, type: 'text', x: xPt, y: yPt, text, fontSize: fontSizePt, color: item.dataset.color || '#ff0000' });
+        } else {
+          const wPt = item.offsetWidth / renderScale, hPt = item.offsetHeight / renderScale;
+          const yPt = (canvasHeightPx / renderScale) - (topPx / renderScale) - hPt;
+          edits.push({ page: pageIndex, type: 'image', x: xPt, y: yPt, width: wPt, height: hPt, imageData: item.dataset.imageData });
+        }
+      });
+    });
+
+    if (!edits.length) { showToast('Kam se kam ek text ya image daalo', 'error'); return; }
+
+    const btn = document.getElementById('pdfe-save-btn');
+    btn.disabled = true;
+    document.getElementById('pdfe-save-thinking').classList.add('active');
+    pdfeStartSaveProgress(Math.max(1500, edits.length * 400));
+    try {
+      const pdfBase64 = await pdfeFileToBase64(pdfeFile);
+      const res = await fetch(`${BACKEND}/api/pdf-tools/edit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({ pdfBase64, edits }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || 'Save nahi ho paya');
+
+      const fullUrl = data.fileUrl.startsWith('http') ? data.fileUrl : `${BACKEND}${data.fileUrl}`;
+      const fileRes = await fetch(fullUrl);
+      if (!fileRes.ok) throw new Error(`HTTP ${fileRes.status}`);
+      const blob = await fileRes.blob();
+      pdfeFinishSaveProgress();
+      await new Promise(r => setTimeout(r, 300));
+      window.pgOpenGeneratedFileModal('pdf', data.filename, blob);
+      showToast('PDF save ho gayi! ✓', 'success');
+    } catch (e) {
+      showToast(e.message || 'Save nahi ho paya', 'error');
+    } finally {
+      btn.disabled = false;
+      document.getElementById('pdfe-save-thinking').classList.remove('active');
+    }
+  };
 
   let editorSelectedEffect = 'none';
   let editorTextX = 50, editorTextY = 90; // percentage of video width/height — text ka center
@@ -4695,6 +5563,8 @@
     document.getElementById('video-editor-page').classList.remove('show');
     document.getElementById('file-converter-page').classList.remove('show');
     document.getElementById('media-converter-page').classList.remove('show');
+    document.getElementById('pdf-tools-page').classList.remove('show');
+    document.getElementById('pdf-edit-page').classList.remove('show');
     stopSearchPlayer();
 
     const panel = document.getElementById('dl-bell-panel');

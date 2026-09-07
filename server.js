@@ -25,6 +25,7 @@ const PDFDocument = require('pdfkit');
 const { Document: DocxDocument, Packer: DocxPacker, Paragraph: DocxParagraph, HeadingLevel: DocxHeadingLevel, TextRun: DocxTextRun, ImageRun: DocxImageRun } = require('docx');
 const PptxGenJS = require('pptxgenjs');
 const { imageSize } = require('image-size');
+const { PDFDocument: PdfLibDocument, StandardFonts: PdfLibStandardFonts, rgb: pdfLibRgb } = require('pdf-lib');
 require('dotenv').config();
 
 const app  = express();
@@ -1687,6 +1688,295 @@ app.post('/api/doc-tool/images-to-file', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('images-to-file error:', err);
     res.status(500).json({ error: 'File generate nahi ho payi. Dobara try karo' });
+  }
+});
+
+// ─── PDF TOOLS — Merge/Split/Compress/Convert/Edit, iLovePDF-jaisa ────────
+// Uploads seedha memory mein aate hain (koi disk-write nahi, ek-hi request
+// mein process ho ke turant DOWNLOADS_DIR mein result likh dete hain) —
+// baaki upload flows (Video Editor) ki tarah "upload karo, phir baad mein
+// process karo" wala do-step process yahan zaroori nahi kyunki har tool
+// ek hi immediate action hai.
+const MAX_PDF_TOOL_BYTES = 30 * 1024 * 1024; // 30MB per file
+const pdfToolUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_PDF_TOOL_BYTES } });
+
+function withPdfToolUpload(multerMiddleware, handler) {
+  return (req, res) => {
+    multerMiddleware(req, res, (err) => {
+      if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: `File bahut badi hai (max ${MAX_PDF_TOOL_BYTES / 1024 / 1024}MB)` });
+      }
+      if (err) return res.status(400).json({ error: 'Upload fail ho gaya' });
+      handler(req, res);
+    });
+  };
+}
+
+const pdfMimeCheck  = f => (f.mimetype === 'application/pdf' || /\.pdf$/i.test(f.originalname)) ? null : 'Sirf PDF files allowed hain';
+const docxMimeCheck = f => /\.docx$/i.test(f.originalname) ? null : 'Sirf DOCX (Word) files allowed hain';
+const pptxMimeCheck = f => /\.pptx$/i.test(f.originalname) ? null : 'Sirf PPTX (PowerPoint) files allowed hain';
+const xlsxMimeCheck = f => /\.xlsx$/i.test(f.originalname) ? null : 'Sirf XLSX (Excel) files allowed hain';
+
+// pdf-parse ek bahut purani bundled pdfjs (v1.10.100) use karta hai jo
+// pdfkit/pdf-lib jaise modern PDF writers ke output (aur kabhi-kabhi kuch
+// real-world PDFs) par "bad XRef entry" jaisi errors deti hai — verified
+// isi session mein: pdfkit/pdf-lib se banaye 2-page test PDFs pdf-parse se
+// bilkul parse nahi hue. Isliye PDF Tools ke liye alag se modern
+// pdfjs-dist (dynamic import — sirf ESM build available hai) use karte
+// hain, jo teeno cases (pdfkit, pdf-lib, real Chrome-printed PDF) mein
+// sahi se per-page text nikaal ke deta hai.
+let _pdfjsPromise = null;
+function getPdfjs() { return _pdfjsPromise || (_pdfjsPromise = import('pdfjs-dist/legacy/build/pdf.mjs')); }
+
+async function extractPdfPages(buffer) {
+  const pdfjs = await getPdfjs();
+  const doc = await pdfjs.getDocument({ data: new Uint8Array(buffer), useSystemFonts: true }).promise;
+  const pages = [];
+  for (let i = 1; i <= doc.numPages; i++) {
+    const page = await doc.getPage(i);
+    const content = await page.getTextContent();
+    // Items ke beech y-position badalne par naya line maante hain (2pt
+    // tolerance) — isse paragraph/line breaks kaafi had tak asli jaisi
+    // structure mein wapas aa jaate hain, sirf ek-line-mein-sab-kuch nahi.
+    let text = '', lastY = null;
+    for (const item of content.items) {
+      const y = item.transform[5];
+      if (lastY !== null && Math.abs(y - lastY) > 2) text += '\n';
+      else if (text && !/[\n ]$/.test(text)) text += ' ';
+      text += item.str;
+      lastY = y;
+    }
+    pages.push(text.trim());
+  }
+  return pages;
+}
+
+async function generatePdfToDocxBuffer(buffer) {
+  const text = (await extractPdfPages(buffer)).join('\n\n').trim();
+  if (!text) throw new Error('NO_TEXT');
+  return generateDocxBuffer(text);
+}
+async function generatePdfToPptxBuffer(buffer) {
+  const pages = await extractPdfPages(buffer);
+  if (!pages.some(p => p.trim())) throw new Error('NO_TEXT');
+  const content = pages.map((p, i) => `# Page ${i + 1}\n${p}`).join('\n\n---\n\n');
+  return generatePptxBuffer(content);
+}
+async function generatePdfToXlsxBuffer(buffer) {
+  const pages = await extractPdfPages(buffer);
+  const rows = pages.flatMap((p, i) => [`--- Page ${i + 1} ---`, ...p.split('\n')]).filter(l => l.trim()).map(l => [l]);
+  if (!rows.length) throw new Error('NO_TEXT');
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+  return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+}
+
+async function generateDocxToPdfBuffer(buffer) {
+  const result = await mammoth.extractRawText({ buffer });
+  const text = (result.value || '').trim();
+  if (!text) throw new Error('NO_TEXT');
+  return generatePdfBuffer(text);
+}
+async function generatePptxToPdfBuffer(buffer) {
+  const zip = new AdmZip(buffer);
+  const slideEntries = zip.getEntries()
+    .filter(e => /^ppt\/slides\/slide\d+\.xml$/.test(e.entryName))
+    .sort((a, b) => parseInt(a.entryName.match(/(\d+)/)[1], 10) - parseInt(b.entryName.match(/(\d+)/)[1], 10));
+  const slides = slideEntries.map((e, i) => {
+    const xml = e.getData().toString('utf8');
+    const lines = [...xml.matchAll(/<a:p>([\s\S]*?)<\/a:p>/g)]
+      .map(p => [...p[1].matchAll(/<a:t>([^<]*)<\/a:t>/g)].map(m => decodeXmlEntities(m[1])).join(''))
+      .filter(l => l.trim());
+    return { number: i + 1, lines };
+  });
+  const content = slides.map(s => `# Slide ${s.number}\n${s.lines.map(l => `- ${l}`).join('\n')}`).join('\n\n');
+  if (!content.trim()) throw new Error('NO_TEXT');
+  return generatePdfBuffer(content);
+}
+async function generateXlsxToPdfBuffer(buffer) {
+  const wb = XLSX.read(buffer, { type: 'buffer' });
+  const content = wb.SheetNames.map(name => `## ${name}\n${XLSX.utils.sheet_to_csv(wb.Sheets[name])}`).join('\n\n');
+  if (!content.trim()) throw new Error('NO_TEXT');
+  return generatePdfBuffer(content);
+}
+
+async function mergePdfs(buffers) {
+  const merged = await PdfLibDocument.create();
+  for (const buf of buffers) {
+    const src = await PdfLibDocument.load(buf, { ignoreEncryption: true });
+    const pages = await merged.copyPages(src, src.getPageIndices());
+    pages.forEach(p => merged.addPage(p));
+  }
+  return Buffer.from(await merged.save());
+}
+
+async function splitPdfToZip(buffer) {
+  const src = await PdfLibDocument.load(buffer, { ignoreEncryption: true });
+  const count = src.getPageCount();
+  const zip = new AdmZip();
+  for (let i = 0; i < count; i++) {
+    const out = await PdfLibDocument.create();
+    const [copied] = await out.copyPages(src, [i]);
+    out.addPage(copied);
+    zip.addFile(`page-${i + 1}.pdf`, Buffer.from(await out.save()));
+  }
+  return { buffer: zip.toBuffer(), count };
+}
+
+// pdf-lib khud image re-encoding/downsampling nahi karta (wo asli
+// "compress" jo Ghostscript jaisa tool karta hai) — ye sirf structural
+// overhead (metadata, duplicate objects, uncompressed xref table) hi
+// kam karta hai. Image-heavy PDFs par savings modest ho sakti hain, jo
+// UI mein bhi honestly dikhaya jaata hai (before/after size).
+async function compressPdf(buffer) {
+  const doc = await PdfLibDocument.load(buffer, { ignoreEncryption: true, updateMetadata: false });
+  doc.setTitle(''); doc.setAuthor(''); doc.setSubject(''); doc.setKeywords([]); doc.setProducer(''); doc.setCreator('');
+  return Buffer.from(await doc.save({ useObjectStreams: true }));
+}
+
+function makeSingleFileConvertRoute(mimeCheck, generator, outFormat, activityName) {
+  return async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'Koi file nahi mili' });
+    const errMsg = mimeCheck(req.file);
+    if (errMsg) return res.status(400).json({ error: errMsg });
+    try {
+      const buffer = await generator(req.file.buffer);
+      const uid = req.user.id;
+      const outName = `${uid.slice(0, 8)}_${Date.now()}_pt.${outFormat}`;
+      fs.writeFileSync(path.join(DOWNLOADS_DIR, outName), buffer);
+      logActivity(req, activityName, {});
+      res.json({ success: true, fileUrl: `/files/${outName}`, filename: outName });
+    } catch (err) {
+      if (err.message === 'NO_TEXT') return res.status(400).json({ error: 'Is file mein koi readable text nahi mila' });
+      console.error(`${activityName} error:`, err);
+      res.status(500).json({ error: 'Convert nahi ho paaya. Kya ye ek valid file hai?' });
+    }
+  };
+}
+
+app.post('/api/pdf-tools/pdf-to-word', requireAuth, withPdfToolUpload(pdfToolUpload.single('file'),
+  makeSingleFileConvertRoute(pdfMimeCheck, generatePdfToDocxBuffer, 'docx', 'pdf_to_word')));
+app.post('/api/pdf-tools/pdf-to-pptx', requireAuth, withPdfToolUpload(pdfToolUpload.single('file'),
+  makeSingleFileConvertRoute(pdfMimeCheck, generatePdfToPptxBuffer, 'pptx', 'pdf_to_pptx')));
+app.post('/api/pdf-tools/pdf-to-excel', requireAuth, withPdfToolUpload(pdfToolUpload.single('file'),
+  makeSingleFileConvertRoute(pdfMimeCheck, generatePdfToXlsxBuffer, 'xlsx', 'pdf_to_excel')));
+app.post('/api/pdf-tools/word-to-pdf', requireAuth, withPdfToolUpload(pdfToolUpload.single('file'),
+  makeSingleFileConvertRoute(docxMimeCheck, generateDocxToPdfBuffer, 'pdf', 'word_to_pdf')));
+app.post('/api/pdf-tools/pptx-to-pdf', requireAuth, withPdfToolUpload(pdfToolUpload.single('file'),
+  makeSingleFileConvertRoute(pptxMimeCheck, generatePptxToPdfBuffer, 'pdf', 'pptx_to_pdf')));
+app.post('/api/pdf-tools/excel-to-pdf', requireAuth, withPdfToolUpload(pdfToolUpload.single('file'),
+  makeSingleFileConvertRoute(xlsxMimeCheck, generateXlsxToPdfBuffer, 'pdf', 'excel_to_pdf')));
+
+app.post('/api/pdf-tools/merge', requireAuth, withPdfToolUpload(pdfToolUpload.array('files', 10), async (req, res) => {
+  const files = req.files || [];
+  if (files.length < 2) return res.status(400).json({ error: 'Kam se kam 2 PDF files upload karo' });
+  const invalid = files.find(f => pdfMimeCheck(f));
+  if (invalid) return res.status(400).json({ error: 'Sirf PDF files allowed hain' });
+  try {
+    const buffer = await mergePdfs(files.map(f => f.buffer));
+    const uid = req.user.id;
+    const outName = `${uid.slice(0, 8)}_${Date.now()}_pt.pdf`;
+    fs.writeFileSync(path.join(DOWNLOADS_DIR, outName), buffer);
+    logActivity(req, 'pdf_merge', { count: files.length });
+    res.json({ success: true, fileUrl: `/files/${outName}`, filename: outName });
+  } catch (err) {
+    console.error('pdf merge error:', err);
+    res.status(500).json({ error: 'PDFs merge nahi ho paayi. Kya sabhi valid PDF files hain?' });
+  }
+}));
+
+app.post('/api/pdf-tools/split', requireAuth, withPdfToolUpload(pdfToolUpload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Koi PDF file nahi mili' });
+  const errMsg = pdfMimeCheck(req.file);
+  if (errMsg) return res.status(400).json({ error: errMsg });
+  try {
+    const { buffer, count } = await splitPdfToZip(req.file.buffer);
+    if (count < 2) return res.status(400).json({ error: 'Is PDF mein sirf 1 page hai, split karne ke liye kam se kam 2 pages chahiye' });
+    const uid = req.user.id;
+    const outName = `${uid.slice(0, 8)}_${Date.now()}_pt.zip`;
+    fs.writeFileSync(path.join(DOWNLOADS_DIR, outName), buffer);
+    logActivity(req, 'pdf_split', { pageCount: count });
+    res.json({ success: true, fileUrl: `/files/${outName}`, filename: outName, pageCount: count });
+  } catch (err) {
+    console.error('pdf split error:', err);
+    res.status(500).json({ error: 'PDF split nahi ho paayi. Kya ye ek valid PDF hai?' });
+  }
+}));
+
+app.post('/api/pdf-tools/compress', requireAuth, withPdfToolUpload(pdfToolUpload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Koi PDF file nahi mili' });
+  const errMsg = pdfMimeCheck(req.file);
+  if (errMsg) return res.status(400).json({ error: errMsg });
+  try {
+    const originalSize = req.file.buffer.length;
+    const buffer = await compressPdf(req.file.buffer);
+    const uid = req.user.id;
+    const outName = `${uid.slice(0, 8)}_${Date.now()}_pt.pdf`;
+    fs.writeFileSync(path.join(DOWNLOADS_DIR, outName), buffer);
+    logActivity(req, 'pdf_compress', { originalSize, compressedSize: buffer.length });
+    res.json({ success: true, fileUrl: `/files/${outName}`, filename: outName, originalSize, compressedSize: buffer.length });
+  } catch (err) {
+    console.error('pdf compress error:', err);
+    res.status(500).json({ error: 'PDF compress nahi ho paayi. Kya ye ek valid PDF hai?' });
+  }
+}));
+
+// ─── EDIT PDF — visual editor: text/image overlays ko asli PDF coordinates
+// par draw karta hai. Client canvas-pixel positions ko already PDF-point
+// coordinates mein convert karke bhejta hai (bottom-left origin, jaisa
+// PDF spec mein hota hai) — server sirf seedha drawText/drawImage karta hai.
+app.post('/api/pdf-tools/edit', requireAuth, async (req, res) => {
+  const { pdfBase64, edits } = req.body;
+  if (typeof pdfBase64 !== 'string' || !pdfBase64) return res.status(400).json({ error: 'PDF data missing' });
+  if (pdfBase64.length * 0.75 > MAX_PDF_TOOL_BYTES) return res.status(400).json({ error: `PDF bahut badi hai (max ${MAX_PDF_TOOL_BYTES / 1024 / 1024}MB)` });
+  if (!Array.isArray(edits) || !edits.length) return res.status(400).json({ error: 'Koi edit nahi mila' });
+  if (edits.length > 200) return res.status(400).json({ error: 'Bahut zyada edits hain (max 200)' });
+
+  try {
+    const doc = await PdfLibDocument.load(Buffer.from(pdfBase64, 'base64'), { ignoreEncryption: true });
+    const pageCount = doc.getPageCount();
+    const font = await doc.embedFont(PdfLibStandardFonts.Helvetica);
+    const boldFont = await doc.embedFont(PdfLibStandardFonts.HelveticaBold);
+    const imageCache = new Map();
+
+    for (const edit of edits) {
+      const pageIndex = Number(edit.page);
+      if (!Number.isInteger(pageIndex) || pageIndex < 0 || pageIndex >= pageCount) continue;
+      const page = doc.getPage(pageIndex);
+      const x = Number(edit.x), y = Number(edit.y);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+
+      if (edit.type === 'text') {
+        const text = String(edit.text || '').slice(0, 500);
+        if (!text) continue;
+        const size = Math.min(200, Math.max(4, Number(edit.fontSize) || 16));
+        const hex = /^#[0-9a-fA-F]{6}$/.test(edit.color || '') ? edit.color : '#000000';
+        const r = parseInt(hex.slice(1, 3), 16) / 255, g = parseInt(hex.slice(3, 5), 16) / 255, b = parseInt(hex.slice(5, 7), 16) / 255;
+        page.drawText(text, { x, y, size, font: edit.bold ? boldFont : font, color: pdfLibRgb(r, g, b) });
+      } else if (edit.type === 'image') {
+        const m = /^data:(image\/(?:png|jpeg));base64,(.+)$/.exec(edit.imageData || '');
+        if (!m) continue;
+        const w = Math.max(1, Number(edit.width) || 100), h = Math.max(1, Number(edit.height) || 100);
+        let embedded = imageCache.get(edit.imageData);
+        if (!embedded) {
+          const imgBytes = Buffer.from(m[2], 'base64');
+          embedded = m[1] === 'image/png' ? await doc.embedPng(imgBytes) : await doc.embedJpg(imgBytes);
+          imageCache.set(edit.imageData, embedded);
+        }
+        page.drawImage(embedded, { x, y, width: w, height: h });
+      }
+    }
+
+    const outBytes = Buffer.from(await doc.save());
+    const uid = req.user.id;
+    const outName = `${uid.slice(0, 8)}_${Date.now()}_pt.pdf`;
+    fs.writeFileSync(path.join(DOWNLOADS_DIR, outName), outBytes);
+    logActivity(req, 'pdf_edit', { editCount: edits.length });
+    res.json({ success: true, fileUrl: `/files/${outName}`, filename: outName });
+  } catch (err) {
+    console.error('pdf edit error:', err);
+    res.status(500).json({ error: 'PDF edit nahi ho paaya. Kya ye ek valid PDF hai?' });
   }
 });
 
