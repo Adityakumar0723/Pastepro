@@ -108,6 +108,10 @@
     main:has(#settings-page.show) .hero { display: none; }
     main:has(#video-editor-page.show) { max-width: 100%; padding-top: 24px; padding-bottom: 24px; }
     main:has(#video-editor-page.show) .hero { display: none; }
+    main:has(#file-converter-page.show) { max-width: 100%; padding-top: 24px; padding-bottom: 24px; }
+    main:has(#file-converter-page.show) .hero { display: none; }
+    main:has(#media-converter-page.show) { max-width: 100%; padding-top: 24px; padding-bottom: 24px; }
+    main:has(#media-converter-page.show) .hero { display: none; }
     main:has(#playground-page.show) { max-width: 1800px; padding-top: 24px; padding-bottom: 24px; padding-left: 16px; padding-right: 16px; }
     main:has(#playground-page.show) .hero { display: none; }
     main:has(#auth-view:not([style*="none"])) { max-width: 1040px; }
@@ -434,7 +438,8 @@
     .fc-format-chip:hover { border-color:var(--green); }
     .fc-format-chip.active { border-color:var(--green); background:rgba(46,196,182,0.14); color:var(--green); }
     .fc-format-icon { flex-shrink:0; width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:800; color:#fff; }
-    .fc-image-preview { display:block; width:100%; max-height:220px; object-fit:contain; border-radius:12px; background:#000; margin-bottom:12px; }
+    .fc-image-preview-list { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:12px; }
+    .fc-image-thumb { width:100px; height:100px; object-fit:cover; border-radius:10px; background:#000; border:1px solid var(--border); }
     .fc-mode-tabs { margin-bottom:16px; }
     .mc-preview-empty { color:var(--muted); font-size:13px; text-align:center; padding:60px 20px; }
     @media(max-width:900px){ .editor-studio { grid-template-columns:1fr; } .editor-preview-col { position:static; } }
@@ -1867,14 +1872,14 @@
 
         <div class="editor-tab-pane" data-pane="image" style="display:none; margin-bottom:16px;">
           <div id="fc-image-upload-zone" class="editor-upload-zone" style="padding:40px 20px;" onclick="document.getElementById('fc-image-input').click()">
-            <input type="file" id="fc-image-input" accept="image/png,image/jpeg,image/webp" style="display:none;" onchange="handleFcImageSelect(event)" />
+            <input type="file" id="fc-image-input" accept="image/png,image/jpeg,image/webp" multiple style="display:none;" onchange="handleFcImageSelect(event)" />
             <div class="editor-upload-icon"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
-            <p class="editor-upload-text">Image upload karo jisme text ho</p>
-            <p class="editor-upload-hint">PNG, JPEG, WEBP — max 15MB</p>
+            <p class="editor-upload-text">Ek ya ek se zyada image upload karo jisme text ho</p>
+            <p class="editor-upload-hint">PNG, JPEG, WEBP — ek image max 15MB</p>
           </div>
           <div id="fc-image-preview-wrap" style="display:none;">
-            <img id="fc-image-preview" class="fc-image-preview" alt="Uploaded image" />
-            <button type="button" class="dl-btn dl-btn-gray" onclick="resetFcImage()"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:4px;"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Doosri image upload karo</button>
+            <div id="fc-image-preview-list" class="fc-image-preview-list"></div>
+            <button type="button" class="dl-btn dl-btn-gray" onclick="resetFcImage()"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:4px;"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Doosri image(s) upload karo</button>
           </div>
           <div class="pg-thinking" id="fc-ocr-thinking">
             <span class="pg-dot"></span><span class="pg-dot"></span><span class="pg-dot"></span>
@@ -3349,42 +3354,77 @@
     btnEl.classList.add('active');
   };
 
-  window.handleFcImageSelect = (event) => {
-    const file = event.target.files && event.target.files[0];
-    event.target.value = '';
-    if (!file) return;
-    if (!file.type.startsWith('image/')) { showToast('Sirf image files allowed hain', 'error'); return; }
-    if (file.size > 15 * 1024 * 1024) { showToast('Image bahut badi hai (max 15MB)', 'error'); return; }
+  function fcFileToDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(new Error('File read nahi ho payi'));
+      reader.readAsDataURL(file);
+    });
+  }
 
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const dataUrl = String(reader.result);
-      document.getElementById('fc-image-preview').src = dataUrl;
-      document.getElementById('fc-image-upload-zone').style.display = 'none';
-      document.getElementById('fc-image-preview-wrap').style.display = 'block';
-      document.getElementById('fc-ocr-thinking').classList.add('active');
+  // Ek se zyada images ek saath select kar sakte ho — har ek ka thumbnail
+  // dikhta hai, aur har image se OCR (ek-ek karke, taaki AI rate-limit na ho)
+  // hone ke baad sab ka text ek hi content box mein "--- Image N ---" se
+  // alag karke jud jaata hai.
+  window.handleFcImageSelect = async (event) => {
+    const files = Array.from(event.target.files || []);
+    event.target.value = '';
+    if (!files.length) return;
+
+    const valid = [];
+    for (const file of files) {
+      if (!file.type.startsWith('image/')) { showToast(`"${file.name}" image nahi hai, skip kar diya`, 'error'); continue; }
+      if (file.size > 15 * 1024 * 1024) { showToast(`"${file.name}" bahut badi hai (max 15MB), skip kar diya`, 'error'); continue; }
+      valid.push(file);
+    }
+    if (!valid.length) return;
+
+    const list = document.getElementById('fc-image-preview-list');
+    list.querySelectorAll('img').forEach(img => URL.revokeObjectURL(img.src));
+    list.innerHTML = '';
+    for (const file of valid) {
+      const img = document.createElement('img');
+      img.className = 'fc-image-thumb';
+      img.src = URL.createObjectURL(file);
+      img.alt = file.name;
+      list.appendChild(img);
+    }
+    document.getElementById('fc-image-upload-zone').style.display = 'none';
+    document.getElementById('fc-image-preview-wrap').style.display = 'block';
+
+    const thinking = document.getElementById('fc-ocr-thinking');
+    thinking.classList.add('active');
+    const parts = [];
+    let anyFail = false;
+    for (const file of valid) {
       try {
+        const dataUrl = await fcFileToDataUrl(file);
         const res = await fetch(`${BACKEND}/api/doc-tool/image-to-text`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
           body: JSON.stringify({ dataUrl }),
         });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok || !data.success) throw new Error(data.error || 'Text nikal nahi paaye');
-        document.getElementById('fc-text-content').value = data.text || '';
-        showToast('Image se text nikal liya! ✓', 'success');
+        if (!res.ok || !data.success) throw new Error(data.error || 'fail');
+        parts.push((data.text || '').trim());
       } catch (e) {
-        showToast(e.message || 'Text nikal nahi paaye', 'error');
-      } finally {
-        document.getElementById('fc-ocr-thinking').classList.remove('active');
+        anyFail = true;
+        parts.push(`(${file.name} se text nahi nikal paaye)`);
       }
-    };
-    reader.readAsDataURL(file);
+    }
+    thinking.classList.remove('active');
+    document.getElementById('fc-text-content').value = parts.length > 1
+      ? parts.map((t, i) => `--- Image ${i + 1} ---\n${t}`).join('\n\n')
+      : (parts[0] || '');
+    showToast(anyFail ? 'Kuch images se text nahi nikal paaye' : 'Saari images se text nikal liya! ✓', anyFail ? 'error' : 'success');
   };
 
   window.resetFcImage = () => {
     document.getElementById('fc-image-input').value = '';
-    document.getElementById('fc-image-preview').src = '';
+    const list = document.getElementById('fc-image-preview-list');
+    list.querySelectorAll('img').forEach(img => URL.revokeObjectURL(img.src));
+    list.innerHTML = '';
     document.getElementById('fc-image-upload-zone').style.display = '';
     document.getElementById('fc-image-preview-wrap').style.display = 'none';
   };
