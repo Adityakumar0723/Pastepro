@@ -1137,6 +1137,38 @@ app.post('/api/edit/upload', requireAuth, (req, res) => {
   });
 });
 
+// ─── MEDIA CONVERTER — koi bhi video ya audio upload karke seedha
+//     /api/convert (upar wala, download-flow wala hi) se kisi bhi format
+//     mein badal sakte hain — same uid-prefixed naming isliye rakha hai
+//     taaki /api/convert ka ownership check bina kisi badlaav ke chal jaaye. ──
+const mediaConvertUploadStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, DOWNLOADS_DIR),
+  filename: (req, file, cb) => {
+    const uid = req.user.id;
+    const ext = (path.extname(file.originalname) || '.mp4').toLowerCase();
+    cb(null, `${uid.slice(0,8)}_${Date.now()}_mc${ext}`);
+  },
+});
+const mediaConvertUpload = multer({
+  storage: mediaConvertUploadStorage,
+  limits: { fileSize: MAX_EDIT_UPLOAD_BYTES },
+  fileFilter: (req, file, cb) => cb(null, file.mimetype.startsWith('video/') || file.mimetype.startsWith('audio/')),
+});
+
+app.post('/api/media-convert/upload', requireAuth, (req, res) => {
+  mediaConvertUpload.single('media')(req, res, (err) => {
+    if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ error: 'File bahut badi hai (max 300MB)' });
+    }
+    if (err) return res.status(400).json({ error: 'Upload fail ho gaya. Sirf video/audio files chalti hain' });
+    if (!req.file) return res.status(400).json({ error: 'Koi file nahi mili' });
+
+    const type = req.file.mimetype.startsWith('audio/') ? 'audio' : 'video';
+    logActivity(req, 'media_convert_upload', { filename: req.file.filename, sizeMB: Math.round(req.file.size / 1024 / 1024) });
+    res.json({ success: true, filename: req.file.filename, fileUrl: `/files/${req.file.filename}`, type });
+  });
+});
+
 // atempo sirf 0.5x-2x range hi accept karta hai (isse zyada/kam ke liye
 // chain karna padta), aur speed dropdown isi range tak limited hai, isliye
 // yahan seedha ek hi atempo instance kaafi hai.
@@ -1480,12 +1512,71 @@ async function generatePptxBuffer(content) {
   return pptx.write({ outputType: 'nodebuffer' });
 }
 
-const PG_FILE_GENERATORS = { pdf: generatePdfBuffer, docx: generateDocxBuffer, xlsx: generateXlsxBuffer, pptx: generatePptxBuffer };
+// TXT/MD ke liye koi "conversion" nahi karna padta — jo text diya hai wahi
+// content hai, bas extension/mime badalta hai. RTF ek simple hand-rolled
+// format hai (koi library nahi chahiye) — same markdown-jaisi structure
+// (parseDocLines/splitBoldSegments) PDF/DOCX ke saath consistent rakhne
+// ke liye reuse karta hai.
+function generateTxtBuffer(content) {
+  return Buffer.from(content, 'utf8');
+}
+
+// RTF spec mein backslash/braces escape karna zaroori hai, aur non-ASCII
+// characters ko \uN? escape sequence mein likhna padta hai (N signed
+// 16-bit) — isliye astral (surrogate-pair) characters jaise emoji ko
+// dobara UTF-16 code units mein todhte hain taaki har unit apna \uN? paaye.
+function escapeRtfText(text) {
+  let out = '';
+  for (const ch of text) {
+    const code = ch.codePointAt(0);
+    if (ch === '\\') out += '\\\\';
+    else if (ch === '{') out += '\\{';
+    else if (ch === '}') out += '\\}';
+    else if (code < 128) out += ch;
+    else if (code > 0xFFFF) {
+      const c = code - 0x10000;
+      const hi = 0xD800 + (c >> 10);
+      const lo = 0xDC00 + (c & 0x3FF);
+      out += `\\u${hi}?\\u${lo}?`;
+    } else {
+      out += `\\u${code}?`;
+    }
+  }
+  return out;
+}
+
+function generateRtfBuffer(content) {
+  const parts = ['{\\rtf1\\ansi\\deff0{\\fonttbl{\\f0 Arial;}}\n'];
+  for (const line of parseDocLines(content)) {
+    if (line.type === 'blank') { parts.push('\\par\n'); continue; }
+    const prefix = line.type === 'bullet' ? '\u2022  ' : line.type === 'numbered' ? `${line.num}.  ` : '';
+    const fs = line.type === 'h1' ? 40 : line.type === 'h2' ? 32 : line.type === 'h3' ? 26 : 22;
+    const baseBold = line.type === 'h1' || line.type === 'h2' || line.type === 'h3';
+    parts.push(`\\fs${fs} `);
+    for (const seg of splitBoldSegments(prefix + line.text)) {
+      const bold = baseBold || seg.bold;
+      if (bold) parts.push('\\b ');
+      parts.push(escapeRtfText(seg.text));
+      if (bold) parts.push('\\b0 ');
+    }
+    parts.push('\\par\n');
+  }
+  parts.push('}');
+  return Buffer.from(parts.join(''), 'utf8');
+}
+
+// Playground ke chat-driven file cards + naya standalone "File Converter"
+// home-page tool — dono isi ek generator map aur endpoint ko reuse karte
+// hain (format+content -> real file, bas itna hi common contract hai).
+const DOC_FILE_GENERATORS = {
+  pdf: generatePdfBuffer, docx: generateDocxBuffer, xlsx: generateXlsxBuffer, pptx: generatePptxBuffer,
+  txt: generateTxtBuffer, md: generateTxtBuffer, rtf: generateRtfBuffer,
+};
 const MAX_PG_FILE_CONTENT_CHARS = 200000;
 
 app.post('/api/playground/generate-file', requireAuth, async (req, res) => {
   const { format, content } = req.body;
-  const generator = PG_FILE_GENERATORS[format];
+  const generator = DOC_FILE_GENERATORS[format];
   if (!generator) return res.status(400).json({ error: 'Ye file format support nahi hai' });
   if (typeof content !== 'string' || !content.trim()) return res.status(400).json({ error: 'Content khaali hai' });
   if (content.length > MAX_PG_FILE_CONTENT_CHARS) return res.status(400).json({ error: 'Content bahut bada hai' });
@@ -1500,6 +1591,51 @@ app.post('/api/playground/generate-file', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('generate-file error:', err);
     res.status(500).json({ error: 'File generate nahi ho payi. Dobara try karo' });
+  }
+});
+
+// ─── FILE CONVERTER — image se text nikalna (OCR) ─────────
+// Playground ki tarah hi vision-capable model use karta hai, bas yahan
+// stream:false hai kyunki humein sirf poora text ek baar mein chahiye
+// (chat mein type-hote-hue dikhane ki zaroorat nahi hai).
+const MAX_FC_IMAGE_BYTES = 15 * 1024 * 1024;
+
+async function extractTextFromImage(dataUrl) {
+  const upstream = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENROUTER_API_KEY}` },
+    body: JSON.stringify({
+      model: OPENROUTER_VISION_MODEL,
+      stream: false,
+      messages: [
+        { role: 'system', content: 'Is image mein jo bhi text likha hai wo bilkul verbatim (jaisa hai waisa) nikaal ke do — line breaks/structure jitna ho sake wahi rakho. Sirf extracted text hi likho, koi extra comment/explanation mat do. Agar image mein koi text hi na ho to sirf ye likho: (no text found)' },
+        { role: 'user', content: [{ type: 'image_url', image_url: { url: dataUrl } }] },
+      ],
+    }),
+  });
+  if (!upstream.ok) {
+    const errText = await upstream.text().catch(() => '');
+    throw new Error(`OpenRouter HTTP ${upstream.status}: ${errText.slice(0, 200)}`);
+  }
+  const data = await upstream.json();
+  return data.choices?.[0]?.message?.content || '';
+}
+
+app.post('/api/doc-tool/image-to-text', requireAuth, async (req, res) => {
+  const { dataUrl } = req.body;
+  if (typeof dataUrl !== 'string' || !/^data:image\/(png|jpe?g|webp);base64,/.test(dataUrl)) {
+    return res.status(400).json({ error: 'Sirf PNG/JPEG/WEBP images support hain' });
+  }
+  if (dataUrl.length * 0.75 > MAX_FC_IMAGE_BYTES) return res.status(400).json({ error: 'Image bahut badi hai (max 15MB)' });
+  if (!OPENROUTER_API_KEY) return res.status(500).json({ error: 'OpenRouter API key server par configure nahi hai' });
+
+  try {
+    const text = await extractTextFromImage(dataUrl);
+    logActivity(req, 'file_converter_ocr', {});
+    res.json({ success: true, text });
+  } catch (err) {
+    console.error('image-to-text error:', err);
+    res.status(500).json({ error: 'Image se text nikaal nahi paaye. Dobara try karo' });
   }
 });
 

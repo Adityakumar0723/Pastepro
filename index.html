@@ -426,6 +426,17 @@
     .editor-apply-btn { width:100%; flex-shrink:0; }
 
     .editor-result { max-width:700px; margin:24px auto 0; }
+
+    /* FILE CONVERTER + MEDIA CONVERTER — dono ke format-picker chips (icon
+       badge + label) yahi ek shared class-set use karte hain. */
+    .fc-format-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
+    .fc-format-chip { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:var(--card); color:var(--text); font-family:'Space Grotesk',sans-serif; font-size:12.5px; font-weight:700; cursor:pointer; text-align:left; transition:all 0.2s; }
+    .fc-format-chip:hover { border-color:var(--green); }
+    .fc-format-chip.active { border-color:var(--green); background:rgba(46,196,182,0.14); color:var(--green); }
+    .fc-format-icon { flex-shrink:0; width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:800; color:#fff; }
+    .fc-image-preview { display:block; width:100%; max-height:220px; object-fit:contain; border-radius:12px; background:#000; margin-bottom:12px; }
+    .fc-mode-tabs { margin-bottom:16px; }
+    .mc-preview-empty { color:var(--muted); font-size:13px; text-align:center; padding:60px 20px; }
     @media(max-width:900px){ .editor-studio { grid-template-columns:1fr; } .editor-preview-col { position:static; } }
 
     /* TOAST */
@@ -807,6 +818,8 @@
       <button class="sidebar-item" onclick="showSearch()"><span class="sidebar-item-icon" style="background:var(--green);"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>Search &amp; Download</button>
       <button class="sidebar-item" onclick="showPlayground()"><span class="sidebar-item-icon" style="background:#6c5ce7;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-4.5 7.4 8.5 8.5 0 0 1-8.9-.4L3 20l1.5-4.6a8.38 8.38 0 0 1-.9-3.9 8.5 8.5 0 0 1 8.5-8.5h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></span>Playground Query</button>
       <button class="sidebar-item" onclick="showVideoEditor()"><span class="sidebar-item-icon" style="background:var(--accent);"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg></span>Video Editor</button>
+      <button class="sidebar-item" onclick="showFileConverter()"><span class="sidebar-item-icon" style="background:#14b8a6;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>File Converter</button>
+      <button class="sidebar-item" onclick="showMediaConverter()"><span class="sidebar-item-icon" style="background:#f59e0b;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></span>Media Converter</button>
     </div>
   </div>
 
@@ -1832,6 +1845,146 @@
 
   </div>
 
+  <!-- FILE CONVERTER PAGE — text ya image se PDF/DOCX/Excel/TXT/MD/RTF banao -->
+  <div id="file-converter-page" class="download-page">
+
+    <button class="back-btn" onclick="goHome()">← Wapas Jaao</button>
+
+    <div class="editor-page-banner">
+      <div class="dl-banner-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+      <div>
+        <h2>File Converter</h2>
+        <p>Text likho ya image se nikaalo — PDF, Word, Excel, TXT, Markdown ya RTF file bana lo</p>
+      </div>
+    </div>
+
+    <div class="editor-studio">
+      <div class="editor-preview-col" style="position:static;">
+        <div class="editor-tabs fc-mode-tabs">
+          <button type="button" class="editor-tab-btn active" data-tab="text" onclick="setFcMode('text', this)"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg> Text Likho</button>
+          <button type="button" class="editor-tab-btn" data-tab="image" onclick="setFcMode('image', this)"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> Image Se Nikaalo</button>
+        </div>
+
+        <div class="editor-tab-pane" data-pane="image" style="display:none; margin-bottom:16px;">
+          <div id="fc-image-upload-zone" class="editor-upload-zone" style="padding:40px 20px;" onclick="document.getElementById('fc-image-input').click()">
+            <input type="file" id="fc-image-input" accept="image/png,image/jpeg,image/webp" style="display:none;" onchange="handleFcImageSelect(event)" />
+            <div class="editor-upload-icon"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
+            <p class="editor-upload-text">Image upload karo jisme text ho</p>
+            <p class="editor-upload-hint">PNG, JPEG, WEBP — max 15MB</p>
+          </div>
+          <div id="fc-image-preview-wrap" style="display:none;">
+            <img id="fc-image-preview" class="fc-image-preview" alt="Uploaded image" />
+            <button type="button" class="dl-btn dl-btn-gray" onclick="resetFcImage()"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:4px;"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Doosri image upload karo</button>
+          </div>
+          <div class="pg-thinking" id="fc-ocr-thinking">
+            <span class="pg-dot"></span><span class="pg-dot"></span><span class="pg-dot"></span>
+            Image se text nikala ja raha hai...
+          </div>
+        </div>
+
+        <div class="editor-control-group">
+          <div class="dl-section-label">Content <span style="text-transform:none; font-weight:600; letter-spacing:normal; color:var(--muted);">— yahan se edit bhi kar sakte ho</span></div>
+          <textarea id="fc-text-content" class="editor-text-input" style="min-height:360px;" maxlength="200000" placeholder="Yahan apna text likho... (# Heading, ## Subheading, - bullet, **bold** bhi chalega)"></textarea>
+        </div>
+      </div>
+
+      <div class="editor-panel">
+        <div class="dl-section-label"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:3px;"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>File Format Choose Karo</div>
+        <div class="fc-format-grid" id="fc-format-grid">
+          <button type="button" class="fc-format-chip active" data-format="pdf" onclick="selectFcFormat('pdf', this)"><span class="fc-format-icon" style="background:#e63946;">PDF</span>PDF Document</button>
+          <button type="button" class="fc-format-chip" data-format="docx" onclick="selectFcFormat('docx', this)"><span class="fc-format-icon" style="background:#2b579a;">DOC</span>Word Document</button>
+          <button type="button" class="fc-format-chip" data-format="xlsx" onclick="selectFcFormat('xlsx', this)"><span class="fc-format-icon" style="background:#217346;">XLS</span>Excel Spreadsheet</button>
+          <button type="button" class="fc-format-chip" data-format="txt" onclick="selectFcFormat('txt', this)"><span class="fc-format-icon" style="background:#6b7280;">TXT</span>Plain Text</button>
+          <button type="button" class="fc-format-chip" data-format="md" onclick="selectFcFormat('md', this)"><span class="fc-format-icon" style="background:#1f2937;">MD</span>Markdown</button>
+          <button type="button" class="fc-format-chip" data-format="rtf" onclick="selectFcFormat('rtf', this)"><span class="fc-format-icon" style="background:#7c3aed;">RTF</span>Rich Text (RTF)</button>
+        </div>
+
+        <button type="button" class="dl-btn dl-btn-green editor-apply-btn" id="fc-generate-btn" style="margin-top:20px;" onclick="generateFcFile()"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:4px;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>Generate &amp; Preview</button>
+        <div class="editor-apply-hint">File "canvas" mein khulegi — wahin se download bhi kar sakte ho</div>
+
+        <div class="pg-thinking" id="fc-generate-thinking">
+          <span class="pg-dot"></span><span class="pg-dot"></span><span class="pg-dot"></span>
+          File ban rahi hai...
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- MEDIA CONVERTER PAGE — koi bhi video/audio upload karo, kisi bhi format mein badlo -->
+  <div id="media-converter-page" class="download-page">
+
+    <button class="back-btn" onclick="goHome()">← Wapas Jaao</button>
+
+    <div class="editor-page-banner">
+      <div class="dl-banner-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></div>
+      <div>
+        <h2>Media Converter</h2>
+        <p>Koi bhi video ya audio file upload karo, kisi bhi format mein convert karo</p>
+      </div>
+    </div>
+
+    <div id="mc-upload-zone" class="editor-upload-zone" onclick="document.getElementById('mc-file-input').click()">
+      <input type="file" id="mc-file-input" accept="video/*,audio/*" style="display:none;" onchange="handleMcFileSelect(event)" />
+      <div class="editor-upload-icon"><svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/></svg></div>
+      <p class="editor-upload-text">Video ya audio file upload karne ke liye click karo</p>
+      <p class="editor-upload-hint">MP4, MOV, MKV, WEBM, AVI, MP3, WAV, M4A, FLAC, OPUS — max 300MB</p>
+    </div>
+
+    <div class="pg-thinking" id="mc-upload-thinking">
+      <span class="pg-dot"></span><span class="pg-dot"></span><span class="pg-dot"></span>
+      Upload ho raha hai...
+    </div>
+
+    <div class="editor-studio" id="mc-body" style="display:none;">
+      <div class="editor-preview-col">
+        <div class="editor-preview-wrap">
+          <video id="mc-preview-video" class="editor-preview-video" controls style="display:none;"></video>
+          <audio id="mc-preview-audio" controls style="display:none; width:100%;"></audio>
+        </div>
+        <div class="editor-apply-hint" id="mc-file-name" style="margin-top:10px;"></div>
+        <button type="button" class="dl-btn dl-btn-gray" style="margin-top:14px;" onclick="resetMediaConverter()"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:4px;"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Doosri file upload karo</button>
+      </div>
+
+      <div class="editor-panel">
+        <div class="dl-section-label"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:3px;"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>Video Format</div>
+        <div class="fc-format-grid">
+          <button type="button" class="fc-format-chip" data-format="mp4" onclick="convertMediaTo('mp4')"><span class="fc-format-icon" style="background:#3b82f6;">MP4</span>MP4</button>
+          <button type="button" class="fc-format-chip" data-format="mkv" onclick="convertMediaTo('mkv')"><span class="fc-format-icon" style="background:#8b5cf6;">MKV</span>MKV</button>
+          <button type="button" class="fc-format-chip" data-format="webm" onclick="convertMediaTo('webm')"><span class="fc-format-icon" style="background:#10b981;">WEB</span>WEBM</button>
+          <button type="button" class="fc-format-chip" data-format="mov" onclick="convertMediaTo('mov')"><span class="fc-format-icon" style="background:#f59e0b;">MOV</span>MOV</button>
+          <button type="button" class="fc-format-chip" data-format="avi" onclick="convertMediaTo('avi')"><span class="fc-format-icon" style="background:#ef4444;">AVI</span>AVI</button>
+        </div>
+
+        <div class="dl-section-label" style="margin-top:20px;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:3px;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>Audio Format</div>
+        <div class="fc-format-grid">
+          <button type="button" class="fc-format-chip" data-format="mp3" onclick="convertMediaTo('mp3')"><span class="fc-format-icon" style="background:#ec4899;">MP3</span>MP3</button>
+          <button type="button" class="fc-format-chip" data-format="m4a" onclick="convertMediaTo('m4a')"><span class="fc-format-icon" style="background:#06b6d4;">M4A</span>M4A</button>
+          <button type="button" class="fc-format-chip" data-format="wav" onclick="convertMediaTo('wav')"><span class="fc-format-icon" style="background:#84cc16;">WAV</span>WAV</button>
+          <button type="button" class="fc-format-chip" data-format="flac" onclick="convertMediaTo('flac')"><span class="fc-format-icon" style="background:#f97316;">FLC</span>FLAC</button>
+          <button type="button" class="fc-format-chip" data-format="opus" onclick="convertMediaTo('opus')"><span class="fc-format-icon" style="background:#6366f1;">OPU</span>OPUS</button>
+        </div>
+
+        <div class="pg-thinking" id="mc-convert-thinking" style="margin-top:16px;">
+          <span class="pg-dot"></span><span class="pg-dot"></span><span class="pg-dot"></span>
+          Convert ho raha hai... (thoda time lag sakta hai)
+        </div>
+      </div>
+    </div>
+
+    <!-- Result (shown after a successful convert) -->
+    <div class="editor-result" id="mc-result" style="display:none;">
+      <div class="dl-section-label"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:3px;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>Convert Ho Gaya!</div>
+      <video id="mc-result-video" class="editor-preview-video" controls style="display:none;"></video>
+      <audio id="mc-result-audio" controls style="display:none; width:100%;"></audio>
+      <div style="display:flex; gap:12px; margin-top:16px;">
+        <a id="mc-download-link" href="#" class="dl-btn dl-btn-green" style="flex:1;"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download Karo</a>
+        <button type="button" class="dl-btn dl-btn-gray" onclick="document.getElementById('mc-result').style.display='none';"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:4px;"><polyline points="15 18 9 12 15 6"/></svg>Wapas Format Choose Karo</button>
+      </div>
+    </div>
+
+  </div>
+
 </main>
 
 <div class="toast" id="toast"></div>
@@ -2145,6 +2298,8 @@
     document.getElementById('playground-page').classList.remove('show');
     document.getElementById('search-page').classList.remove('show');
     document.getElementById('video-editor-page').classList.remove('show');
+    document.getElementById('file-converter-page').classList.remove('show');
+    document.getElementById('media-converter-page').classList.remove('show');
     stopSearchPlayer();
   }
 
@@ -2158,6 +2313,8 @@
     document.getElementById('playground-page').classList.remove('show');
     document.getElementById('search-page').classList.remove('show');
     document.getElementById('video-editor-page').classList.remove('show');
+    document.getElementById('file-converter-page').classList.remove('show');
+    document.getElementById('media-converter-page').classList.remove('show');
     stopSearchPlayer();
     document.getElementById('header-user').style.display = 'none';
   }
@@ -2170,6 +2327,8 @@
     document.getElementById('playground-page').classList.remove('show');
     document.getElementById('search-page').classList.remove('show');
     document.getElementById('video-editor-page').classList.remove('show');
+    document.getElementById('file-converter-page').classList.remove('show');
+    document.getElementById('media-converter-page').classList.remove('show');
     stopSearchPlayer();
     stopMedia(document.getElementById('dl-preview-video'));
     stopMedia(document.getElementById('dl-preview-audio'));
@@ -2219,6 +2378,8 @@
     document.getElementById('playground-page').classList.remove('show');
     document.getElementById('search-page').classList.remove('show');
     document.getElementById('video-editor-page').classList.remove('show');
+    document.getElementById('file-converter-page').classList.remove('show');
+    document.getElementById('media-converter-page').classList.remove('show');
     stopSearchPlayer();
     document.getElementById('auth-view').style.display = 'none';
     document.getElementById('app-view').style.display = 'block';
@@ -2240,6 +2401,8 @@
     document.getElementById('search-page').classList.remove('show');
     document.getElementById('settings-page').classList.remove('show');
     document.getElementById('video-editor-page').classList.remove('show');
+    document.getElementById('file-converter-page').classList.remove('show');
+    document.getElementById('media-converter-page').classList.remove('show');
     stopSearchPlayer();
     document.getElementById('docs-page').classList.add('show');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -2256,6 +2419,8 @@
     document.getElementById('search-page').classList.remove('show');
     document.getElementById('docs-page').classList.remove('show');
     document.getElementById('video-editor-page').classList.remove('show');
+    document.getElementById('file-converter-page').classList.remove('show');
+    document.getElementById('media-converter-page').classList.remove('show');
     stopSearchPlayer();
     document.getElementById('settings-page').classList.add('show');
     updateSettingsThemeButtons();
@@ -2772,6 +2937,8 @@
     document.getElementById('settings-page').classList.remove('show');
     document.getElementById('search-page').classList.remove('show');
     document.getElementById('video-editor-page').classList.remove('show');
+    document.getElementById('file-converter-page').classList.remove('show');
+    document.getElementById('media-converter-page').classList.remove('show');
     stopSearchPlayer();
     document.getElementById('playground-page').classList.add('show');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -3099,6 +3266,8 @@
     document.getElementById('settings-page').classList.remove('show');
     document.getElementById('playground-page').classList.remove('show');
     document.getElementById('video-editor-page').classList.remove('show');
+    document.getElementById('file-converter-page').classList.remove('show');
+    document.getElementById('media-converter-page').classList.remove('show');
     document.getElementById('search-page').classList.add('show');
     const ytTab = document.querySelector('.splat-tab[data-plat="youtube"]');
     if (ytTab) setSearchPlatform('youtube', ytTab);
@@ -3124,6 +3293,238 @@
     document.getElementById('video-editor-page').classList.add('show');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  window.showFileConverter = () => {
+    closeSidebar();
+    if (!(currentUser && authToken)) { showAuth(); showToast('Pehle login karo','error'); return; }
+    logVisit('file_converter_page');
+    document.getElementById('auth-view').style.display = 'none';
+    document.getElementById('app-view').style.display = 'none';
+    document.getElementById('download-page').classList.remove('show');
+    document.getElementById('docs-page').classList.remove('show');
+    document.getElementById('settings-page').classList.remove('show');
+    document.getElementById('playground-page').classList.remove('show');
+    document.getElementById('search-page').classList.remove('show');
+    document.getElementById('video-editor-page').classList.remove('show');
+    document.getElementById('media-converter-page').classList.remove('show');
+    document.getElementById('file-converter-page').classList.add('show');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  window.showMediaConverter = () => {
+    closeSidebar();
+    if (!(currentUser && authToken)) { showAuth(); showToast('Pehle login karo','error'); return; }
+    logVisit('media_converter_page');
+    document.getElementById('auth-view').style.display = 'none';
+    document.getElementById('app-view').style.display = 'none';
+    document.getElementById('download-page').classList.remove('show');
+    document.getElementById('docs-page').classList.remove('show');
+    document.getElementById('settings-page').classList.remove('show');
+    document.getElementById('playground-page').classList.remove('show');
+    document.getElementById('search-page').classList.remove('show');
+    document.getElementById('video-editor-page').classList.remove('show');
+    document.getElementById('file-converter-page').classList.remove('show');
+    document.getElementById('media-converter-page').classList.add('show');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // ════════════════════════════════
+  //  FILE CONVERTER — text ya image (OCR) se PDF/DOCX/Excel/TXT/MD/RTF
+  //  Playground ke ready-made /api/playground/generate-file + canvas-modal
+  //  (pgOpenGeneratedFileModal) hi reuse karta hai — koi naya backend/UI
+  //  duplicate nahi karna pada.
+  // ════════════════════════════════
+  let fcSelectedFormat = 'pdf';
+
+  window.setFcMode = (mode, btnEl) => {
+    const container = document.getElementById('file-converter-page');
+    container.querySelectorAll('.editor-tab-btn').forEach(b => b.classList.remove('active'));
+    btnEl.classList.add('active');
+    container.querySelector('.editor-tab-pane[data-pane="image"]').style.display = mode === 'image' ? 'block' : 'none';
+  };
+
+  window.selectFcFormat = (format, btnEl) => {
+    fcSelectedFormat = format;
+    document.getElementById('fc-format-grid').querySelectorAll('.fc-format-chip').forEach(c => c.classList.remove('active'));
+    btnEl.classList.add('active');
+  };
+
+  window.handleFcImageSelect = (event) => {
+    const file = event.target.files && event.target.files[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { showToast('Sirf image files allowed hain', 'error'); return; }
+    if (file.size > 15 * 1024 * 1024) { showToast('Image bahut badi hai (max 15MB)', 'error'); return; }
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = String(reader.result);
+      document.getElementById('fc-image-preview').src = dataUrl;
+      document.getElementById('fc-image-upload-zone').style.display = 'none';
+      document.getElementById('fc-image-preview-wrap').style.display = 'block';
+      document.getElementById('fc-ocr-thinking').classList.add('active');
+      try {
+        const res = await fetch(`${BACKEND}/api/doc-tool/image-to-text`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+          body: JSON.stringify({ dataUrl }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) throw new Error(data.error || 'Text nikal nahi paaye');
+        document.getElementById('fc-text-content').value = data.text || '';
+        showToast('Image se text nikal liya! ✓', 'success');
+      } catch (e) {
+        showToast(e.message || 'Text nikal nahi paaye', 'error');
+      } finally {
+        document.getElementById('fc-ocr-thinking').classList.remove('active');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  window.resetFcImage = () => {
+    document.getElementById('fc-image-input').value = '';
+    document.getElementById('fc-image-preview').src = '';
+    document.getElementById('fc-image-upload-zone').style.display = '';
+    document.getElementById('fc-image-preview-wrap').style.display = 'none';
+  };
+
+  window.generateFcFile = async () => {
+    const content = document.getElementById('fc-text-content').value;
+    if (!content.trim()) { showToast('Pehle text likho ya image se nikaalo', 'error'); return; }
+
+    const btn = document.getElementById('fc-generate-btn');
+    btn.disabled = true;
+    document.getElementById('fc-generate-thinking').classList.add('active');
+    try {
+      const res = await fetch(`${BACKEND}/api/playground/generate-file`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ format: fcSelectedFormat, content }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || 'File generate nahi ho payi');
+
+      const fullUrl = data.fileUrl.startsWith('http') ? data.fileUrl : `${BACKEND}${data.fileUrl}`;
+      const fileRes = await fetch(fullUrl);
+      if (!fileRes.ok) throw new Error(`HTTP ${fileRes.status}`);
+      const blob = await fileRes.blob();
+      window.pgOpenGeneratedFileModal(fcSelectedFormat, data.filename, blob);
+      showToast('File ready hai! ✓', 'success');
+    } catch (e) {
+      showToast(e.message || 'File generate nahi ho payi', 'error');
+    } finally {
+      btn.disabled = false;
+      document.getElementById('fc-generate-thinking').classList.remove('active');
+    }
+  };
+
+  // ════════════════════════════════
+  //  MEDIA CONVERTER — koi bhi video/audio upload karke /api/convert (jo
+  //  Download Ready page bhi use karta hai) se hi seedha kisi bhi format
+  //  mein badalte hain.
+  // ════════════════════════════════
+  let mcUploadedFilename = null, mcUploadedType = null;
+
+  window.handleMcFileSelect = async (event) => {
+    const file = event.target.files && event.target.files[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('video/') && !file.type.startsWith('audio/')) {
+      showToast('Sirf video ya audio files allowed hain', 'error'); return;
+    }
+    if (file.size > 300 * 1024 * 1024) { showToast('File bahut badi hai (max 300MB)', 'error'); return; }
+
+    document.getElementById('mc-upload-zone').style.display = 'none';
+    document.getElementById('mc-upload-thinking').classList.add('active');
+
+    try {
+      const fd = new FormData();
+      fd.append('media', file);
+      const res = await fetch(`${BACKEND}/api/media-convert/upload`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${authToken}` },
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload fail ho gaya');
+
+      mcUploadedFilename = data.filename;
+      mcUploadedType = data.type;
+      const videoEl = document.getElementById('mc-preview-video');
+      const audioEl = document.getElementById('mc-preview-audio');
+      const fullUrl = `${BACKEND}${data.fileUrl}`;
+      if (data.type === 'audio') {
+        videoEl.style.display = 'none';
+        audioEl.src = fullUrl;
+        audioEl.style.display = 'block';
+      } else {
+        audioEl.style.display = 'none';
+        videoEl.src = fullUrl;
+        videoEl.style.display = 'block';
+      }
+      document.getElementById('mc-file-name').textContent = file.name;
+      document.getElementById('mc-body').style.display = 'grid';
+      showToast('Upload ho gayi!', 'success');
+    } catch (e) {
+      showToast(e.message || 'Upload fail ho gaya', 'error');
+      document.getElementById('mc-upload-zone').style.display = '';
+    } finally {
+      document.getElementById('mc-upload-thinking').classList.remove('active');
+    }
+  };
+
+  window.resetMediaConverter = () => {
+    mcUploadedFilename = null;
+    mcUploadedType = null;
+    document.getElementById('mc-file-input').value = '';
+    document.getElementById('mc-upload-zone').style.display = '';
+    document.getElementById('mc-body').style.display = 'none';
+    document.getElementById('mc-result').style.display = 'none';
+    const videoEl = document.getElementById('mc-preview-video');
+    const audioEl = document.getElementById('mc-preview-audio');
+    videoEl.pause(); videoEl.removeAttribute('src'); videoEl.style.display = 'none';
+    audioEl.pause(); audioEl.removeAttribute('src'); audioEl.style.display = 'none';
+  };
+
+  window.convertMediaTo = async (format) => {
+    if (!mcUploadedFilename) { showToast('Pehle file upload karo', 'error'); return; }
+    document.getElementById('mc-convert-thinking').classList.add('active');
+    document.getElementById('mc-result').style.display = 'none';
+    try {
+      const res = await fetch(`${BACKEND}/api/convert`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ filename: mcUploadedFilename, format }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || 'Convert fail ho gaya');
+
+      const fullUrl = `${BACKEND}${data.fileUrl}`;
+      const isAudioOut = !!AUDIO_FORMATS_CLIENT[format];
+      const resultVideo = document.getElementById('mc-result-video');
+      const resultAudio = document.getElementById('mc-result-audio');
+      if (isAudioOut) {
+        resultVideo.style.display = 'none';
+        resultAudio.src = fullUrl;
+        resultAudio.style.display = 'block';
+      } else {
+        resultAudio.style.display = 'none';
+        resultVideo.src = fullUrl;
+        resultVideo.style.display = 'block';
+      }
+      document.getElementById('mc-download-link').href = fullUrl.includes('?') ? `${fullUrl}&dl=1` : `${fullUrl}?dl=1`;
+      document.getElementById('mc-download-link').setAttribute('data-filename', data.filename);
+      document.getElementById('mc-result').style.display = 'block';
+      document.getElementById('mc-result').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      showToast('Convert ho gaya! ✓', 'success');
+    } catch (e) {
+      showToast(e.message || 'Convert fail ho gaya', 'error');
+    } finally {
+      document.getElementById('mc-convert-thinking').classList.remove('active');
+    }
+  };
+  const AUDIO_FORMATS_CLIENT = { mp3:1, m4a:1, wav:1, flac:1, opus:1 };
 
   let editorSelectedEffect = 'none';
   let editorTextX = 50, editorTextY = 90; // percentage of video width/height — text ka center
@@ -4208,6 +4609,8 @@
     document.getElementById('playground-page').classList.remove('show');
     document.getElementById('search-page').classList.remove('show');
     document.getElementById('video-editor-page').classList.remove('show');
+    document.getElementById('file-converter-page').classList.remove('show');
+    document.getElementById('media-converter-page').classList.remove('show');
     stopSearchPlayer();
 
     const panel = document.getElementById('dl-bell-panel');
