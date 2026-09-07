@@ -156,6 +156,7 @@
     .auth-mascot svg { overflow:visible; }
     @keyframes authMascotBob { 0%, 100% { transform:translateY(0); } 50% { transform:translateY(-3px); } }
     .auth-mascot-eyes { transition:opacity 0.2s ease; }
+    #auth-mascot-pupil-l, #auth-mascot-pupil-r { transition:cx 0.15s ease; }
     .auth-mascot-eyes.hide { opacity:0; }
     .auth-mascot-hands { opacity:0; transform:translateY(16px); transform-origin:60px 55px; transition:opacity 0.25s ease, transform 0.25s ease; }
     .auth-mascot-hands.show { opacity:1; transform:translateY(0); }
@@ -1952,12 +1953,15 @@
     }
     function resetLook() { lookAt(0); }
 
-    function onTextFieldActivity(e) {
-      const input = e.target;
-      const len = input.value.length;
-      const caret = typeof input.selectionStart === 'number' ? input.selectionStart : len;
-      const ratio = len ? caret / len : 0.5;
-      lookAt((ratio - 0.5) * 10);
+    // Caret-position-based ratio barely moved in practice — typing normally
+    // keeps the caret at the end (ratio ~1 hamesha), isliye aankhein ek hi
+    // taraf ruk jaati thi. Ab har letter type hone par (har 'input' event
+    // par) side badal-badal ke dekhta hai — jitni baar type karo utni baar
+    // idhar-udhar dekhega.
+    let mascotLookToggle = false;
+    function onTextFieldActivity() {
+      mascotLookToggle = !mascotLookToggle;
+      lookAt(mascotLookToggle ? 5 : -5);
     }
 
     function coverEyes() {
