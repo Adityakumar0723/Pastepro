@@ -257,6 +257,23 @@
     /* DOWNLOAD RESULT PAGE */
     .download-page { display:none; animation: fadeUp 0.4s ease; }
     .download-page.show { display:block; }
+    /* Search & Download ka YouTube player background mein bajta rehna
+       chahiye jab user doosre section par chala jaaye — par `display:none`
+       lagte hi iframe ka playback browsers pause/suspend kar dete hain.
+       Isliye is ek page ke liye "hidden" state display:none nahi, balki
+       off-screen (par abhi bhi rendered) hoti hai — iframe zinda rehta hai,
+       bas visually chhup jaata hai jab tak wapas is page par na aaye. */
+    #search-page:not(.show) {
+      display: block;
+      position: fixed;
+      top: 0;
+      left: -9999px;
+      width: 1400px;
+      height: 900px;
+      overflow: hidden;
+      opacity: 0;
+      pointer-events: none;
+    }
     @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
  
     .back-btn { display:inline-flex; align-items:center; gap:8px; padding:10px 20px; background:transparent; border:1px solid var(--border); border-radius:8px; color:var(--muted); font-family:'Space Grotesk',sans-serif; font-size:14px; font-weight:600; cursor:pointer; transition:all 0.2s; margin-bottom:24px; }
@@ -3024,7 +3041,6 @@
     document.getElementById('media-converter-page').classList.remove('show');
     document.getElementById('pdf-tools-page').classList.remove('show');
     document.getElementById('pdf-edit-page').classList.remove('show');
-    stopSearchPlayer();
   }
 
   // Show auth
@@ -3057,7 +3073,6 @@
     document.getElementById('media-converter-page').classList.remove('show');
     document.getElementById('pdf-tools-page').classList.remove('show');
     document.getElementById('pdf-edit-page').classList.remove('show');
-    stopSearchPlayer();
     stopMedia(document.getElementById('dl-preview-video'));
     stopMedia(document.getElementById('dl-preview-audio'));
     stopDlWaveform();
@@ -3110,7 +3125,6 @@
     document.getElementById('media-converter-page').classList.remove('show');
     document.getElementById('pdf-tools-page').classList.remove('show');
     document.getElementById('pdf-edit-page').classList.remove('show');
-    stopSearchPlayer();
     document.getElementById('auth-view').style.display = 'none';
     document.getElementById('app-view').style.display = 'block';
     const input = document.getElementById('vid-url');
@@ -3135,7 +3149,6 @@
     document.getElementById('media-converter-page').classList.remove('show');
     document.getElementById('pdf-tools-page').classList.remove('show');
     document.getElementById('pdf-edit-page').classList.remove('show');
-    stopSearchPlayer();
     document.getElementById('docs-page').classList.add('show');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -3155,7 +3168,6 @@
     document.getElementById('media-converter-page').classList.remove('show');
     document.getElementById('pdf-tools-page').classList.remove('show');
     document.getElementById('pdf-edit-page').classList.remove('show');
-    stopSearchPlayer();
     document.getElementById('settings-page').classList.add('show');
     updateSettingsThemeButtons();
     loadAccountStats();
@@ -3682,7 +3694,6 @@
     document.getElementById('media-converter-page').classList.remove('show');
     document.getElementById('pdf-tools-page').classList.remove('show');
     document.getElementById('pdf-edit-page').classList.remove('show');
-    stopSearchPlayer();
     document.getElementById('playground-page').classList.add('show');
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
@@ -4014,8 +4025,16 @@
     document.getElementById('pdf-tools-page').classList.remove('show');
     document.getElementById('pdf-edit-page').classList.remove('show');
     document.getElementById('search-page').classList.add('show');
-    const ytTab = document.querySelector('.splat-tab[data-plat="youtube"]');
-    if (ytTab) setSearchPlatform('youtube', ytTab);
+    // Pehle har baar YouTube tab par reset ho jaata tha (aur usi ke saath
+    // stopSearchPlayer() bhi chal jaata) — matlab kisi doosre section se
+    // wapas aane par chalta hua video ruk jaata tha. Ab agar koi session
+    // pehle se chal raha hai (tab select ho chuka hai) to use as-is chhod
+    // dete hain — sirf bilkul pehli baar (koi tab active hi nahi) YouTube
+    // default set karte hain.
+    if (!document.querySelector('.splat-tab.active')) {
+      const ytTab = document.querySelector('.splat-tab[data-plat="youtube"]');
+      if (ytTab) setSearchPlatform('youtube', ytTab);
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
     setupSearchColumnSync();
   };
@@ -6542,6 +6561,7 @@
         playerVars: { autoplay: 1 },
         events: { onError: handleYtPlayerError }
       });
+      window.ytPlayer = ytPlayer; // debug/test access — player khud closure-scoped hai
     }
     loadSearchCaptions(r.id);
   };
@@ -6900,7 +6920,6 @@
     document.getElementById('media-converter-page').classList.remove('show');
     document.getElementById('pdf-tools-page').classList.remove('show');
     document.getElementById('pdf-edit-page').classList.remove('show');
-    stopSearchPlayer();
 
     const panel = document.getElementById('dl-bell-panel');
     if (panel) panel.style.display = 'none';
