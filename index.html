@@ -500,6 +500,23 @@
     .pdft-field-input[type="range"] { padding:0; height:6px; accent-color:var(--green); }
     .pdft-field-input[type="color"] { padding:2px; height:38px; cursor:pointer; }
     .pdft-field-select { width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:var(--card); color:var(--text); font-family:'Space Grotesk',sans-serif; font-size:13.5px; box-sizing:border-box; }
+    /* Fully custom dropdown — koi native <select> nahi (uska OPEN popup
+       list browsers khud render karte hain, color-scheme se bhi hamesha
+       guarantee nahi milta ki wo app ke dark theme se match kare — kahin
+       Chrome/Firefox/OS ke hisaab se abhi bhi white/mismatched dikh sakta
+       hai). Isliye poori dropdown (trigger + options list) khud CSS se
+       banayi hai — har jagah, har browser mein bilkul same dikhega. */
+    .pdft-dropdown { position:relative; }
+    .pdft-dropdown-trigger { width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:var(--card); color:var(--text); font-family:'Space Grotesk',sans-serif; font-size:13.5px; font-weight:600; cursor:pointer; box-sizing:border-box; text-align:left; }
+    .pdft-dropdown-trigger:hover { border-color:var(--border-hover); }
+    .pdft-dropdown.open .pdft-dropdown-trigger { border-color:var(--green); }
+    .pdft-dropdown-trigger svg { flex-shrink:0; transition:transform 0.15s ease; }
+    .pdft-dropdown.open .pdft-dropdown-trigger svg { transform:rotate(180deg); }
+    .pdft-dropdown-menu { display:none; position:absolute; top:calc(100% + 6px); left:0; right:0; z-index:20; max-height:260px; overflow-y:auto; background:var(--card); border:1px solid var(--border); border-radius:10px; box-shadow:0 12px 32px rgba(0,0,0,0.4); padding:6px; }
+    .pdft-dropdown.open .pdft-dropdown-menu { display:block; }
+    .pdft-dropdown-option { padding:9px 12px; border-radius:7px; font-family:'Space Grotesk',sans-serif; font-size:13.5px; color:var(--text); cursor:pointer; }
+    .pdft-dropdown-option:hover { background:var(--surface); }
+    .pdft-dropdown-option.active { background:rgba(46,196,182,0.14); color:var(--green); font-weight:700; }
 
     /* ORGANIZE PDF — page thumbnails with reorder/delete controls */
     .pdfo-thumb-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:16px; margin-top:20px; }
@@ -2732,9 +2749,7 @@
           <div>
             <div class="pdfw-builder-col-title">Tool Selection</div>
             <div class="pdft-field-label"><span>Select a Tool</span></div>
-            <select class="pdft-field-select" id="pdfw-tool-select" onchange="pdfwOnToolChange()">
-              <option value="">Ek tool choose karo...</option>
-            </select>
+            <div id="pdfw-tool-select-wrap"></div>
             <div id="pdfw-tool-extra-fields" class="pdft-extra-fields"></div>
             <button type="button" class="dl-btn dl-btn-green editor-apply-btn" style="margin-top:16px;" id="pdfw-add-step-btn" disabled onclick="pdfwAddStep()">Add Step →</button>
           </div>
@@ -4715,6 +4730,60 @@
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // ─── Custom dropdown (koi native <select> nahi) ───
+  // Native <select>'s OPEN popup list browser/OS khud render karta hai — page
+  // CSS wahan tak nahi pahonchti (color-scheme se bhi sirf partial help milti
+  // hai, sab browser/OS combos mein guarantee nahi). Isliye poori dropdown
+  // (trigger button + options menu) yahan khud CSS/JS se banayi hai, taaki
+  // dark theme har jagah 100% guaranteed dikhe. Hidden input SAME id par
+  // rehta hai jo pehle <select> ka tha, isliye har jagah `.value` padhne
+  // wala purana code bina badlaav ke chalta rehta hai.
+  function pdftDropdownHtml(id, options, selectedValue, placeholder, onchangeFnName) {
+    const selectedOpt = options.find(o => String(o.value) === String(selectedValue));
+    const labelText = selectedOpt ? selectedOpt.label : (placeholder || 'Select karo...');
+    const disabled = !options.length;
+    const optsHtml = options.map(o => `<div class="pdft-dropdown-option${String(o.value) === String(selectedValue) ? ' active' : ''}" data-value="${escapeHtml(String(o.value))}" data-label="${escapeHtml(o.label)}">${escapeHtml(o.label)}</div>`).join('') || `<div class="pdft-dropdown-option" style="cursor:default;">${escapeHtml(placeholder || 'Koi option nahi hai')}</div>`;
+    return `<div class="pdft-dropdown${disabled ? ' pdft-dropdown-disabled' : ''}" id="${id}-dd"${onchangeFnName ? ` data-onchange="${onchangeFnName}"` : ''}>
+      <button type="button" class="pdft-dropdown-trigger" data-dd-trigger>
+        <span id="${id}-label">${escapeHtml(labelText)}</span>
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="pdft-dropdown-menu" id="${id}-menu">${optsHtml}</div>
+      <input type="hidden" id="${id}" value="${escapeHtml(selectedValue == null ? '' : String(selectedValue))}" />
+    </div>`;
+  }
+
+  document.addEventListener('click', (e) => {
+    const trigger = e.target.closest('[data-dd-trigger]');
+    if (trigger) {
+      const dd = trigger.closest('.pdft-dropdown');
+      if (dd.classList.contains('pdft-dropdown-disabled')) return;
+      const wasOpen = dd.classList.contains('open');
+      document.querySelectorAll('.pdft-dropdown.open').forEach(d => d.classList.remove('open'));
+      if (!wasOpen) dd.classList.add('open');
+      e.stopPropagation();
+      return;
+    }
+    const opt = e.target.closest('.pdft-dropdown-option[data-value]');
+    if (opt) {
+      const dd = opt.closest('.pdft-dropdown');
+      const menu = dd.querySelector('.pdft-dropdown-menu');
+      const hiddenId = dd.id.replace(/-dd$/, '');
+      const hidden = document.getElementById(hiddenId);
+      const labelEl = document.getElementById(`${hiddenId}-label`);
+      menu.querySelectorAll('.pdft-dropdown-option').forEach(o => o.classList.remove('active'));
+      opt.classList.add('active');
+      if (hidden) hidden.value = opt.dataset.value;
+      if (labelEl) labelEl.textContent = opt.dataset.label;
+      dd.classList.remove('open');
+      const onchangeFnName = dd.dataset.onchange;
+      if (onchangeFnName && typeof window[onchangeFnName] === 'function') window[onchangeFnName]();
+      e.stopPropagation();
+      return;
+    }
+    document.querySelectorAll('.pdft-dropdown.open').forEach(d => d.classList.remove('open'));
+  });
+
   // extraFields (Watermark/Rotate/Page Numbers/Unlock/Protect) ek generic
   // config-driven form ban jaate hain — naya tool add karna ho to bas ek
   // extraFields array likhna hota hai, koi naya HTML nahi.
@@ -4726,7 +4795,7 @@
       if (f.type === 'range') {
         wrap.innerHTML = `<div class="pdft-field-label"><span>${escapeHtml(f.label)}</span><span class="pdft-field-value" id="pdft-field-${f.id}-value">${f.default}${f.unit || ''}</span></div><input type="range" class="pdft-field-input" id="pdft-field-${f.id}" min="${f.min}" max="${f.max}" step="${f.step}" value="${f.default}" oninput="document.getElementById('pdft-field-${f.id}-value').textContent = this.value + '${f.unit || ''}'" />`;
       } else if (f.type === 'select') {
-        wrap.innerHTML = `<div class="pdft-field-label"><span>${escapeHtml(f.label)}</span></div><select class="pdft-field-select" id="pdft-field-${f.id}">${f.options.map(o => `<option value="${o.value}"${o.value === f.default ? ' selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}</select>`;
+        wrap.innerHTML = `<div class="pdft-field-label"><span>${escapeHtml(f.label)}</span></div>` + pdftDropdownHtml(`pdft-field-${f.id}`, f.options, f.default, null, null);
       } else if (f.type === 'color') {
         wrap.innerHTML = `<div class="pdft-field-label"><span>${escapeHtml(f.label)}</span></div><input type="color" class="pdft-field-input" id="pdft-field-${f.id}" value="${f.default}" />`;
       } else {
@@ -5646,19 +5715,16 @@
   };
 
   function pdfwPopulateToolDropdown() {
-    const select = document.getElementById('pdfw-tool-select');
     const requiredInput = pdfwSteps.length ? pdfwSteps[pdfwSteps.length - 1].outputType : null;
     const available = pdfwTools.filter(t => !requiredInput || t.inputType === requiredInput);
     document.getElementById('pdfw-tool-extra-fields').innerHTML = '';
     document.getElementById('pdfw-add-step-btn').disabled = true;
-    if (!available.length) {
-      select.innerHTML = `<option value="">Koi compatible tool nahi hai</option>`;
-      select.disabled = true;
-    } else {
-      select.disabled = false;
-      select.innerHTML = `<option value="">Ek tool choose karo...</option>` +
-        available.map(t => `<option value="${t.key}">${escapeHtml(t.label)}</option>`).join('');
-    }
+    const options = available.map(t => ({ value: t.key, label: t.label }));
+    document.getElementById('pdfw-tool-select-wrap').innerHTML = pdftDropdownHtml(
+      'pdfw-tool-select', options, '',
+      available.length ? 'Ek tool choose karo...' : 'Koi compatible tool nahi hai',
+      'pdfwOnToolChange'
+    );
   }
 
   window.pdfwOnToolChange = () => {
@@ -5674,7 +5740,7 @@
       if (f.type === 'range') {
         wrap.innerHTML = `<div class="pdft-field-label"><span>${escapeHtml(f.label)}</span><span class="pdft-field-value" id="pdfw-field-${f.id}-value">${f.default}${f.unit || ''}</span></div><input type="range" class="pdft-field-input" id="pdfw-field-${f.id}" min="${f.min}" max="${f.max}" step="${f.step}" value="${f.default}" oninput="document.getElementById('pdfw-field-${f.id}-value').textContent = this.value + '${f.unit || ''}'" />`;
       } else if (f.type === 'select') {
-        wrap.innerHTML = `<div class="pdft-field-label"><span>${escapeHtml(f.label)}</span></div><select class="pdft-field-select" id="pdfw-field-${f.id}">${f.options.map(o => `<option value="${o.value}"${o.value === f.default ? ' selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}</select>`;
+        wrap.innerHTML = `<div class="pdft-field-label"><span>${escapeHtml(f.label)}</span></div>` + pdftDropdownHtml(`pdfw-field-${f.id}`, f.options, f.default, null, null);
       } else if (f.type === 'color') {
         wrap.innerHTML = `<div class="pdft-field-label"><span>${escapeHtml(f.label)}</span></div><input type="color" class="pdft-field-input" id="pdfw-field-${f.id}" value="${f.default}" />`;
       } else {
