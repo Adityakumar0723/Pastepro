@@ -511,6 +511,24 @@
     .pdfc-diff-added { background:rgba(46,196,182,0.16); color:var(--text); }
     .pdfc-diff-removed { background:rgba(230,57,70,0.16); color:var(--text); text-decoration:line-through; opacity:0.8; }
 
+    /* WORKFLOWS — saved multi-tool chains (list / builder / run states) */
+    .pdft-workflow-card { border-style:dashed; border-color:rgba(230,57,70,0.4); background:rgba(230,57,70,0.06); }
+    .pdft-workflow-card:hover { border-color:var(--accent); background:rgba(230,57,70,0.1); }
+    .pdfw-list-item { display:flex; align-items:center; gap:14px; padding:16px 18px; border:1px solid var(--border); border-radius:12px; background:var(--card); margin-bottom:12px; }
+    .pdfw-list-item-name { font-family:'Space Grotesk',sans-serif; font-weight:800; font-size:15px; color:var(--text); }
+    .pdfw-list-item-steps { font-size:12px; color:var(--muted); margin-top:4px; }
+    .pdfw-list-item-actions { display:flex; gap:8px; margin-left:auto; flex-shrink:0; }
+    .pdfw-empty-state { text-align:center; padding:60px 20px; color:var(--muted); font-size:13.5px; }
+    .pdfw-builder-grid { display:grid; grid-template-columns:1fr 1fr; gap:24px; align-items:start; }
+    @media(max-width:800px){ .pdfw-builder-grid { grid-template-columns:1fr; } }
+    .pdfw-builder-col-title { font-size:11.5px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; color:var(--muted); margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid var(--border); }
+    .pdfw-step-item { display:flex; align-items:flex-start; gap:12px; padding:14px 16px; border:1px solid var(--border); border-radius:10px; background:var(--card); margin-bottom:10px; }
+    .pdfw-step-num { flex-shrink:0; width:22px; height:22px; border-radius:50%; background:var(--green); color:#fff; font-size:11px; font-weight:800; display:flex; align-items:center; justify-content:center; }
+    .pdfw-step-body { flex:1; min-width:0; }
+    .pdfw-step-title { font-weight:700; font-size:13.5px; color:var(--text); }
+    .pdfw-step-detail { font-size:11.5px; color:var(--muted); margin-top:2px; }
+    .pdfw-step-remove { flex-shrink:0; width:22px; height:22px; border-radius:6px; border:none; background:rgba(230,57,70,0.14); color:#e63946; cursor:pointer; font-size:13px; }
+
     /* AI SUMMARIZER */
     .pdfs-summary-card { border:1px solid var(--border); border-radius:10px; padding:18px 20px; background:var(--card); font-size:14px; line-height:1.7; white-space:pre-wrap; color:var(--text); }
 
@@ -1537,7 +1555,7 @@
 
         <div class="docs-section">
           <div class="docs-section-title">🧰 PDF Tools</div>
-          <p class="docs-section-desc">A full iLovePDF-style toolset — 31 tools across Organize, Optimize, Convert, Edit, PDF Security and PDF Intelligence, filterable by category. Every tool shows a live progress percentage while it works, and opens the result straight in the canvas viewer (ZIP-producing tools download directly instead).</p>
+          <p class="docs-section-desc">A full iLovePDF-style toolset — 32 tools across Organize, Optimize, Convert, Edit, PDF Security and PDF Intelligence, filterable by category. Every tool shows a live progress percentage while it works, and opens the result straight in the canvas viewer (ZIP-producing tools download directly instead).</p>
           <ul class="docs-feature-list">
             <li><strong>Organize:</strong> Merge PDF (combine files in upload order) · Split PDF (every page → its own file, as a ZIP) · JPG to PDF (one or more images → one PDF, each on its own page) · Scan to PDF (same, with camera capture on mobile) · Organize PDF (thumbnail preview of every page — reorder with ↑/↓, delete any page, then rebuild) · Crop PDF (independent top/bottom/left/right margin sliders, applied to every page)</li>
             <li><strong>Optimize:</strong> Compress PDF (real before/after size shown, no exaggerated claims) · Repair PDF (best-effort fix for a damaged/corrupt file) · OCR PDF (for scanned/image-only PDFs with no text layer — rasterizes each page and runs it through the vision AI, producing a Word document)</li>
@@ -1545,6 +1563,7 @@
             <li><strong>Edit:</strong> Edit PDF (click "Text Daalo"/"Image Daalo" then click any page to drop it there; drag to reposition, resize images, change text font size/color inline) · Watermark (your text stamped on every page — text, opacity, rotation, size and color are all adjustable) · Rotate PDF (90°/180°/270°, applied to every page) · Page Numbers (position and starting number configurable) · Compare PDF (upload two PDFs, see a line-by-line diff per page — added lines in green, removed in red) · PDF Forms (auto-detects existing fillable fields and builds a form to fill them; if a PDF has none, click anywhere on a page to add a brand-new fillable text field instead)</li>
             <li><strong>PDF Security:</strong> Protect PDF (add a password) · Unlock PDF (remove one, if you know it) · Sign PDF (draw a signature on a pad, then place/drag/resize it on any page — it's really just the Edit PDF image-overlay flow under the hood) · Redact PDF (click-drag a box over anything sensitive — the whole page is rasterized to an image with that area blacked out, so the underlying text is gone for good, not just hidden under a shape)</li>
             <li><strong>PDF Intelligence:</strong> AI Summarizer (a concise summary + key bullet points, shown right on the page — no file to download) · Translate PDF (AI-translated into one of 10 languages, delivered as a Word document)</li>
+            <li><strong>Workflows:</strong> chain several tools together (e.g. Watermark → Rotate → Compress) and save it — pick a tool, set its options, "Add Step", repeat; only tools whose input matches the previous step's output show up next, so a chain can't be built wrong. Saved workflows appear in a list with one-click Run — upload a file and every step runs in sequence automatically</li>
             <li>A few things are honestly scoped rather than faked: <strong>PDF to PDF/A</strong> is disclosed as a best-effort structural cleanup, not a certified ISO PDF/A conversion; <strong>OCR PDF</strong> produces an editable Word doc rather than an invisibly-searchable PDF, since that needs word-level bounding boxes a plain-text AI response doesn't provide; <strong>Translate PDF</strong> outputs a clean new document rather than claiming to preserve the original's exact layout, since reflowing translated text into the same space reliably isn't realistic</li>
           </ul>
           <div class="docs-shot-wrap">
@@ -1594,6 +1613,16 @@
           <div class="docs-shot-wrap">
             <img class="docs-shot" src="/docs-assets/pdf-summarizer.png" alt="AI Summarizer showing a generated summary" loading="lazy" />
             <div class="docs-shot-caption">AI Summarizer — a concise summary with key points, right on the page</div>
+          </div>
+          <div class="docs-shot-row">
+            <div>
+              <img class="docs-shot" src="/docs-assets/pdf-workflow-builder.png" alt="Workflow builder with three chained steps" loading="lazy" />
+              <div class="docs-shot-caption">Building a workflow — Watermark → Rotate → Compress, chained in one go</div>
+            </div>
+            <div>
+              <img class="docs-shot" src="/docs-assets/pdf-workflow-list.png" alt="Saved workflow ready to run" loading="lazy" />
+              <div class="docs-shot-caption">A saved workflow — one click runs every step on a new file</div>
+            </div>
           </div>
         </div>
 
@@ -2407,6 +2436,11 @@
           <div class="pdft-tool-title">PDF to Markdown</div>
           <div class="pdft-tool-desc">PDF ko Markdown file mein badal do — notes, docs ya LLMs ke liye perfect.</div>
         </button>
+        <button type="button" class="pdft-tool-card pdft-workflow-card" data-cat="organize" onclick="pdftOpenWorkflows()">
+          <span class="pdft-tool-icon" style="background:#e63946;"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/><path d="M10 7h4M10 17h4M7 10v4M17 10v4"/></svg></span>
+          <div class="pdft-tool-title">Create a Workflow</div>
+          <div class="pdft-tool-desc">Kai tools ko ek chain mein jodo (jaise Watermark → Rotate → Compress) aur ek click mein sabko chalao.</div>
+        </button>
       </div>
     </div>
 
@@ -2649,6 +2683,93 @@
             <span class="fc-progress-pct" id="pdfr-pct">0%</span>
           </div>
           <div class="fc-progress-track"><div class="fc-progress-fill" id="pdfr-progress-fill"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- WORKFLOWS — kai PDF tools ko ek saved chain mein jodo, phir kisi bhi
+         file par ek click mein pura chain run karo (iLovePDF ke "Workflow"
+         feature jaisa). Teen states: list (saved workflows) / builder (naya
+         banao) / run (ek saved workflow par file upload karke chalao). -->
+    <div id="pdft-workflow-workspace" style="display:none;">
+      <button type="button" class="back-btn" onclick="pdftShowGrid()">← Sab PDF Tools</button>
+      <div class="editor-page-banner">
+        <div class="dl-banner-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/><path d="M10 7h4M10 17h4M7 10v4M17 10v4"/></svg></div>
+        <div>
+          <h2>Workflows</h2>
+          <p>Kai tools ko ek chain mein jodo, phir kisi bhi file par ek click mein pura chain chalao</p>
+        </div>
+      </div>
+
+      <!-- List state -->
+      <div id="pdfw-list-view">
+        <button type="button" class="dl-btn dl-btn-green editor-apply-btn" style="margin-bottom:20px;" onclick="pdftOpenWorkflowBuilder()"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:4px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Naya Workflow Banao</button>
+        <div class="pg-thinking" id="pdfw-list-thinking">
+          <span class="pg-dot"></span><span class="pg-dot"></span><span class="pg-dot"></span>
+          Workflows load ho rahe hain...
+        </div>
+        <div id="pdfw-list-container"></div>
+      </div>
+
+      <!-- Builder state -->
+      <div id="pdfw-builder-view" style="display:none;">
+        <button type="button" class="back-btn" onclick="pdftOpenWorkflows()">← Sab Workflows</button>
+        <div class="editor-control-group" style="margin-bottom:20px;">
+          <div class="dl-section-label">Workflow Ka Naam</div>
+          <input type="text" id="pdfw-name-input" class="pdft-field-input" maxlength="80" placeholder="Jaise: Scan Cleanup, Client Reports..." oninput="pdfwUpdateSaveBtnState()" />
+        </div>
+        <div class="pdfw-builder-grid">
+          <div>
+            <div class="pdfw-builder-col-title">Tool Selection</div>
+            <div class="pdft-field-label"><span>Select a Tool</span></div>
+            <select class="pdft-field-select" id="pdfw-tool-select" onchange="pdfwOnToolChange()">
+              <option value="">Ek tool choose karo...</option>
+            </select>
+            <div id="pdfw-tool-extra-fields" class="pdft-extra-fields"></div>
+            <button type="button" class="dl-btn dl-btn-green editor-apply-btn" style="margin-top:16px;" id="pdfw-add-step-btn" disabled onclick="pdfwAddStep()">Add Step →</button>
+          </div>
+          <div>
+            <div class="pdfw-builder-col-title" style="display:flex; justify-content:space-between; align-items:center;">
+              <span>Workflow Preview</span>
+              <a href="#" onclick="pdfwClearSteps(); return false;" style="font-size:11.5px; color:var(--muted); text-transform:none; letter-spacing:normal; font-weight:600;">Clear all</a>
+            </div>
+            <div id="pdfw-steps-preview"><p style="color:var(--muted); font-size:13px;">Add tools to start building your workflow</p></div>
+          </div>
+        </div>
+        <button type="button" class="dl-btn dl-btn-green editor-apply-btn" style="margin-top:24px;" id="pdfw-save-btn" disabled onclick="runPdfwSave()">Create Workflow</button>
+        <div class="pg-thinking fc-progress-thinking" id="pdfw-save-thinking">
+          <div class="fc-progress-row">
+            <span class="pg-dot"></span><span class="pg-dot"></span><span class="pg-dot"></span>
+            <span>Save ho raha hai...</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Run state -->
+      <div id="pdfw-run-view" style="display:none;">
+        <button type="button" class="back-btn" onclick="pdftOpenWorkflows()">← Sab Workflows</button>
+        <div class="dl-section-label" id="pdfw-run-title" style="margin-bottom:14px;"></div>
+        <div class="editor-upload-zone" id="pdfw-run-upload-zone" onclick="document.getElementById('pdfw-run-file-input').click()">
+          <input type="file" id="pdfw-run-file-input" style="display:none;" onchange="handlePdfwRunFileSelect(event)" />
+          <div class="editor-upload-icon"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/></svg></div>
+          <p class="editor-upload-text" id="pdfw-run-upload-text">File upload karo</p>
+        </div>
+        <div id="pdfw-run-file-list-wrap" style="display:none; margin-top:14px;">
+          <div id="pdfw-run-file-list" class="pdft-file-list"></div>
+        </div>
+        <button type="button" class="dl-btn dl-btn-green editor-apply-btn" style="margin-top:20px;" id="pdfw-run-action-btn" disabled onclick="runPdfwExecute()">Workflow Chalao</button>
+        <div class="pg-thinking fc-progress-thinking" id="pdfw-run-thinking">
+          <div class="fc-progress-row">
+            <span class="pg-dot"></span><span class="pg-dot"></span><span class="pg-dot"></span>
+            <span>Workflow chal raha hai...</span>
+            <span class="fc-progress-pct" id="pdfw-run-pct">0%</span>
+          </div>
+          <div class="fc-progress-track"><div class="fc-progress-fill" id="pdfw-run-progress-fill"></div></div>
+        </div>
+        <div class="editor-result" id="pdfw-run-result" style="display:none;">
+          <div class="dl-section-label">ZIP Ready Hai!</div>
+          <div id="pdfw-run-result-stats" style="color:var(--muted); font-size:13.5px; margin-bottom:14px;"></div>
+          <a id="pdfw-run-download-link" href="#" class="dl-btn dl-btn-green" download><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download Karo</a>
         </div>
       </div>
     </div>
@@ -4986,6 +5107,7 @@
     document.getElementById('pdft-summarize-workspace').style.display = 'none';
     document.getElementById('pdft-forms-workspace').style.display = 'none';
     document.getElementById('pdft-redact-workspace').style.display = 'none';
+    document.getElementById('pdft-workflow-workspace').style.display = 'none';
   }
 
   // ════════════════════════════════
@@ -5411,6 +5533,327 @@
     } finally {
       btn.disabled = false;
       document.getElementById('pdfr-thinking').classList.remove('active');
+    }
+  };
+
+  // ════════════════════════════════
+  //  WORKFLOWS — kai PDF tools ko ek saved chain mein jodo, phir kisi bhi
+  //  file par ek click mein pura chain chalao. Tool registry (labels/
+  //  input-output types/extraFields) server se ek hi baar fetch hoti hai
+  //  (/api/workflows/tools) — yahi generic extraFields-rendering system
+  //  reuse hoti hai jo standalone PDF Tools mein already bani hui hai,
+  //  isliye koi tool-metadata do jagah duplicate nahi karna pada.
+  // ════════════════════════════════
+  let pdfwTools = [], pdfwToolsLoaded = false;
+  let pdfwSteps = [];
+  let pdfwWorkflows = [];
+  let pdfwRunWorkflowId = null, pdfwRunFirstTool = null, pdfwRunFiles = [];
+
+  window.pdftOpenWorkflows = () => {
+    pdftHideAllWorkspaces();
+    document.getElementById('pdft-workflow-workspace').style.display = 'block';
+    document.getElementById('pdfw-list-view').style.display = 'block';
+    document.getElementById('pdfw-builder-view').style.display = 'none';
+    document.getElementById('pdfw-run-view').style.display = 'none';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    pdfwLoadWorkflowList();
+  };
+
+  async function pdfwEnsureToolsLoaded() {
+    if (pdfwToolsLoaded) return;
+    const res = await fetch(`${BACKEND}/api/workflows/tools`, { headers: { Authorization: `Bearer ${authToken}` } });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.success) { pdfwTools = data.tools; pdfwToolsLoaded = true; }
+  }
+
+  function pdfwToolLabel(key) {
+    const t = pdfwTools.find(x => x.key === key);
+    return t ? t.label : key;
+  }
+
+  async function pdfwLoadWorkflowList() {
+    document.getElementById('pdfw-list-thinking').classList.add('active');
+    document.getElementById('pdfw-list-container').innerHTML = '';
+    try {
+      await pdfwEnsureToolsLoaded();
+      const res = await fetch(`${BACKEND}/api/workflows`, { headers: { Authorization: `Bearer ${authToken}` } });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || 'Workflows load nahi ho paaye');
+      pdfwWorkflows = data.workflows;
+      pdfwRenderWorkflowList();
+    } catch (e) {
+      showToast(e.message || 'Workflows load nahi ho paaye', 'error');
+    } finally {
+      document.getElementById('pdfw-list-thinking').classList.remove('active');
+    }
+  }
+
+  function pdfwRenderWorkflowList() {
+    const container = document.getElementById('pdfw-list-container');
+    if (!pdfwWorkflows.length) {
+      container.innerHTML = `<div class="pdfw-empty-state">Koi workflow nahi bana abhi tak — "Naya Workflow Banao" dabao</div>`;
+      return;
+    }
+    container.innerHTML = pdfwWorkflows.map(w => {
+      const stepLabels = w.steps.map(s => pdfwToolLabel(s.tool)).join(' → ');
+      return `<div class="pdfw-list-item">
+        <div>
+          <div class="pdfw-list-item-name">${escapeHtml(w.name)}</div>
+          <div class="pdfw-list-item-steps">${w.steps.length} steps: ${escapeHtml(stepLabels)}</div>
+        </div>
+        <div class="pdfw-list-item-actions">
+          <button type="button" class="dl-btn dl-btn-green" style="padding:8px 16px; width:auto;" onclick="pdftOpenWorkflowRun('${w.id}')">Run</button>
+          <button type="button" class="dl-btn dl-btn-gray" style="padding:8px 16px; width:auto;" onclick="pdfwDeleteWorkflow('${w.id}')">Delete</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  window.pdfwDeleteWorkflow = async (id) => {
+    if (!confirm('Ye workflow delete karna chahte ho? Ye wapas nahi aayega.')) return;
+    try {
+      const res = await fetch(`${BACKEND}/api/workflows/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${authToken}` } });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || 'Delete nahi ho paya');
+      showToast('Workflow delete ho gaya', 'success');
+      pdfwLoadWorkflowList();
+    } catch (e) {
+      showToast(e.message || 'Delete nahi ho paya', 'error');
+    }
+  };
+
+  // ─── Builder ───
+  window.pdftOpenWorkflowBuilder = async () => {
+    document.getElementById('pdfw-list-view').style.display = 'none';
+    document.getElementById('pdfw-run-view').style.display = 'none';
+    document.getElementById('pdfw-builder-view').style.display = 'block';
+    document.getElementById('pdfw-name-input').value = '';
+    pdfwSteps = [];
+    pdfwRenderStepsPreview();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    await pdfwEnsureToolsLoaded();
+    pdfwPopulateToolDropdown();
+  };
+
+  function pdfwPopulateToolDropdown() {
+    const select = document.getElementById('pdfw-tool-select');
+    const requiredInput = pdfwSteps.length ? pdfwSteps[pdfwSteps.length - 1].outputType : null;
+    const available = pdfwTools.filter(t => !requiredInput || t.inputType === requiredInput);
+    document.getElementById('pdfw-tool-extra-fields').innerHTML = '';
+    document.getElementById('pdfw-add-step-btn').disabled = true;
+    if (!available.length) {
+      select.innerHTML = `<option value="">Koi compatible tool nahi hai</option>`;
+      select.disabled = true;
+    } else {
+      select.disabled = false;
+      select.innerHTML = `<option value="">Ek tool choose karo...</option>` +
+        available.map(t => `<option value="${t.key}">${escapeHtml(t.label)}</option>`).join('');
+    }
+  }
+
+  window.pdfwOnToolChange = () => {
+    const key = document.getElementById('pdfw-tool-select').value;
+    const container = document.getElementById('pdfw-tool-extra-fields');
+    container.innerHTML = '';
+    document.getElementById('pdfw-add-step-btn').disabled = !key;
+    if (!key) return;
+    const tool = pdfwTools.find(t => t.key === key);
+    if (!tool) return;
+    (tool.extraFields || []).forEach(f => {
+      const wrap = document.createElement('div');
+      if (f.type === 'range') {
+        wrap.innerHTML = `<div class="pdft-field-label"><span>${escapeHtml(f.label)}</span><span class="pdft-field-value" id="pdfw-field-${f.id}-value">${f.default}${f.unit || ''}</span></div><input type="range" class="pdft-field-input" id="pdfw-field-${f.id}" min="${f.min}" max="${f.max}" step="${f.step}" value="${f.default}" oninput="document.getElementById('pdfw-field-${f.id}-value').textContent = this.value + '${f.unit || ''}'" />`;
+      } else if (f.type === 'select') {
+        wrap.innerHTML = `<div class="pdft-field-label"><span>${escapeHtml(f.label)}</span></div><select class="pdft-field-select" id="pdfw-field-${f.id}">${f.options.map(o => `<option value="${o.value}"${o.value === f.default ? ' selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}</select>`;
+      } else if (f.type === 'color') {
+        wrap.innerHTML = `<div class="pdft-field-label"><span>${escapeHtml(f.label)}</span></div><input type="color" class="pdft-field-input" id="pdfw-field-${f.id}" value="${f.default}" />`;
+      } else {
+        const extraAttrs = [f.maxlength ? `maxlength="${f.maxlength}"` : '', f.min !== undefined ? `min="${f.min}"` : '', f.max !== undefined ? `max="${f.max}"` : '', f.type === 'password' ? 'placeholder="Password yahan likho" autocomplete="new-password"' : ''].filter(Boolean).join(' ');
+        wrap.innerHTML = `<div class="pdft-field-label"><span>${escapeHtml(f.label)}</span></div><input type="${f.type}" class="pdft-field-input" id="pdfw-field-${f.id}" value="${escapeHtml(String(f.default))}" ${extraAttrs} />`;
+      }
+      container.appendChild(wrap);
+    });
+  };
+
+  window.pdfwAddStep = () => {
+    const key = document.getElementById('pdfw-tool-select').value;
+    if (!key) return;
+    const tool = pdfwTools.find(t => t.key === key);
+    if (!tool) return;
+    const options = {};
+    (tool.extraFields || []).forEach(f => {
+      const el = document.getElementById(`pdfw-field-${f.id}`);
+      options[f.id] = el ? el.value : f.default;
+    });
+    pdfwSteps.push({ tool: key, label: tool.label, options, inputType: tool.inputType, outputType: tool.outputType });
+    pdfwRenderStepsPreview();
+    pdfwPopulateToolDropdown();
+  };
+
+  window.pdfwRemoveStep = (index) => {
+    pdfwSteps.splice(index, 1);
+    pdfwRenderStepsPreview();
+    pdfwPopulateToolDropdown();
+  };
+
+  window.pdfwClearSteps = () => {
+    pdfwSteps = [];
+    pdfwRenderStepsPreview();
+    pdfwPopulateToolDropdown();
+  };
+
+  window.pdfwUpdateSaveBtnState = () => {
+    document.getElementById('pdfw-save-btn').disabled = !(pdfwSteps.length && document.getElementById('pdfw-name-input').value.trim());
+  };
+
+  function pdfwRenderStepsPreview() {
+    const container = document.getElementById('pdfw-steps-preview');
+    if (!pdfwSteps.length) {
+      container.innerHTML = `<p style="color:var(--muted); font-size:13px;">Add tools to start building your workflow</p>`;
+    } else {
+      container.innerHTML = pdfwSteps.map((s, i) => {
+        const detail = Object.entries(s.options).filter(([k, v]) => k !== 'password' && v !== '').map(([k, v]) => `${k}: ${v}`).join(', ');
+        return `<div class="pdfw-step-item">
+          <div class="pdfw-step-num">${i + 1}</div>
+          <div class="pdfw-step-body">
+            <div class="pdfw-step-title">${escapeHtml(s.label)}</div>
+            ${detail ? `<div class="pdfw-step-detail">${escapeHtml(detail)}</div>` : ''}
+          </div>
+          <button type="button" class="pdfw-step-remove" onclick="pdfwRemoveStep(${i})">×</button>
+        </div>`;
+      }).join('');
+    }
+    pdfwUpdateSaveBtnState();
+  }
+
+  window.runPdfwSave = async () => {
+    const name = document.getElementById('pdfw-name-input').value.trim();
+    if (!name) { showToast('Workflow ka naam likho', 'error'); return; }
+    if (!pdfwSteps.length) { showToast('Kam se kam ek step add karo', 'error'); return; }
+
+    const btn = document.getElementById('pdfw-save-btn');
+    btn.disabled = true;
+    document.getElementById('pdfw-save-thinking').classList.add('active');
+    try {
+      const steps = pdfwSteps.map(s => ({ tool: s.tool, options: s.options }));
+      const res = await fetch(`${BACKEND}/api/workflows`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({ name, steps }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || 'Workflow save nahi ho paya');
+      showToast('Workflow ban gaya! ✓', 'success');
+      pdftOpenWorkflows();
+    } catch (e) {
+      showToast(e.message || 'Workflow save nahi ho paya', 'error');
+    } finally {
+      btn.disabled = false;
+      document.getElementById('pdfw-save-thinking').classList.remove('active');
+    }
+  };
+
+  // ─── Run ───
+  window.pdftOpenWorkflowRun = async (id) => {
+    document.getElementById('pdfw-list-view').style.display = 'none';
+    document.getElementById('pdfw-builder-view').style.display = 'none';
+    document.getElementById('pdfw-run-view').style.display = 'block';
+    pdfwRunWorkflowId = id;
+    pdfwRunFiles = [];
+    document.getElementById('pdfw-run-file-input').value = '';
+    document.getElementById('pdfw-run-file-list-wrap').style.display = 'none';
+    document.getElementById('pdfw-run-action-btn').disabled = true;
+    document.getElementById('pdfw-run-result').style.display = 'none';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    await pdfwEnsureToolsLoaded();
+    const workflow = pdfwWorkflows.find(w => w.id === id);
+    if (!workflow) { showToast('Workflow nahi mila', 'error'); pdftOpenWorkflows(); return; }
+    pdfwRunFirstTool = pdfwTools.find(t => t.key === workflow.steps[0].tool);
+    document.getElementById('pdfw-run-title').textContent = `"${workflow.name}" Chalao (${workflow.steps.length} steps)`;
+
+    const input = document.getElementById('pdfw-run-file-input');
+    const isImage = pdfwRunFirstTool?.inputType === 'image';
+    input.multiple = isImage;
+    input.accept = pdfwRunFirstTool?.inputType === 'pdf' ? 'application/pdf,.pdf'
+      : pdfwRunFirstTool?.inputType === 'image' ? 'image/png,image/jpeg'
+      : pdfwRunFirstTool?.inputType === 'docx' ? '.docx'
+      : pdfwRunFirstTool?.inputType === 'pptx' ? '.pptx'
+      : pdfwRunFirstTool?.inputType === 'xlsx' ? '.xlsx' : '*';
+    document.getElementById('pdfw-run-upload-text').textContent = isImage ? 'Ek ya zyada images upload karo' : 'File upload karo';
+  };
+
+  window.handlePdfwRunFileSelect = (event) => {
+    const files = Array.from(event.target.files || []);
+    event.target.value = '';
+    if (!files.length) return;
+    pdfwRunFiles = pdfwRunFirstTool?.inputType === 'image' ? files : [files[0]];
+    document.getElementById('pdfw-run-file-list').innerHTML = pdfwRunFiles.map(f =>
+      `<div class="pdft-file-row"><span class="pdft-file-row-icon">${escapeHtml(pdftFileIconLabel(f.name))}</span><span class="pdft-file-row-name">${escapeHtml(f.name)}</span><span class="pdft-file-row-size">${pdftFormatBytes(f.size)}</span></div>`
+    ).join('');
+    document.getElementById('pdfw-run-file-list-wrap').style.display = 'block';
+    document.getElementById('pdfw-run-action-btn').disabled = false;
+  };
+
+  let pdfwRunProgressTimer = null;
+  function pdfwRunStartProgress(estimatedMs) {
+    clearInterval(pdfwRunProgressTimer);
+    const fill = document.getElementById('pdfw-run-progress-fill');
+    const pct = document.getElementById('pdfw-run-pct');
+    fill.style.width = '0%'; pct.textContent = '0%';
+    const start = Date.now();
+    pdfwRunProgressTimer = setInterval(() => {
+      const shown = Math.min(92, Math.round(92 * (1 - Math.exp(-(Date.now() - start) / estimatedMs))));
+      fill.style.width = `${shown}%`; pct.textContent = `${shown}%`;
+    }, 120);
+  }
+  function pdfwRunFinishProgress() {
+    clearInterval(pdfwRunProgressTimer);
+    pdfwRunProgressTimer = null;
+    document.getElementById('pdfw-run-progress-fill').style.width = '100%';
+    document.getElementById('pdfw-run-pct').textContent = '100%';
+  }
+
+  window.runPdfwExecute = async () => {
+    if (!pdfwRunFiles.length) { showToast('Pehle file(s) upload karo', 'error'); return; }
+    const btn = document.getElementById('pdfw-run-action-btn');
+    btn.disabled = true;
+    document.getElementById('pdfw-run-result').style.display = 'none';
+    document.getElementById('pdfw-run-thinking').classList.add('active');
+    const workflow = pdfwWorkflows.find(w => w.id === pdfwRunWorkflowId);
+    pdfwRunStartProgress(Math.max(2000, (workflow?.steps.length || 1) * 1800));
+
+    try {
+      const fd = new FormData();
+      pdfwRunFiles.forEach(f => fd.append('files', f));
+      const res = await fetch(`${BACKEND}/api/workflows/${pdfwRunWorkflowId}/run`, { method: 'POST', headers: { Authorization: `Bearer ${authToken}` }, body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || 'Workflow run nahi ho paya');
+
+      const fullUrl = data.fileUrl.startsWith('http') ? data.fileUrl : `${BACKEND}${data.fileUrl}`;
+      const fileRes = await fetch(fullUrl);
+      if (!fileRes.ok) throw new Error(`HTTP ${fileRes.status}`);
+      const blob = await fileRes.blob();
+      pdfwRunFinishProgress();
+      await new Promise(r => setTimeout(r, 300));
+
+      if (data.outputType === 'zip') {
+        const url = URL.createObjectURL(blob);
+        document.getElementById('pdfw-run-result-stats').textContent = 'Workflow ke sabhi steps complete ho gaye.';
+        const dlLink = document.getElementById('pdfw-run-download-link');
+        dlLink.href = url;
+        dlLink.download = data.filename;
+        document.getElementById('pdfw-run-result').style.display = 'block';
+        document.getElementById('pdfw-run-result').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        window.pgOpenGeneratedFileModal(data.outputType, data.filename, blob);
+      }
+      showToast('Workflow chal gaya! ✓', 'success');
+    } catch (e) {
+      showToast(e.message || 'Workflow run nahi ho paya', 'error');
+    } finally {
+      btn.disabled = false;
+      document.getElementById('pdfw-run-thinking').classList.remove('active');
     }
   };
 

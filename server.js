@@ -91,9 +91,24 @@ const activityLogSchema = new mongoose.Schema({
   userAgent: String,
 }, { timestamps: true });
 
+// PDF Tools "Workflow" — user kai PDF tools ko ek saved chain (steps array)
+// mein jod deta hai (jaise iLovePDF), phir kisi bhi file par ek click mein
+// pura chain run kar sakta hai. options ka exact shape har tool ke hisaab
+// se alag hota hai isliye Mixed hai — WORKFLOW_TOOLS registry hi validate
+// karta hai ki kaunse fields valid hain.
+const workflowSchema = new mongoose.Schema({
+  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  name: { type: String, required: true, trim: true, maxlength: 80 },
+  steps: [{
+    tool: { type: String, required: true },
+    options: { type: mongoose.Schema.Types.Mixed, default: {} },
+  }],
+}, { timestamps: true });
+
 const User = mongoose.model('User', userSchema);
 const Download = mongoose.model('Download', downloadSchema);
 const ActivityLog = mongoose.model('ActivityLog', activityLogSchema);
+const Workflow = mongoose.model('Workflow', workflowSchema);
 
 // Best-effort — logging kabhi bhi asal feature ko fail nahi karna chahiye,
 // isliye caller ko await karne ki bhi zaroorat nahi (fire-and-forget),
@@ -2748,6 +2763,213 @@ app.post('/api/pdf-tools/redact', requireAuth, withPdfToolUpload(pdfToolUpload.s
   } catch (err) {
     console.error('redact error:', err);
     res.status(500).json({ error: 'Redact nahi ho paaya. Kya ye ek valid PDF hai?' });
+  }
+}));
+
+// ─── PDF TOOLS WORKFLOWS — kai tools ko ek saved chain mein jod ke ek hi
+//     click mein sabko sequence mein run karo (iLovePDF ke "Workflow"
+//     feature jaisa). Har entry ka `run` upar-defined generator functions
+//     ko hi seedha reuse karta hai — koi logic duplicate nahi hua.
+// Sirf wahi tools shamil hain jo "ek buffer/images in -> ek buffer out"
+// hain, bina kisi per-page interactive click ke (Edit/Sign/Organize/Redact/
+// Forms/Compare in sabko interactive canvas chahiye, isliye workflow steps
+// mein fit nahi hote — v1 scope se bahar rakha hai).
+const PDFT_MARGIN_FIELDS = [
+  { id: 'top', label: 'Top Margin', type: 'range', default: 0, min: 0, max: 40, step: 1, unit: '%' },
+  { id: 'bottom', label: 'Bottom Margin', type: 'range', default: 0, min: 0, max: 40, step: 1, unit: '%' },
+  { id: 'left', label: 'Left Margin', type: 'range', default: 0, min: 0, max: 40, step: 1, unit: '%' },
+  { id: 'right', label: 'Right Margin', type: 'range', default: 0, min: 0, max: 40, step: 1, unit: '%' },
+];
+const WORKFLOW_TOOLS = {
+  'jpg-to-pdf': { label: 'JPG to PDF', category: 'Organize', inputType: 'image', outputType: 'pdf', extraFields: [],
+    run: async (images) => generateImagePdfBuffer(images) },
+  split: { label: 'Split PDF', category: 'Organize', inputType: 'pdf', outputType: 'zip', extraFields: [],
+    run: async (buffer) => (await splitPdfToZip(buffer)).buffer },
+  compress: { label: 'Compress PDF', category: 'Optimize', inputType: 'pdf', outputType: 'pdf', extraFields: [],
+    run: async (buffer) => compressPdf(buffer) },
+  repair: { label: 'Repair PDF', category: 'Optimize', inputType: 'pdf', outputType: 'pdf', extraFields: [],
+    run: async (buffer) => repairPdfBuffer(buffer) },
+  ocr: { label: 'OCR PDF', category: 'Optimize', inputType: 'pdf', outputType: 'docx', extraFields: [],
+    run: async (buffer) => { if (!OPENROUTER_API_KEY) throw new Error('OpenRouter API key configure nahi hai'); return ocrPdfToDocxBuffer(buffer); } },
+  rotate: { label: 'Rotate PDF', category: 'Edit', inputType: 'pdf', outputType: 'pdf',
+    extraFields: [{ id: 'angle', label: 'Rotate Karo', type: 'select', default: '90', options: [{ value: '90', label: '90° (Clockwise)' }, { value: '180', label: '180°' }, { value: '270', label: '270° (Anti-clockwise)' }] }],
+    run: async (buffer, opts) => rotatePdfBuffer(buffer, [90, 180, 270].includes(Number(opts.angle)) ? Number(opts.angle) : 90) },
+  watermark: { label: 'Watermark', category: 'Edit', inputType: 'pdf', outputType: 'pdf',
+    extraFields: [
+      { id: 'text', label: 'Watermark Text', type: 'text', default: 'CONFIDENTIAL', maxlength: 60 },
+      { id: 'opacity', label: 'Opacity', type: 'range', default: 30, min: 5, max: 100, step: 5, unit: '%' },
+      { id: 'rotation', label: 'Rotation', type: 'range', default: -45, min: -90, max: 90, step: 5, unit: '°' },
+      { id: 'fontSize', label: 'Font Size', type: 'range', default: 48, min: 10, max: 120, step: 2, unit: 'px' },
+      { id: 'color', label: 'Color', type: 'color', default: '#888888' },
+    ],
+    run: async (buffer, opts) => watermarkPdf(buffer, {
+      text: String(opts.text || 'CONFIDENTIAL').slice(0, 60).trim() || 'CONFIDENTIAL',
+      opacity: Math.min(1, Math.max(0.05, Number(opts.opacity) / 100 || 0.3)),
+      rotation: Math.min(90, Math.max(-90, Number(opts.rotation) || -45)),
+      fontSize: Math.min(120, Math.max(10, Number(opts.fontSize) || 48)),
+      color: /^#[0-9a-fA-F]{6}$/.test(opts.color || '') ? opts.color : '#888888',
+    }) },
+  'page-numbers': { label: 'Page Numbers', category: 'Edit', inputType: 'pdf', outputType: 'pdf',
+    extraFields: [
+      { id: 'position', label: 'Position', type: 'select', default: 'bottom-center', options: [
+        { value: 'bottom-center', label: 'Bottom Center' }, { value: 'bottom-left', label: 'Bottom Left' },
+        { value: 'bottom-right', label: 'Bottom Right' }, { value: 'top-center', label: 'Top Center' },
+      ] },
+      { id: 'startNumber', label: 'Start Number', type: 'number', default: 1, min: 1, max: 9999 },
+    ],
+    run: async (buffer, opts) => addPageNumbersToPdf(buffer, {
+      position: ['bottom-left', 'bottom-center', 'bottom-right', 'top-center'].includes(opts.position) ? opts.position : 'bottom-center',
+      startNumber: Math.max(1, Math.min(9999, parseInt(opts.startNumber, 10) || 1)),
+    }) },
+  crop: { label: 'Crop PDF', category: 'Organize', inputType: 'pdf', outputType: 'pdf', extraFields: PDFT_MARGIN_FIELDS,
+    run: async (buffer, opts) => {
+      const clamp = v => Math.min(45, Math.max(0, Number(v) || 0));
+      return cropPdfBuffer(buffer, { top: clamp(opts.top), bottom: clamp(opts.bottom), left: clamp(opts.left), right: clamp(opts.right) });
+    } },
+  protect: { label: 'Protect PDF', category: 'Security', inputType: 'pdf', outputType: 'pdf',
+    extraFields: [{ id: 'password', label: 'Naya Password Set Karo', type: 'password', default: '' }],
+    run: async (buffer, opts) => {
+      const password = String(opts.password || '');
+      if (password.length < 4) throw new Error('Password kam se kam 4 characters ka hona chahiye');
+      return protectPdfBuffer(buffer, password);
+    } },
+  unlock: { label: 'Unlock PDF', category: 'Security', inputType: 'pdf', outputType: 'pdf',
+    extraFields: [{ id: 'password', label: 'PDF Ka Current Password', type: 'password', default: '' }],
+    run: async (buffer, opts) => {
+      const password = String(opts.password || '');
+      if (!password) throw new Error('PDF ka password daalo');
+      return unlockPdfBuffer(buffer, password);
+    } },
+  'pdf-to-pdfa': { label: 'PDF to PDF/A', category: 'Convert', inputType: 'pdf', outputType: 'pdf', extraFields: [],
+    run: async (buffer) => pdfToPdfABestEffort(buffer) },
+  'pdf-to-word': { label: 'PDF to Word', category: 'Convert', inputType: 'pdf', outputType: 'docx', extraFields: [],
+    run: async (buffer) => generatePdfToDocxBuffer(buffer) },
+  'pdf-to-pptx': { label: 'PDF to PowerPoint', category: 'Convert', inputType: 'pdf', outputType: 'pptx', extraFields: [],
+    run: async (buffer) => generatePdfToPptxBuffer(buffer) },
+  'pdf-to-excel': { label: 'PDF to Excel', category: 'Convert', inputType: 'pdf', outputType: 'xlsx', extraFields: [],
+    run: async (buffer) => generatePdfToXlsxBuffer(buffer) },
+  'word-to-pdf': { label: 'Word to PDF', category: 'Convert', inputType: 'docx', outputType: 'pdf', extraFields: [],
+    run: async (buffer) => generateDocxToPdfBuffer(buffer) },
+  'pptx-to-pdf': { label: 'PowerPoint to PDF', category: 'Convert', inputType: 'pptx', outputType: 'pdf', extraFields: [],
+    run: async (buffer) => generatePptxToPdfBuffer(buffer) },
+  'excel-to-pdf': { label: 'Excel to PDF', category: 'Convert', inputType: 'xlsx', outputType: 'pdf', extraFields: [],
+    run: async (buffer) => generateXlsxToPdfBuffer(buffer) },
+  'pdf-to-jpg': { label: 'PDF to JPG', category: 'Convert', inputType: 'pdf', outputType: 'zip', extraFields: [],
+    run: async (buffer) => (await pdfToJpgZip(buffer)).buffer },
+  'to-markdown': { label: 'PDF to Markdown', category: 'Convert', inputType: 'pdf', outputType: 'md', extraFields: [],
+    run: async (buffer) => pdfToMarkdownBuffer(buffer) },
+  translate: { label: 'Translate PDF', category: 'Intelligence', inputType: 'pdf', outputType: 'docx',
+    extraFields: [{ id: 'targetLang', label: 'Target Language', type: 'select', default: 'Hindi', options: PDF_TRANSLATE_LANGS.map(l => ({ value: l, label: l })) }],
+    run: async (buffer, opts) => {
+      if (!OPENROUTER_API_KEY) throw new Error('OpenRouter API key configure nahi hai');
+      const targetLang = PDF_TRANSLATE_LANGS.includes(opts.targetLang) ? opts.targetLang : 'English';
+      const pages = await extractPdfPages(buffer);
+      const text = pages.join('\n\n').trim();
+      if (!text) throw new Error('Is PDF mein koi text nahi mila');
+      const translated = await translatePdfText(text, targetLang);
+      if (!translated.trim()) throw new Error('Translate fail ho gaya');
+      return generateDocxBuffer(translated);
+    } },
+};
+const WORKFLOW_OUTPUT_EXT = { pdf: 'pdf', docx: 'docx', pptx: 'pptx', xlsx: 'xlsx', md: 'md', zip: 'zip' };
+
+app.get('/api/workflows/tools', requireAuth, (req, res) => {
+  const tools = Object.entries(WORKFLOW_TOOLS).map(([key, t]) => ({
+    key, label: t.label, category: t.category, inputType: t.inputType, outputType: t.outputType, extraFields: t.extraFields,
+  }));
+  res.json({ success: true, tools });
+});
+
+app.get('/api/workflows', requireAuth, async (req, res) => {
+  try {
+    const workflows = await Workflow.find({ user: req.user.id }).sort({ createdAt: -1 }).lean();
+    res.json({ success: true, workflows: workflows.map(w => ({ id: w._id, name: w.name, steps: w.steps, createdAt: w.createdAt })) });
+  } catch (err) {
+    console.error('workflows list error:', err);
+    res.status(500).json({ error: 'Workflows load nahi ho paaye' });
+  }
+});
+
+app.post('/api/workflows', requireAuth, async (req, res) => {
+  const name = String(req.body.name || '').trim().slice(0, 80);
+  const steps = Array.isArray(req.body.steps) ? req.body.steps : [];
+  if (!name) return res.status(400).json({ error: 'Workflow ka naam likho' });
+  if (!steps.length) return res.status(400).json({ error: 'Kam se kam ek step add karo' });
+  if (steps.length > 10) return res.status(400).json({ error: 'Ek workflow mein max 10 steps allowed hain' });
+
+  for (let i = 0; i < steps.length; i++) {
+    const step = steps[i];
+    if (!step || typeof step.tool !== 'string' || !WORKFLOW_TOOLS[step.tool]) {
+      return res.status(400).json({ error: `Step ${i + 1} mein invalid tool hai` });
+    }
+    if (i > 0) {
+      const prevOut = WORKFLOW_TOOLS[steps[i - 1].tool].outputType;
+      const curIn = WORKFLOW_TOOLS[step.tool].inputType;
+      if (prevOut !== curIn) {
+        return res.status(400).json({ error: `Step ${i + 1} (${WORKFLOW_TOOLS[step.tool].label}) step ${i} ke output (${prevOut}) ke saath compatible nahi hai` });
+      }
+    }
+  }
+
+  try {
+    const cleanSteps = steps.map(s => ({ tool: s.tool, options: s.options && typeof s.options === 'object' ? s.options : {} }));
+    const workflow = await Workflow.create({ user: req.user.id, name, steps: cleanSteps });
+    logActivity(req, 'workflow_create', { steps: cleanSteps.length });
+    res.json({ success: true, workflow: { id: workflow._id, name: workflow.name, steps: workflow.steps, createdAt: workflow.createdAt } });
+  } catch (err) {
+    console.error('workflow create error:', err);
+    res.status(500).json({ error: 'Workflow save nahi ho paya' });
+  }
+});
+
+app.delete('/api/workflows/:id', requireAuth, async (req, res) => {
+  try {
+    const result = await Workflow.deleteOne({ _id: req.params.id, user: req.user.id });
+    if (!result.deletedCount) return res.status(404).json({ error: 'Workflow nahi mila' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('workflow delete error:', err);
+    res.status(500).json({ error: 'Workflow delete nahi ho paya' });
+  }
+});
+
+app.post('/api/workflows/:id/run', requireAuth, withPdfToolUpload(pdfToolUpload.array('files', 20), async (req, res) => {
+  const files = req.files || [];
+  if (!files.length) return res.status(400).json({ error: 'File(s) upload karo' });
+
+  let workflow;
+  try {
+    workflow = await Workflow.findOne({ _id: req.params.id, user: req.user.id });
+  } catch {
+    return res.status(404).json({ error: 'Workflow nahi mila' });
+  }
+  if (!workflow) return res.status(404).json({ error: 'Workflow nahi mila' });
+
+  const firstTool = WORKFLOW_TOOLS[workflow.steps[0]?.tool];
+  if (!firstTool) return res.status(400).json({ error: 'Workflow mein invalid tool hai' });
+
+  try {
+    let current = firstTool.inputType === 'image'
+      ? files.map(f => ({ buffer: f.buffer, mime: f.mimetype }))
+      : files[0].buffer;
+    let outputType = firstTool.inputType;
+
+    for (const step of workflow.steps) {
+      const toolDef = WORKFLOW_TOOLS[step.tool];
+      if (!toolDef) throw new Error(`Tool "${step.tool}" available nahi hai`);
+      current = await toolDef.run(current, step.options || {});
+      outputType = toolDef.outputType;
+    }
+
+    const ext = WORKFLOW_OUTPUT_EXT[outputType] || 'pdf';
+    const uid = req.user.id;
+    const outName = `${uid.slice(0, 8)}_${Date.now()}_wf.${ext}`;
+    fs.writeFileSync(path.join(DOWNLOADS_DIR, outName), current);
+    logActivity(req, 'workflow_run', { workflowId: String(workflow._id), steps: workflow.steps.length });
+    res.json({ success: true, fileUrl: `/files/${outName}`, filename: outName, outputType });
+  } catch (err) {
+    console.error('workflow run error:', err);
+    res.status(400).json({ error: err.message || 'Workflow run nahi ho paya' });
   }
 }));
 
