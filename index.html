@@ -955,6 +955,14 @@
     .music-volume-row .music-control-btn { width:24px; height:24px; }
     .music-download-row { margin-top:18px; }
     .music-status-note { font-size:12px; color:var(--muted); text-align:center; margin-top:14px; }
+    /* Mobile browsers (khaas kar iOS Safari) unmuted autoplay ko bina fresh
+       tap ke allow hi nahi karte — isliye pehla track hamesha MUTED start
+       hota hai (muted autoplay HAR browser mein guaranteed allowed hai, isse
+       track kabhi "stuck/not playing" nahi dikhta), aur ye banner ek tap se
+       unmute kar deta hai — wo tap khud ek fresh gesture hai, isliye
+       guaranteed kaam karta hai. */
+    .music-unmute-banner { width:100%; padding:10px; margin-bottom:14px; border-radius:10px; border:1px solid var(--green); background:rgba(46,196,182,0.12); color:var(--green); font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:700; cursor:pointer; animation:musicUnmutePulse 1.6s ease-in-out infinite; }
+    @keyframes musicUnmutePulse { 0%,100% { opacity:1; } 50% { opacity:0.6; } }
 
     /* Results / track list */
     .music-list-col-title { font-family:'Space Grotesk',sans-serif; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); margin-bottom:12px; }
@@ -2018,6 +2026,8 @@
 
           <div class="music-track-title" id="music-now-title">Kuch bhi select nahi kiya</div>
           <div class="music-track-artist" id="music-now-artist">—</div>
+
+          <button type="button" class="music-unmute-banner" id="music-unmute-banner" style="display:none;" onclick="unmuteMusicPlayer()">🔊 Awaaz On Karne Ke Liye Tap Karo</button>
 
           <div class="music-seek-row">
             <span class="music-time-label" id="music-time-current">0:00</span>
@@ -7392,6 +7402,7 @@
     document.getElementById('music-now-title').textContent = r.title;
     document.getElementById('music-now-artist').textContent = r.channel || '';
     document.getElementById('music-status-note').textContent = '';
+    document.getElementById('music-unmute-banner').style.display = 'none';
     const art = document.getElementById('music-album-art');
     const placeholder = document.getElementById('music-album-placeholder');
     if (r.thumbnail) {
@@ -7419,7 +7430,13 @@
         width: '640',
         height: '360',
         videoId: r.id,
-        playerVars: { autoplay: 1, playsinline: 1 },
+        // mute:1 — mobile browsers (khaas kar iOS Safari) awaaz-wale autoplay
+        // ko bina fresh tap ke block kar dete hain, lekin MUTED autoplay har
+        // browser mein guaranteed chalta hai. Isliye pehli baar hamesha muted
+        // shuru karte hain (taaki track kabhi stuck na dikhe), aur music-unmute-
+        // banner se ek tap mein awaaz on ho jaati hai — real user tap hone ki
+        // wajah se wo guaranteed kaam karta hai.
+        playerVars: { autoplay: 1, playsinline: 1, mute: 1 },
         events: { onStateChange: onMusicPlayerStateChange, onError: handleMusicPlayerError }
       });
       window.musicPlayer = musicPlayer; // debug/test access — player khud closure-scoped hai
@@ -7493,6 +7510,11 @@
     if (musicPlayer && typeof musicPlayer.setVolume === 'function') musicPlayer.setVolume(Number(value));
   };
 
+  window.unmuteMusicPlayer = () => {
+    if (musicPlayer && typeof musicPlayer.unMute === 'function') musicPlayer.unMute();
+    document.getElementById('music-unmute-banner').style.display = 'none';
+  };
+
   window.downloadCurrentMusicTrack = () => {
     if (musicCurrentIndex < 0) return;
     downloadMusicResult(musicCurrentIndex);
@@ -7503,6 +7525,11 @@
     let state;
     try { state = musicPlayer.getPlayerState(); } catch (e) { return; }
     if (state === 1) document.getElementById('music-status-note').textContent = ''; // autoplay-blocked hint hata do jaise hi actually bajne lage
+    const banner = document.getElementById('music-unmute-banner');
+    if (banner) {
+      const isMuted = typeof musicPlayer.isMuted === 'function' && musicPlayer.isMuted();
+      banner.style.display = (isMuted && (state === 1 || state === 3)) ? 'block' : 'none';
+    }
     const playIcon = document.getElementById('music-play-icon');
     playIcon.innerHTML = state === 1
       ? '<path d="M6 5h4v14H6zm8 0h4v14h-4z"/>'
@@ -7546,6 +7573,8 @@
     if (totT) totT.textContent = '0:00';
     const playIcon = document.getElementById('music-play-icon');
     if (playIcon) playIcon.innerHTML = '<path d="M8 5v14l11-7z"/>';
+    const banner = document.getElementById('music-unmute-banner');
+    if (banner) banner.style.display = 'none';
   }
 
   // Type — video ya audio, sabse pehle choose karo
