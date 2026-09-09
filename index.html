@@ -966,7 +966,14 @@
 
     /* Results / track list */
     .music-list-col-title { font-family:'Space Grotesk',sans-serif; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); margin-bottom:12px; }
-    .music-results-list { display:flex; flex-direction:column; gap:4px; }
+    .music-results-list { display:flex; flex-direction:column; gap:4px; max-height:calc(100vh - 220px); min-height:400px; overflow-y:auto; padding-right:6px; }
+    /* Search & Download jaisa hi — list apne andar scroll kare, poora page
+       nahi. Mobile par single-column stacked layout mein nested scroll
+       theek se kaam nahi karta, isliye wahan disable karke poora page hi
+       normal scroll karta hai (Search page mein bhi yahi pattern hai). */
+    @media (max-width:900px) {
+      .music-results-list { max-height:none; min-height:0; overflow-y:visible; }
+    }
     .music-track-row { display:flex; align-items:center; gap:12px; padding:8px 10px; border-radius:10px; cursor:pointer; transition:background 0.15s; }
     .music-track-row:hover { background:var(--surface); }
     .music-track-row.playing { background:rgba(46,196,182,0.1); }
