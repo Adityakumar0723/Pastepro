@@ -915,10 +915,10 @@
     .music-search-input:focus { outline:none; border-color:var(--green); }
     .music-search-btn { padding:12px 22px; border-radius:0 50px 50px 0; border:1px solid var(--green); background:var(--green); color:#0c0c0e; font-family:'Space Grotesk',sans-serif; font-size:14px; font-weight:700; cursor:pointer; }
     .music-search-btn:hover { opacity:0.9; }
-    .music-body { display:grid; grid-template-columns: minmax(280px, 420px) minmax(320px, 1fr); gap:28px; align-items:start; padding-bottom:120px; }
+    .music-body { display:grid; grid-template-columns: minmax(280px, 420px) minmax(320px, 1fr); gap:28px; align-items:start; }
 
     /* Now playing — big album-art card, Spotify ki tarah */
-    .music-nowplaying-card { background:var(--card); border:1px solid var(--border); border-radius:20px; padding:24px; position:sticky; top:24px; }
+    .music-nowplaying-card { background:var(--card); border:1px solid var(--border); border-radius:20px; padding:18px; position:sticky; top:24px; max-height:calc(100vh - 220px); overflow-y:auto; }
     /* Mobile par ek hi column mein stack hota hai — wahan "sticky" card fixed
        header ke peeche/upar overlap ho sakta hai aur controls tap karna
        mushkil ho jaata hai, isliye mobile par sticky hata dete hain. Ye rule
@@ -926,11 +926,19 @@
        mein equal-specificity rules mein jo baad mein aata hai wahi jeetta
        hai, pehle likhne se ye override kaam hi nahi karta tha. */
     @media (max-width: 900px) { .music-body { grid-template-columns: 1fr; } .music-nowplaying-card { position:static; } }
-    .music-album-art-wrap { width:100%; aspect-ratio:1/1; border-radius:14px; overflow:hidden; background:var(--surface); box-shadow:0 16px 40px rgba(0,0,0,0.35); margin-bottom:20px; display:flex; align-items:center; justify-content:center; }
+    /* Poori now-playing card ki height mostly isi square album-art se aati
+       hai — column jitna chaura, art utni hi lambi (1:1 ratio), aur short
+       (laptop height jaisi) screens par ye poori card ko viewport se lamba
+       kar deta tha, jisse pura page hi scroll karna padta tha (chahe results
+       list khud apne andar scroll kare). Ab width ko viewport height se bhi
+       cap kiya hai — art khud-ba-khud (dono dimensions, ratio maintain karte
+       hue) chhoti ho jaati hai jab screen chhoti hai, taaki poori card
+       hamesha ek hi screen mein fit ho jaaye. */
+    .music-album-art-wrap { width:min(100%, 22vh); aspect-ratio:1/1; margin:0 auto 14px; border-radius:14px; overflow:hidden; background:var(--surface); box-shadow:0 16px 40px rgba(0,0,0,0.35); display:flex; align-items:center; justify-content:center; }
     .music-album-art-wrap img { width:100%; height:100%; object-fit:cover; display:block; }
     .music-album-art-placeholder { font-size:52px; opacity:0.35; }
-    .music-track-title { font-size:18px; font-weight:700; line-height:1.3; margin-bottom:4px; }
-    .music-track-artist { font-size:13px; color:var(--muted); margin-bottom:20px; }
+    .music-track-title { font-size:15.5px; font-weight:700; line-height:1.3; margin-bottom:4px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+    .music-track-artist { font-size:12.5px; color:var(--muted); margin-bottom:12px; }
     /* Hidden YouTube iframe — SIRF audio ke liye, kabhi dikhana nahi hai.
        opacity:0 use kiya hai, display:none NAHI — display:none lagte hi
        browsers iframe ka playback suspend kar dete (verified for the
@@ -940,20 +948,21 @@
        WebViews) mein video decode/play hi nahi karte, chahe autoplay allowed
        ho. Isliye asli size rakha hai, bas fixed+off-screen se chhupaya hai. */
     .music-hidden-player-wrap { position:fixed; top:0; left:-9999px; width:640px; height:360px; overflow:hidden; opacity:0; pointer-events:none; }
-    .music-seek-row { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+    .music-seek-row { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
     .music-time-label { font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; min-width:34px; }
     .music-seek-slider, .music-volume-slider { -webkit-appearance:none; appearance:none; flex:1; height:4px; border-radius:2px; background:var(--border); outline:none; cursor:pointer; }
     .music-seek-slider::-webkit-slider-thumb, .music-volume-slider::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:13px; height:13px; border-radius:50%; background:var(--green); cursor:pointer; }
     .music-seek-slider::-moz-range-thumb, .music-volume-slider::-moz-range-thumb { width:13px; height:13px; border-radius:50%; background:var(--green); border:none; cursor:pointer; }
-    .music-controls-row { display:flex; align-items:center; justify-content:center; gap:18px; margin-bottom:18px; }
-    .music-control-btn { width:38px; height:38px; border-radius:50%; border:none; background:transparent; color:var(--text); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all 0.15s; flex-shrink:0; }
+    .music-controls-row { display:flex; align-items:center; justify-content:center; gap:16px; margin-bottom:10px; }
+    .music-control-btn { width:32px; height:32px; border-radius:50%; border:none; background:transparent; color:var(--text); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all 0.15s; flex-shrink:0; }
     .music-control-btn:hover { color:var(--green); transform:scale(1.08); }
     .music-control-btn:disabled { opacity:0.3; cursor:not-allowed; transform:none; color:var(--text); }
-    .music-play-btn { width:54px; height:54px; border-radius:50%; background:var(--green); color:#0c0c0e; box-shadow:0 6px 18px rgba(46,196,182,0.35); }
+    .music-play-btn { width:44px; height:44px; border-radius:50%; background:var(--green); color:#0c0c0e; box-shadow:0 6px 18px rgba(46,196,182,0.35); }
     .music-play-btn:hover { color:#0c0c0e; opacity:0.92; transform:scale(1.05); }
     .music-volume-row { display:flex; align-items:center; gap:10px; }
     .music-volume-row .music-control-btn { width:24px; height:24px; }
-    .music-download-row { margin-top:18px; }
+    .music-download-row { margin-top:10px; }
+    .music-download-row .dl-btn { padding:11px; font-size:13.5px; }
     .music-status-note { font-size:12px; color:var(--muted); text-align:center; margin-top:14px; }
     /* Mobile browsers (khaas kar iOS Safari) unmuted autoplay ko bina fresh
        tap ke allow hi nahi karte — isliye pehla track hamesha MUTED start
@@ -961,12 +970,12 @@
        track kabhi "stuck/not playing" nahi dikhta), aur ye banner ek tap se
        unmute kar deta hai — wo tap khud ek fresh gesture hai, isliye
        guaranteed kaam karta hai. */
-    .music-unmute-banner { width:100%; padding:10px; margin-bottom:14px; border-radius:10px; border:1px solid var(--green); background:rgba(46,196,182,0.12); color:var(--green); font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:700; cursor:pointer; animation:musicUnmutePulse 1.6s ease-in-out infinite; }
+    .music-unmute-banner { width:100%; padding:8px; margin-bottom:8px; border-radius:10px; border:1px solid var(--green); background:rgba(46,196,182,0.12); color:var(--green); font-family:'Space Grotesk',sans-serif; font-size:12.5px; font-weight:700; cursor:pointer; animation:musicUnmutePulse 1.6s ease-in-out infinite; }
     @keyframes musicUnmutePulse { 0%,100% { opacity:1; } 50% { opacity:0.6; } }
 
     /* Results / track list */
     .music-list-col-title { font-family:'Space Grotesk',sans-serif; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); margin-bottom:12px; }
-    .music-results-list { display:flex; flex-direction:column; gap:8px; max-height:calc(100vh - 220px); min-height:400px; overflow-y:auto; padding-right:6px; }
+    .music-results-list { display:flex; flex-direction:column; gap:8px; max-height:calc(100vh - 220px); overflow-y:auto; padding-right:6px; }
     /* Search & Download jaisa hi — list apne andar scroll kare, poora page
        nahi. Mobile par single-column stacked layout mein nested scroll
        theek se kaam nahi karta, isliye wahan disable karke poora page hi
@@ -4419,7 +4428,40 @@
     document.getElementById('pdf-edit-page').classList.remove('show');
     document.getElementById('music-page').classList.add('show');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    setupMusicColumnSync();
   };
+
+  // Now-playing card aur results list — dono ko sahi height chahiye taaki
+  // dono hi apne andar scroll karein, poora PAGE kabhi scroll na ho. Ek
+  // fixed CSS calc(100vh-Npx) guess se off-by-a-lot ho jaata (header/search
+  // bar/results-title jaisi cheezon ki exact height page se page thodi badal
+  // sakti hai), isliye Search & Download page ki tarah hi live measurement
+  // se dono ka max-height JS se set karte hain — jo bhi upar jagah li gayi
+  // hai, wahi se lekar, real available height nikaalte hain.
+  let musicColResizeObserver = null;
+  function syncMusicColumnsHeight() {
+    const bottomMargin = 24;
+    const card = document.querySelector('.music-nowplaying-card');
+    const list = document.getElementById('music-results');
+    if (card) {
+      const top = card.getBoundingClientRect().top;
+      card.style.maxHeight = Math.max(200, window.innerHeight - top - bottomMargin) + 'px';
+    }
+    if (list) {
+      const top = list.getBoundingClientRect().top;
+      list.style.maxHeight = Math.max(200, window.innerHeight - top - bottomMargin) + 'px';
+    }
+  }
+
+  function setupMusicColumnSync() {
+    syncMusicColumnsHeight();
+    if (musicColResizeObserver || typeof ResizeObserver === 'undefined') return;
+    const body = document.getElementById('music-body');
+    if (!body) return;
+    musicColResizeObserver = new ResizeObserver(() => syncMusicColumnsHeight());
+    musicColResizeObserver.observe(body);
+    window.addEventListener('resize', syncMusicColumnsHeight);
+  }
 
   // ─── VIDEO EDITOR — upload apni video, trim/noise-reduce/volume/speed ────
   let editorUploadedFilename = null;
@@ -7373,6 +7415,7 @@
       renderMusicResults(musicResults);
       if (musicResults.length) {
         document.getElementById('music-body').style.display = 'grid';
+        setupMusicColumnSync();
         playMusicTrack(0); // gaana search karte hi top result seedha bajne lagta hai
       } else {
         showToast('Kuch nahi mila. Doosra keyword try karo.', 'error');
