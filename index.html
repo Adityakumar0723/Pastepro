@@ -126,6 +126,8 @@
     main:has(#pdf-tools-page.show) .hero { display: none; }
     main:has(#pdf-edit-page.show) { max-width: 100%; padding-top: 24px; padding-bottom: 24px; }
     main:has(#pdf-edit-page.show) .hero { display: none; }
+    main:has(#music-page.show) { max-width: 100%; padding-top: 24px; padding-bottom: 24px; }
+    main:has(#music-page.show) .hero { display: none; }
     main:has(#playground-page.show) { max-width: 1800px; padding-top: 24px; padding-bottom: 24px; padding-left: 16px; padding-right: 16px; }
     main:has(#playground-page.show) .hero { display: none; }
     main:has(#auth-view:not([style*="none"])) { max-width: 1040px; }
@@ -274,6 +276,20 @@
        off-screen (par abhi bhi rendered) hoti hai — iframe zinda rehta hai,
        bas visually chhup jaata hai jab tak wapas is page par na aaye. */
     #search-page:not(.show) {
+      display: block;
+      position: fixed;
+      top: 0;
+      left: -9999px;
+      width: 1400px;
+      height: 900px;
+      overflow: hidden;
+      opacity: 0;
+      pointer-events: none;
+    }
+    /* Music Player ka gaana bhi, Search & Download ki tarah, doosre section
+       par jaane ke baad bajta rehna chahiye — same off-screen (not
+       display:none) trick, taaki YouTube ka audio-only iframe suspend na ho. */
+    #music-page:not(.show) {
       display: block;
       position: fixed;
       top: 0;
@@ -890,6 +906,62 @@
     .search-result-row-meta { font-size:11px; color:var(--muted); }
     .search-result-row-dl { align-self:flex-start; margin-top:auto; padding:5px 12px; border:none; border-radius:6px; font-family:'Space Grotesk',sans-serif; font-size:11px; font-weight:700; cursor:pointer; background:linear-gradient(135deg,var(--accent),#c1121f); color:#fff; transition:opacity 0.2s; }
     .search-result-row-dl:hover { opacity:0.88; }
+
+    /* ════════════ MUSIC PLAYER — Spotify-jaisa dark UI, YouTube-backed audio ════════════ */
+    .music-searchbar-row { display:flex; gap:16px; align-items:center; flex-wrap:wrap; margin-bottom:20px; }
+    .music-searchbar { display:flex; flex:1; min-width:260px; max-width:640px; }
+    .music-search-input { flex:1; padding:12px 18px; border-radius:50px 0 0 50px; border:1px solid var(--border); border-right:none; background:var(--surface); color:var(--text); font-family:'Space Grotesk',sans-serif; font-size:14px; }
+    .music-search-input:focus { outline:none; border-color:var(--green); }
+    .music-search-btn { padding:12px 22px; border-radius:0 50px 50px 0; border:1px solid var(--green); background:var(--green); color:#0c0c0e; font-family:'Space Grotesk',sans-serif; font-size:14px; font-weight:700; cursor:pointer; }
+    .music-search-btn:hover { opacity:0.9; }
+    .music-body { display:grid; grid-template-columns: minmax(280px, 420px) minmax(320px, 1fr); gap:28px; align-items:start; padding-bottom:120px; }
+    @media (max-width: 900px) { .music-body { grid-template-columns: 1fr; } }
+
+    /* Now playing — big album-art card, Spotify ki tarah */
+    .music-nowplaying-card { background:var(--card); border:1px solid var(--border); border-radius:20px; padding:24px; position:sticky; top:24px; }
+    .music-album-art-wrap { width:100%; aspect-ratio:1/1; border-radius:14px; overflow:hidden; background:var(--surface); box-shadow:0 16px 40px rgba(0,0,0,0.35); margin-bottom:20px; display:flex; align-items:center; justify-content:center; }
+    .music-album-art-wrap img { width:100%; height:100%; object-fit:cover; display:block; }
+    .music-album-art-placeholder { font-size:52px; opacity:0.35; }
+    .music-track-title { font-size:18px; font-weight:700; line-height:1.3; margin-bottom:4px; }
+    .music-track-artist { font-size:13px; color:var(--muted); margin-bottom:20px; }
+    /* Hidden YouTube iframe — SIRF audio ke liye, kabhi dikhana nahi hai.
+       opacity:0 use kiya hai, display:none NAHI — display:none lagte hi
+       browsers iframe ka playback suspend kar dete (verified for the
+       Search page's same-technique fix), isliye tiny + invisible-but-alive. */
+    .music-hidden-player-wrap { position:absolute; width:2px; height:2px; overflow:hidden; opacity:0; pointer-events:none; top:0; left:0; }
+    .music-seek-row { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+    .music-time-label { font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; min-width:34px; }
+    .music-seek-slider, .music-volume-slider { -webkit-appearance:none; appearance:none; flex:1; height:4px; border-radius:2px; background:var(--border); outline:none; cursor:pointer; }
+    .music-seek-slider::-webkit-slider-thumb, .music-volume-slider::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:13px; height:13px; border-radius:50%; background:var(--green); cursor:pointer; }
+    .music-seek-slider::-moz-range-thumb, .music-volume-slider::-moz-range-thumb { width:13px; height:13px; border-radius:50%; background:var(--green); border:none; cursor:pointer; }
+    .music-controls-row { display:flex; align-items:center; justify-content:center; gap:18px; margin-bottom:18px; }
+    .music-control-btn { width:38px; height:38px; border-radius:50%; border:none; background:transparent; color:var(--text); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all 0.15s; flex-shrink:0; }
+    .music-control-btn:hover { color:var(--green); transform:scale(1.08); }
+    .music-control-btn:disabled { opacity:0.3; cursor:not-allowed; transform:none; color:var(--text); }
+    .music-play-btn { width:54px; height:54px; border-radius:50%; background:var(--green); color:#0c0c0e; box-shadow:0 6px 18px rgba(46,196,182,0.35); }
+    .music-play-btn:hover { color:#0c0c0e; opacity:0.92; transform:scale(1.05); }
+    .music-volume-row { display:flex; align-items:center; gap:10px; }
+    .music-volume-row .music-control-btn { width:24px; height:24px; }
+    .music-download-row { margin-top:18px; }
+    .music-status-note { font-size:12px; color:var(--muted); text-align:center; margin-top:14px; }
+
+    /* Results / track list */
+    .music-list-col-title { font-family:'Space Grotesk',sans-serif; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); margin-bottom:12px; }
+    .music-results-list { display:flex; flex-direction:column; gap:4px; }
+    .music-track-row { display:flex; align-items:center; gap:12px; padding:8px 10px; border-radius:10px; cursor:pointer; transition:background 0.15s; }
+    .music-track-row:hover { background:var(--surface); }
+    .music-track-row.playing { background:rgba(46,196,182,0.1); }
+    .music-track-row-thumb { position:relative; width:52px; height:52px; border-radius:8px; overflow:hidden; flex-shrink:0; background:#000; }
+    .music-track-row-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+    .music-track-row-playing-badge { position:absolute; inset:0; background:rgba(0,0,0,0.55); display:flex; align-items:center; justify-content:center; color:var(--green); font-size:18px; }
+    .music-track-row-body { flex:1; min-width:0; }
+    .music-track-row-title { font-size:13.5px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .music-track-row.playing .music-track-row-title { color:var(--green); }
+    .music-track-row-meta { font-size:11.5px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .music-track-row-duration { font-size:11.5px; color:var(--muted); flex-shrink:0; font-variant-numeric:tabular-nums; }
+    .music-track-row-dl { flex-shrink:0; width:30px; height:30px; border-radius:50%; border:none; background:var(--surface); color:var(--text); font-size:13px; cursor:pointer; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity 0.15s; }
+    .music-track-row:hover .music-track-row-dl { opacity:1; }
+    .music-track-row-dl:hover { background:var(--green); color:#0c0c0e; }
   </style>
 </head>
 <body>
@@ -985,6 +1057,7 @@
     <div class="sidebar-section-title">Tools</div>
     <div class="sidebar-list">
       <button class="sidebar-item" onclick="showSearch()"><span class="sidebar-item-icon" style="background:var(--green);"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>Search &amp; Download</button>
+      <button class="sidebar-item" onclick="showMusic()"><span class="sidebar-item-icon" style="background:#1DB954;"><svg viewBox="0 0 24 24" width="12" height="12" fill="white"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm4.59 14.4a.62.62 0 0 1-.86.21c-2.35-1.44-5.3-1.76-8.79-.96a.62.62 0 1 1-.28-1.21c3.82-.87 7.1-.5 9.72 1.1a.62.62 0 0 1 .21.86zm1.22-2.72a.78.78 0 0 1-1.07.26c-2.69-1.65-6.79-2.13-9.98-1.17a.78.78 0 1 1-.45-1.49c3.64-1.1 8.16-.57 11.24 1.32a.78.78 0 0 1 .26 1.08zm.11-2.83c-3.23-1.92-8.55-2.1-11.63-1.16a.93.93 0 1 1-.54-1.78c3.54-1.07 9.41-.87 13.12 1.34a.93.93 0 1 1-.95 1.6z"/></svg></span>Music Player</button>
       <button class="sidebar-item" onclick="showPlayground()"><span class="sidebar-item-icon" style="background:#6c5ce7;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-4.5 7.4 8.5 8.5 0 0 1-8.9-.4L3 20l1.5-4.6a8.38 8.38 0 0 1-.9-3.9 8.5 8.5 0 0 1 8.5-8.5h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></span>Playground Query</button>
       <button class="sidebar-item" onclick="showVideoEditor()"><span class="sidebar-item-icon" style="background:var(--accent);"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg></span>Video Editor</button>
       <button class="sidebar-item" onclick="showFileConverter()"><span class="sidebar-item-icon" style="background:#14b8a6;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>File Converter</button>
@@ -1032,6 +1105,7 @@
       <span class="pill">🎬 1080p HD</span>
       <span class="pill">🎵 MP3 Converter</span>
       <span class="pill">🔍 YouTube Search & Play</span>
+      <span class="pill">🎧 Music Player</span>
       <span class="pill">💬 AI Playground</span>
       <span class="pill">🎬 Video Editor</span>
       <span class="pill">📝 File Converter</span>
@@ -1068,6 +1142,7 @@
           <li>🎬 YouTube, Instagram, TikTok aur 50+ platforms se 1080p tak HD video download</li>
           <li>🎵 Audio ko MP3, M4A, WAV, FLAC ya OPUS mein convert karo</li>
           <li>🔍 YouTube search karke seedha play karo, phir wahin se download karo</li>
+          <li>🎧 Music Player — Spotify jaisa UI, gaane search karke bina rukawat play karo</li>
           <li>✂️ Video Editor — trim, speed, filters aur text overlay ek hi jagah</li>
           <li>💬 AI Playground — apne assistant se chat karo, files bhejo, real files banwao</li>
           <li>📄 File Converter — text ya image se PDF, Word, Excel, PowerPoint bana lo</li>
@@ -1879,6 +1954,79 @@
       <div class="search-list-col">
         <div class="dl-section-label">📃 Results</div>
         <div id="search-results" class="search-results-list"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MUSIC PLAYER — Spotify-jaisa dark UI, YouTube ke audio se bajta hai -->
+  <div id="music-page" class="download-page">
+
+    <button class="back-btn" onclick="goHome()">← Wapas Jaao</button>
+
+    <div class="music-searchbar-row">
+      <div class="music-searchbar">
+        <input class="music-search-input" id="music-query" type="text" placeholder="Gaana, artist ya album dhundo..." onkeydown="if(event.key==='Enter') doMusicSearch()" />
+        <button type="button" class="music-search-btn" id="music-search-btn" onclick="doMusicSearch()">🔍 Search Karo</button>
+      </div>
+    </div>
+
+    <div class="pg-thinking" id="music-thinking">
+      <span class="pg-dot"></span><span class="pg-dot"></span><span class="pg-dot"></span>
+      Gaane dhunde ja rahe hain...
+    </div>
+
+    <div class="music-body" id="music-body" style="display:none;">
+
+      <!-- Now Playing -->
+      <div class="music-player-col">
+        <div class="music-nowplaying-card">
+          <div class="music-album-art-wrap">
+            <img id="music-album-art" src="" alt="" style="display:none;" />
+            <span class="music-album-art-placeholder" id="music-album-placeholder">🎧</span>
+          </div>
+          <div class="music-hidden-player-wrap"><div id="music-player-target"></div></div>
+
+          <div class="music-track-title" id="music-now-title">Kuch bhi select nahi kiya</div>
+          <div class="music-track-artist" id="music-now-artist">—</div>
+
+          <div class="music-seek-row">
+            <span class="music-time-label" id="music-time-current">0:00</span>
+            <input type="range" class="music-seek-slider" id="music-seek-slider" min="0" max="100" value="0" oninput="seekMusic(this.value)" onmousedown="musicSeekScrubbing=true" onmouseup="musicSeekScrubbing=false" ontouchstart="musicSeekScrubbing=true" ontouchend="musicSeekScrubbing=false" />
+            <span class="music-time-label" id="music-time-total">0:00</span>
+          </div>
+
+          <div class="music-controls-row">
+            <button type="button" class="music-control-btn" id="music-prev-btn" onclick="playMusicPrev()" title="Peeche">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
+            </button>
+            <button type="button" class="music-control-btn music-play-btn" id="music-playpause-btn" onclick="toggleMusicPlayPause()" title="Play/Pause">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" id="music-play-icon"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+            <button type="button" class="music-control-btn" id="music-next-btn" onclick="playMusicNext()" title="Aage">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M16 6h2v12h-2zM6 6l8.5 6L6 18z"/></svg>
+            </button>
+          </div>
+
+          <div class="music-volume-row">
+            <button type="button" class="music-control-btn" style="width:24px;height:24px;" title="Volume">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M3 10v4h4l5 5V5L7 10z"/></svg>
+            </button>
+            <input type="range" class="music-volume-slider" id="music-volume-slider" min="0" max="100" value="80" oninput="setMusicVolume(this.value)" />
+          </div>
+
+          <div class="music-download-row">
+            <button type="button" class="dl-btn dl-btn-green" style="width:100%;" id="music-download-btn" onclick="downloadCurrentMusicTrack()">⬇ MP3 Download Karo</button>
+          </div>
+
+          <div class="music-status-note" id="music-status-note"></div>
+        </div>
+      </div>
+
+      <!-- Results -->
+      <div>
+        <div class="music-list-col-title">📃 Results</div>
+        <div id="music-results" class="music-results-list"></div>
       </div>
 
     </div>
@@ -2943,6 +3091,12 @@
   let ytApiLoadingPromise = null;
   let ytPlayer = null;
   let dlHistory = JSON.parse(sessionStorage.getItem('pastepro_history') || '[]');
+  // Music Player — apna alag YT.Player instance (search wale se independent),
+  // taaki dono page apna-apna audio/video chala saken bina ek-doosre ko rokey.
+  let musicResults = [];
+  let musicCurrentIndex = -1;
+  let musicPlayer = null;
+  let musicProgressTimer = null;
  
   // ════════════════════════════════
   //  Auth state — KEY FIX:
@@ -3187,6 +3341,7 @@
     document.getElementById('media-converter-page').classList.remove('show');
     document.getElementById('pdf-tools-page').classList.remove('show');
     document.getElementById('pdf-edit-page').classList.remove('show');
+    document.getElementById('music-page').classList.remove('show');
   }
 
   // Show auth
@@ -3203,7 +3358,9 @@
     document.getElementById('media-converter-page').classList.remove('show');
     document.getElementById('pdf-tools-page').classList.remove('show');
     document.getElementById('pdf-edit-page').classList.remove('show');
+    document.getElementById('music-page').classList.remove('show');
     stopSearchPlayer();
+    stopMusicPlayer();
     document.getElementById('header-user').style.display = 'none';
   }
 
@@ -3219,6 +3376,7 @@
     document.getElementById('media-converter-page').classList.remove('show');
     document.getElementById('pdf-tools-page').classList.remove('show');
     document.getElementById('pdf-edit-page').classList.remove('show');
+    document.getElementById('music-page').classList.remove('show');
     stopMedia(document.getElementById('dl-preview-video'));
     stopMedia(document.getElementById('dl-preview-audio'));
     stopDlWaveform();
@@ -3271,6 +3429,7 @@
     document.getElementById('media-converter-page').classList.remove('show');
     document.getElementById('pdf-tools-page').classList.remove('show');
     document.getElementById('pdf-edit-page').classList.remove('show');
+    document.getElementById('music-page').classList.remove('show');
     document.getElementById('auth-view').style.display = 'none';
     document.getElementById('app-view').style.display = 'block';
     const input = document.getElementById('vid-url');
@@ -3295,6 +3454,7 @@
     document.getElementById('media-converter-page').classList.remove('show');
     document.getElementById('pdf-tools-page').classList.remove('show');
     document.getElementById('pdf-edit-page').classList.remove('show');
+    document.getElementById('music-page').classList.remove('show');
     document.getElementById('docs-page').classList.add('show');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -3314,6 +3474,7 @@
     document.getElementById('media-converter-page').classList.remove('show');
     document.getElementById('pdf-tools-page').classList.remove('show');
     document.getElementById('pdf-edit-page').classList.remove('show');
+    document.getElementById('music-page').classList.remove('show');
     document.getElementById('settings-page').classList.add('show');
     updateSettingsThemeButtons();
     loadAccountStats();
@@ -3840,6 +4001,7 @@
     document.getElementById('media-converter-page').classList.remove('show');
     document.getElementById('pdf-tools-page').classList.remove('show');
     document.getElementById('pdf-edit-page').classList.remove('show');
+    document.getElementById('music-page').classList.remove('show');
     document.getElementById('playground-page').classList.add('show');
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
@@ -4170,6 +4332,7 @@
     document.getElementById('media-converter-page').classList.remove('show');
     document.getElementById('pdf-tools-page').classList.remove('show');
     document.getElementById('pdf-edit-page').classList.remove('show');
+    document.getElementById('music-page').classList.remove('show');
     document.getElementById('search-page').classList.add('show');
     // Pehle har baar YouTube tab par reset ho jaata tha (aur usi ke saath
     // stopSearchPlayer() bhi chal jaata) — matlab kisi doosre section se
@@ -4183,6 +4346,27 @@
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
     setupSearchColumnSync();
+  };
+
+  // ─── MUSIC PLAYER — Spotify-jaisa dark UI, YouTube ke audio se bajta hai ───
+  window.showMusic = () => {
+    closeSidebar();
+    if (!(currentUser && authToken)) { showAuth(); showToast('Pehle login karo','error'); return; }
+    logVisit('music_page');
+    document.getElementById('auth-view').style.display = 'none';
+    document.getElementById('app-view').style.display = 'none';
+    document.getElementById('download-page').classList.remove('show');
+    document.getElementById('docs-page').classList.remove('show');
+    document.getElementById('settings-page').classList.remove('show');
+    document.getElementById('playground-page').classList.remove('show');
+    document.getElementById('search-page').classList.remove('show');
+    document.getElementById('video-editor-page').classList.remove('show');
+    document.getElementById('file-converter-page').classList.remove('show');
+    document.getElementById('media-converter-page').classList.remove('show');
+    document.getElementById('pdf-tools-page').classList.remove('show');
+    document.getElementById('pdf-edit-page').classList.remove('show');
+    document.getElementById('music-page').classList.add('show');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   // ─── VIDEO EDITOR — upload apni video, trim/noise-reduce/volume/speed ────
@@ -4200,6 +4384,7 @@
     document.getElementById('settings-page').classList.remove('show');
     document.getElementById('playground-page').classList.remove('show');
     document.getElementById('search-page').classList.remove('show');
+    document.getElementById('music-page').classList.remove('show');
     document.getElementById('video-editor-page').classList.add('show');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -4219,6 +4404,7 @@
     document.getElementById('media-converter-page').classList.remove('show');
     document.getElementById('pdf-tools-page').classList.remove('show');
     document.getElementById('pdf-edit-page').classList.remove('show');
+    document.getElementById('music-page').classList.remove('show');
     document.getElementById('file-converter-page').classList.add('show');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -4238,6 +4424,7 @@
     document.getElementById('file-converter-page').classList.remove('show');
     document.getElementById('pdf-tools-page').classList.remove('show');
     document.getElementById('pdf-edit-page').classList.remove('show');
+    document.getElementById('music-page').classList.remove('show');
     document.getElementById('media-converter-page').classList.add('show');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -4257,6 +4444,7 @@
     document.getElementById('file-converter-page').classList.remove('show');
     document.getElementById('media-converter-page').classList.remove('show');
     document.getElementById('pdf-edit-page').classList.remove('show');
+    document.getElementById('music-page').classList.remove('show');
     document.getElementById('pdf-tools-page').classList.add('show');
     pdftShowGrid();
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -4277,6 +4465,7 @@
     document.getElementById('file-converter-page').classList.remove('show');
     document.getElementById('media-converter-page').classList.remove('show');
     document.getElementById('pdf-tools-page').classList.remove('show');
+    document.getElementById('music-page').classList.remove('show');
     document.getElementById('pdf-edit-page').classList.add('show');
     window.scrollTo({ top: 0, behavior: 'smooth' });
     resetPdfEdit();
@@ -6875,7 +7064,9 @@
   // user quality/format choose karke normal flow se download kar sake.
   function goToDownloadWithUrl(url) {
     stopSearchPlayer();
+    stopMusicPlayer();
     document.getElementById('search-page').classList.remove('show');
+    document.getElementById('music-page').classList.remove('show');
     document.getElementById('app-view').style.display = 'block';
     document.getElementById('vid-url').value = url;
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -7095,6 +7286,207 @@
     if (!r) return;
     goToDownloadWithUrl(r.url);
   };
+
+  // ════════════════════════════════
+  //  MUSIC PLAYER — Spotify-jaisa dark UI, backend/API Search & Download
+  //  wala hi reuse hota hai (/api/search se ytsearch40 results). Apna alag
+  //  YT.Player instance (search page se independent) taaki dono kabhi ek
+  //  doosre ko na roken. Video kabhi dikhaya nahi jaata — sirf audio, album
+  //  art se replace kiya gaya hai (music-hidden-player-wrap CSS).
+  // ════════════════════════════════
+  let musicSeekScrubbing = false;
+
+  window.doMusicSearch = async () => {
+    const query = document.getElementById('music-query').value.trim();
+    if (!query) { showToast('Kuch daalo!', 'error'); return; }
+
+    const btn      = document.getElementById('music-search-btn');
+    const thinking = document.getElementById('music-thinking');
+    btn.disabled = true;
+    thinking.classList.add('active');
+    stopMusicPlayer();
+    document.getElementById('music-results').innerHTML = '';
+
+    try {
+      const res = await fetch(`${BACKEND}/api/search`, {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${authToken}` },
+        body: JSON.stringify({ query })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || 'Search fail ho gaya');
+
+      musicResults = data.results;
+      renderMusicResults(musicResults);
+      if (musicResults.length) {
+        document.getElementById('music-body').style.display = 'grid';
+        playMusicTrack(0); // gaana search karte hi top result seedha bajne lagta hai
+      } else {
+        showToast('Kuch nahi mila. Doosra keyword try karo.', 'error');
+      }
+    } catch (ex) {
+      showToast(ex.message, 'error');
+    } finally {
+      btn.disabled = false;
+      thinking.classList.remove('active');
+    }
+  };
+
+  function renderMusicResults(results) {
+    const wrap = document.getElementById('music-results');
+    wrap.innerHTML = results.map((r, i) => `
+      <div class="music-track-row" id="music-row-${i}" onclick="playMusicTrack(${i})">
+        <div class="music-track-row-thumb">${r.thumbnail ? `<img src="${r.thumbnail}" alt="" loading="lazy" />` : ''}</div>
+        <div class="music-track-row-body">
+          <div class="music-track-row-title">${escapeHtml(r.title)}</div>
+          <div class="music-track-row-meta">${escapeHtml(r.channel || '')}</div>
+        </div>
+        <div class="music-track-row-duration">${escapeHtml(r.duration || '')}</div>
+        <button type="button" class="music-track-row-dl" onclick="event.stopPropagation(); downloadMusicResult(${i})" title="Download">⬇</button>
+      </div>
+    `).join('');
+  }
+
+  window.downloadMusicResult = (i) => {
+    const r = musicResults[i];
+    if (!r) return;
+    goToDownloadWithUrl(r.url);
+  };
+
+  window.playMusicTrack = async (i) => {
+    const r = musicResults[i];
+    if (!r) return;
+    musicCurrentIndex = i;
+
+    document.getElementById('music-now-title').textContent = r.title;
+    document.getElementById('music-now-artist').textContent = r.channel || '';
+    document.getElementById('music-status-note').textContent = '';
+    const art = document.getElementById('music-album-art');
+    const placeholder = document.getElementById('music-album-placeholder');
+    if (r.thumbnail) {
+      art.src = r.thumbnail;
+      art.style.display = 'block';
+      placeholder.style.display = 'none';
+    } else {
+      art.style.display = 'none';
+      placeholder.style.display = 'block';
+    }
+    document.getElementById('music-seek-slider').value = 0;
+    document.getElementById('music-time-current').textContent = '0:00';
+    document.getElementById('music-time-total').textContent = '0:00';
+
+    document.querySelectorAll('.music-track-row').forEach(el => el.classList.remove('playing'));
+    const activeRow = document.getElementById(`music-row-${i}`);
+    if (activeRow) activeRow.classList.add('playing');
+
+    await loadYouTubeIframeAPI();
+
+    if (musicPlayer && typeof musicPlayer.loadVideoById === 'function') {
+      musicPlayer.loadVideoById(r.id);
+    } else {
+      musicPlayer = new YT.Player('music-player-target', {
+        width: '2',
+        height: '2',
+        videoId: r.id,
+        playerVars: { autoplay: 1 },
+        events: { onStateChange: onMusicPlayerStateChange, onError: handleMusicPlayerError }
+      });
+      window.musicPlayer = musicPlayer; // debug/test access — player khud closure-scoped hai
+    }
+    if (!musicProgressTimer) musicProgressTimer = setInterval(updateMusicProgressUI, 500);
+  };
+
+  function onMusicPlayerStateChange(e) {
+    if (e.data === 0) playMusicNext(); // ENDED — agla track apne aap bajao, Spotify ki tarah
+  }
+
+  function handleMusicPlayerError() {
+    document.getElementById('music-status-note').textContent = '⚠️ Ye track play nahi ho saka, agla try kar rahe hain...';
+    setTimeout(() => playMusicNext(), 1200);
+  }
+
+  window.toggleMusicPlayPause = () => {
+    if (!musicPlayer || musicCurrentIndex < 0 || typeof musicPlayer.getPlayerState !== 'function') return;
+    if (musicPlayer.getPlayerState() === 1) musicPlayer.pauseVideo();
+    else musicPlayer.playVideo();
+  };
+
+  window.playMusicNext = () => {
+    if (!musicResults.length) return;
+    playMusicTrack((musicCurrentIndex + 1) % musicResults.length);
+  };
+
+  window.playMusicPrev = () => {
+    if (!musicResults.length) return;
+    playMusicTrack((musicCurrentIndex - 1 + musicResults.length) % musicResults.length);
+  };
+
+  window.seekMusic = (value) => {
+    if (!musicPlayer || typeof musicPlayer.getDuration !== 'function') return;
+    const dur = musicPlayer.getDuration() || 0;
+    if (dur <= 0) return;
+    const time = (Number(value) / 100) * dur;
+    musicPlayer.seekTo(time, true);
+    document.getElementById('music-time-current').textContent = formatMusicTime(time);
+  };
+
+  window.setMusicVolume = (value) => {
+    if (musicPlayer && typeof musicPlayer.setVolume === 'function') musicPlayer.setVolume(Number(value));
+  };
+
+  window.downloadCurrentMusicTrack = () => {
+    if (musicCurrentIndex < 0) return;
+    downloadMusicResult(musicCurrentIndex);
+  };
+
+  function updateMusicProgressUI() {
+    if (!musicPlayer || typeof musicPlayer.getCurrentTime !== 'function') return;
+    let state;
+    try { state = musicPlayer.getPlayerState(); } catch (e) { return; }
+    const playIcon = document.getElementById('music-play-icon');
+    playIcon.innerHTML = state === 1
+      ? '<path d="M6 5h4v14H6zm8 0h4v14h-4z"/>'
+      : '<path d="M8 5v14l11-7z"/>';
+    const dur = musicPlayer.getDuration() || 0;
+    const cur = musicPlayer.getCurrentTime() || 0;
+    if (dur > 0 && !musicSeekScrubbing) {
+      document.getElementById('music-seek-slider').value = (cur / dur) * 100;
+      document.getElementById('music-time-total').textContent = formatMusicTime(dur);
+    }
+    if (!musicSeekScrubbing) document.getElementById('music-time-current').textContent = formatMusicTime(cur);
+  }
+
+  function formatMusicTime(sec) {
+    sec = Math.max(0, Math.floor(sec));
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
+  }
+
+  function stopMusicPlayer() {
+    if (musicPlayer && typeof musicPlayer.stopVideo === 'function') {
+      try { musicPlayer.stopVideo(); } catch (e) { /* player might not be ready yet */ }
+    }
+    if (musicProgressTimer) { clearInterval(musicProgressTimer); musicProgressTimer = null; }
+    musicCurrentIndex = -1;
+    document.querySelectorAll('.music-track-row').forEach(el => el.classList.remove('playing'));
+    const titleEl = document.getElementById('music-now-title');
+    if (titleEl) titleEl.textContent = 'Kuch bhi select nahi kiya';
+    const artistEl = document.getElementById('music-now-artist');
+    if (artistEl) artistEl.textContent = '—';
+    const art = document.getElementById('music-album-art');
+    if (art) { art.style.display = 'none'; art.src = ''; }
+    const placeholder = document.getElementById('music-album-placeholder');
+    if (placeholder) placeholder.style.display = 'block';
+    const seek = document.getElementById('music-seek-slider');
+    if (seek) seek.value = 0;
+    const curT = document.getElementById('music-time-current');
+    if (curT) curT.textContent = '0:00';
+    const totT = document.getElementById('music-time-total');
+    if (totT) totT.textContent = '0:00';
+    const playIcon = document.getElementById('music-play-icon');
+    if (playIcon) playIcon.innerHTML = '<path d="M8 5v14l11-7z"/>';
+  }
 
   // Type — video ya audio, sabse pehle choose karo
   window.setType = (btn) => {
@@ -7439,6 +7831,7 @@
     document.getElementById('media-converter-page').classList.remove('show');
     document.getElementById('pdf-tools-page').classList.remove('show');
     document.getElementById('pdf-edit-page').classList.remove('show');
+    document.getElementById('music-page').classList.remove('show');
 
     const panel = document.getElementById('dl-bell-panel');
     if (panel) panel.style.display = 'none';
