@@ -915,13 +915,7 @@
     .music-search-input:focus { outline:none; border-color:var(--green); }
     .music-search-btn { padding:12px 22px; border-radius:0 50px 50px 0; border:1px solid var(--green); background:var(--green); color:#0c0c0e; font-family:'Space Grotesk',sans-serif; font-size:14px; font-weight:700; cursor:pointer; }
     .music-search-btn:hover { opacity:0.9; }
-    /* #music-page ki tarah full-width (koi max-width cap nahi) hone ki wajah
-       se wide screens par results column bahut zyada chaura ho jaata tha —
-       row ka content (title/thumb/duration) chota hi rehta, aur uska scroll-
-       bar bahut door, viewport ke right edge ke paas disconnected dikhta
-       tha. Search page jaisa hi ek reasonable max-width cap diya hai. */
-    #music-page { max-width:1360px; margin:0 auto; }
-    .music-body { display:grid; grid-template-columns: minmax(280px, 420px) minmax(320px, 640px); gap:28px; align-items:start; padding-bottom:120px; }
+    .music-body { display:grid; grid-template-columns: minmax(280px, 420px) minmax(320px, 1fr); gap:28px; align-items:start; padding-bottom:120px; }
 
     /* Now playing — big album-art card, Spotify ki tarah */
     .music-nowplaying-card { background:var(--card); border:1px solid var(--border); border-radius:20px; padding:24px; position:sticky; top:24px; }
@@ -972,7 +966,7 @@
 
     /* Results / track list */
     .music-list-col-title { font-family:'Space Grotesk',sans-serif; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); margin-bottom:12px; }
-    .music-results-list { display:flex; flex-direction:column; gap:4px; max-height:calc(100vh - 220px); min-height:400px; overflow-y:auto; padding-right:6px; }
+    .music-results-list { display:flex; flex-direction:column; gap:8px; max-height:calc(100vh - 220px); min-height:400px; overflow-y:auto; padding-right:6px; }
     /* Search & Download jaisa hi — list apne andar scroll kare, poora page
        nahi. Mobile par single-column stacked layout mein nested scroll
        theek se kaam nahi karta, isliye wahan disable karke poora page hi
@@ -980,9 +974,15 @@
     @media (max-width:900px) {
       .music-results-list { max-height:none; min-height:0; overflow-y:visible; }
     }
-    .music-track-row { display:flex; align-items:center; gap:12px; padding:8px 10px; border-radius:10px; cursor:pointer; transition:background 0.15s; }
-    .music-track-row:hover { background:var(--surface); }
-    .music-track-row.playing { background:rgba(46,196,182,0.1); }
+    /* Har row ko apna khud ka background+border chahiye (Search & Download
+       ke .search-result-row jaisa) — warna row ka title chhota hone par
+       uske paas ki khaali jagah bilkul plain/void dikhti hai, khaas kar
+       full-width column mein jahan row bahut chaudi ho jaati hai. Ek clear
+       "card" boundary poori row ko intentional banata hai, chahe text chota
+       ho. */
+    .music-track-row { display:flex; align-items:center; gap:12px; background:var(--surface); border:1px solid var(--border); padding:8px 10px; border-radius:10px; cursor:pointer; transition:border-color 0.15s, background 0.15s; }
+    .music-track-row:hover { border-color:var(--border-hover); }
+    .music-track-row.playing { border-color:var(--green); background:rgba(46,196,182,0.1); }
     .music-track-row-thumb { position:relative; width:52px; height:52px; border-radius:8px; overflow:hidden; flex-shrink:0; background:#000; }
     .music-track-row-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
     .music-track-row-playing-badge { position:absolute; inset:0; background:rgba(0,0,0,0.55); display:flex; align-items:center; justify-content:center; color:var(--green); font-size:18px; }
