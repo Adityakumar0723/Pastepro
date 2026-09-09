@@ -915,7 +915,13 @@
     .music-search-input:focus { outline:none; border-color:var(--green); }
     .music-search-btn { padding:12px 22px; border-radius:0 50px 50px 0; border:1px solid var(--green); background:var(--green); color:#0c0c0e; font-family:'Space Grotesk',sans-serif; font-size:14px; font-weight:700; cursor:pointer; }
     .music-search-btn:hover { opacity:0.9; }
-    .music-body { display:grid; grid-template-columns: minmax(280px, 420px) minmax(320px, 1fr); gap:28px; align-items:start; padding-bottom:120px; }
+    /* #music-page ki tarah full-width (koi max-width cap nahi) hone ki wajah
+       se wide screens par results column bahut zyada chaura ho jaata tha —
+       row ka content (title/thumb/duration) chota hi rehta, aur uska scroll-
+       bar bahut door, viewport ke right edge ke paas disconnected dikhta
+       tha. Search page jaisa hi ek reasonable max-width cap diya hai. */
+    #music-page { max-width:1360px; margin:0 auto; }
+    .music-body { display:grid; grid-template-columns: minmax(280px, 420px) minmax(320px, 640px); gap:28px; align-items:start; padding-bottom:120px; }
 
     /* Now playing — big album-art card, Spotify ki tarah */
     .music-nowplaying-card { background:var(--card); border:1px solid var(--border); border-radius:20px; padding:24px; position:sticky; top:24px; }
