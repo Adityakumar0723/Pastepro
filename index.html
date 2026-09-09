@@ -916,10 +916,16 @@
     .music-search-btn { padding:12px 22px; border-radius:0 50px 50px 0; border:1px solid var(--green); background:var(--green); color:#0c0c0e; font-family:'Space Grotesk',sans-serif; font-size:14px; font-weight:700; cursor:pointer; }
     .music-search-btn:hover { opacity:0.9; }
     .music-body { display:grid; grid-template-columns: minmax(280px, 420px) minmax(320px, 1fr); gap:28px; align-items:start; padding-bottom:120px; }
-    @media (max-width: 900px) { .music-body { grid-template-columns: 1fr; } }
 
     /* Now playing — big album-art card, Spotify ki tarah */
     .music-nowplaying-card { background:var(--card); border:1px solid var(--border); border-radius:20px; padding:24px; position:sticky; top:24px; }
+    /* Mobile par ek hi column mein stack hota hai — wahan "sticky" card fixed
+       header ke peeche/upar overlap ho sakta hai aur controls tap karna
+       mushkil ho jaata hai, isliye mobile par sticky hata dete hain. Ye rule
+       base .music-nowplaying-card rule ke BAAD aana zaroori hai — CSS cascade
+       mein equal-specificity rules mein jo baad mein aata hai wahi jeetta
+       hai, pehle likhne se ye override kaam hi nahi karta tha. */
+    @media (max-width: 900px) { .music-body { grid-template-columns: 1fr; } .music-nowplaying-card { position:static; } }
     .music-album-art-wrap { width:100%; aspect-ratio:1/1; border-radius:14px; overflow:hidden; background:var(--surface); box-shadow:0 16px 40px rgba(0,0,0,0.35); margin-bottom:20px; display:flex; align-items:center; justify-content:center; }
     .music-album-art-wrap img { width:100%; height:100%; object-fit:cover; display:block; }
     .music-album-art-placeholder { font-size:52px; opacity:0.35; }
@@ -929,7 +935,11 @@
        opacity:0 use kiya hai, display:none NAHI — display:none lagte hi
        browsers iframe ka playback suspend kar dete (verified for the
        Search page's same-technique fix), isliye tiny + invisible-but-alive. */
-    .music-hidden-player-wrap { position:absolute; width:2px; height:2px; overflow:hidden; opacity:0; pointer-events:none; top:0; left:0; }
+    /* Realistic pixel size (jaisa Search page ke off-screen trick mein hai)
+       — 2x2px jaisa genuinely-tiny size mobile browsers (iOS Safari, Android
+       WebViews) mein video decode/play hi nahi karte, chahe autoplay allowed
+       ho. Isliye asli size rakha hai, bas fixed+off-screen se chhupaya hai. */
+    .music-hidden-player-wrap { position:fixed; top:0; left:-9999px; width:640px; height:360px; overflow:hidden; opacity:0; pointer-events:none; }
     .music-seek-row { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
     .music-time-label { font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; min-width:34px; }
     .music-seek-slider, .music-volume-slider { -webkit-appearance:none; appearance:none; flex:1; height:4px; border-radius:2px; background:var(--border); outline:none; cursor:pointer; }
@@ -7297,6 +7307,7 @@
   //  art se replace kiya gaya hai (music-hidden-player-wrap CSS).
   // ════════════════════════════════
   let musicSeekScrubbing = false;
+  let musicAutoSkipStreak = 0; // consecutive error-driven auto-skips — YouTube ke kai videos "auth" error deke embed hi nahi hote, isliye unbounded loop na ho isliye cap lagaya hai
 
   window.doMusicSearch = async () => {
     const query = document.getElementById('music-query').value.trim();
@@ -7355,10 +7366,11 @@
     goToDownloadWithUrl(r.url);
   };
 
-  window.playMusicTrack = async (i) => {
+  window.playMusicTrack = async (i, viaAutoSkip = false) => {
     const r = musicResults[i];
     if (!r) return;
     musicCurrentIndex = i;
+    if (!viaAutoSkip) musicAutoSkipStreak = 0; // fresh user-driven pick (row click, next/prev, ya naya search) — error-streak reset
 
     document.getElementById('music-now-title').textContent = r.title;
     document.getElementById('music-now-artist').textContent = r.channel || '';
@@ -7387,15 +7399,31 @@
       musicPlayer.loadVideoById(r.id);
     } else {
       musicPlayer = new YT.Player('music-player-target', {
-        width: '2',
-        height: '2',
+        width: '640',
+        height: '360',
         videoId: r.id,
-        playerVars: { autoplay: 1 },
+        playerVars: { autoplay: 1, playsinline: 1 },
         events: { onStateChange: onMusicPlayerStateChange, onError: handleMusicPlayerError }
       });
       window.musicPlayer = musicPlayer; // debug/test access — player khud closure-scoped hai
     }
     if (!musicProgressTimer) musicProgressTimer = setInterval(updateMusicProgressUI, 500);
+
+    // Kai mobile browsers (khaas kar iOS Safari) autoplay() ko sirf tabhi allow
+    // karte hain jab play call EXACTLY user ke tap ke turant baad, same call
+    // stack mein ho — humara search->fetch->player-create wala flow beech mein
+    // await se guzarta hai, isliye wahan autoplay silently block ho sakta hai.
+    // Agar thodi der baad bhi track PLAYING/BUFFERING state mein nahi aayi,
+    // to user ko batao ki apna Play button khud dabana padega — wo tap
+    // guaranteed ek fresh, genuine gesture hoga, isliye wahan se play zaroor
+    // chalega.
+    setTimeout(() => {
+      if (musicCurrentIndex !== i || !musicPlayer || typeof musicPlayer.getPlayerState !== 'function') return;
+      const state = musicPlayer.getPlayerState();
+      if (state !== 1 && state !== 3) {
+        document.getElementById('music-status-note').textContent = '▶️ Autoplay block ho gaya — Play button dabao gaana shuru karne ke liye';
+      }
+    }, 2500);
   };
 
   function onMusicPlayerStateChange(e) {
@@ -7403,8 +7431,20 @@
   }
 
   function handleMusicPlayerError() {
+    musicAutoSkipStreak++;
+    if (!musicResults.length || musicAutoSkipStreak >= Math.min(musicResults.length, 15)) {
+      // Bahut saare (ya sab) tracks embed-restricted nikle — hamesha ke liye
+      // skip karte rehne ke bajaye yahi ruk jaate hain, warna infinite loop
+      // ban jaata (kuch YouTube videos "auth" error dete hain, embed hi
+      // nahi hote — humari taraf se koi fix nahi, YouTube ka restriction hai).
+      document.getElementById('music-status-note').textContent = '⚠️ Is list ke tracks yahan embed nahi ho pa rahe (YouTube restriction). Doosra gaana search karo.';
+      return;
+    }
     document.getElementById('music-status-note').textContent = '⚠️ Ye track play nahi ho saka, agla try kar rahe hain...';
-    setTimeout(() => playMusicNext(), 1200);
+    setTimeout(() => {
+      if (!musicResults.length) return;
+      playMusicTrack((musicCurrentIndex + 1) % musicResults.length, true);
+    }, 1200);
   }
 
   window.toggleMusicPlayPause = () => {
@@ -7445,6 +7485,7 @@
     if (!musicPlayer || typeof musicPlayer.getCurrentTime !== 'function') return;
     let state;
     try { state = musicPlayer.getPlayerState(); } catch (e) { return; }
+    if (state === 1) document.getElementById('music-status-note').textContent = ''; // autoplay-blocked hint hata do jaise hi actually bajne lage
     const playIcon = document.getElementById('music-play-icon');
     playIcon.innerHTML = state === 1
       ? '<path d="M6 5h4v14H6zm8 0h4v14h-4z"/>'
