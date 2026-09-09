@@ -934,7 +934,11 @@
        cap kiya hai — art khud-ba-khud (dono dimensions, ratio maintain karte
        hue) chhoti ho jaati hai jab screen chhoti hai, taaki poori card
        hamesha ek hi screen mein fit ho jaaye. */
-    .music-album-art-wrap { width:min(100%, 22vh); aspect-ratio:1/1; margin:0 auto 14px; border-radius:14px; overflow:hidden; background:var(--surface); box-shadow:0 16px 40px rgba(0,0,0,0.35); display:flex; align-items:center; justify-content:center; }
+    /* Image chhoti nahi honi chahiye — poori card ki height list jitni hi
+       cap ki gayi hai (JS se sync hoti hai), aur agar content us height se
+       lamba ho to card khud apne andar scroll kare (jaisa list already karti
+       hai), image ko shrink karke nahi. */
+    .music-album-art-wrap { width:100%; aspect-ratio:1/1; margin-bottom:14px; border-radius:14px; overflow:hidden; background:var(--surface); box-shadow:0 16px 40px rgba(0,0,0,0.35); display:flex; align-items:center; justify-content:center; }
     .music-album-art-wrap img { width:100%; height:100%; object-fit:cover; display:block; }
     .music-album-art-placeholder { font-size:52px; opacity:0.35; }
     .music-track-title { font-size:15.5px; font-weight:700; line-height:1.3; margin-bottom:4px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
