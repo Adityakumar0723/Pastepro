@@ -938,7 +938,7 @@
        cap ki gayi hai (JS se sync hoti hai), aur agar content us height se
        lamba ho to card khud apne andar scroll kare (jaisa list already karti
        hai), image ko shrink karke nahi. */
-    .music-album-art-wrap { width:100%; aspect-ratio:1/1; margin-bottom:14px; border-radius:14px; overflow:hidden; background:var(--surface); box-shadow:0 16px 40px rgba(0,0,0,0.35); display:flex; align-items:center; justify-content:center; }
+    .music-album-art-wrap { width:100%; aspect-ratio:1/1; margin:0 auto 14px; border-radius:14px; overflow:hidden; background:var(--surface); box-shadow:0 16px 40px rgba(0,0,0,0.35); display:flex; align-items:center; justify-content:center; }
     .music-album-art-wrap img { width:100%; height:100%; object-fit:cover; display:block; }
     .music-album-art-placeholder { font-size:52px; opacity:0.35; }
     .music-track-title { font-size:15.5px; font-weight:700; line-height:1.3; margin-bottom:4px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
@@ -4455,6 +4455,29 @@
       const top = list.getBoundingClientRect().top;
       list.style.maxHeight = Math.max(200, window.innerHeight - top - bottomMargin) + 'px';
     }
+    fitMusicAlbumArt();
+  }
+
+  // Card ki height upar list jitni hi cap hoti hai — agar poora content
+  // (image + title + controls + button) us height mein na aaye to scrollbar
+  // dikhta (jo bilkul nahi chahiye). Asli fix: pehle image ko poori (100%)
+  // width par rakhkar naapte hain ki BAAKI sab cheezein (title/artist/seek/
+  // controls/volume/download button + padding) kitni jagah leti hain; jo
+  // bhi height bachti hai wahi image ko milti hai — sirf tab image chhoti
+  // hoti hai jab genuinely zaroorat ho, aur sirf utni hi, kabhi zyada nahi.
+  function fitMusicAlbumArt() {
+    const card = document.querySelector('.music-nowplaying-card');
+    const artWrap = document.querySelector('.music-album-art-wrap');
+    if (!card || !artWrap) return;
+    artWrap.style.width = '';
+    const cardMaxHeight = parseFloat(card.style.maxHeight);
+    if (!cardMaxHeight) return;
+    const artHeight = artWrap.getBoundingClientRect().height;
+    const restHeight = card.scrollHeight - artHeight;
+    const availableForArt = cardMaxHeight - restHeight - 4; // thoda safety margin — rounding se bhi scrollbar kabhi na aaye
+    if (availableForArt < artHeight - 1) {
+      artWrap.style.width = Math.max(80, availableForArt) + 'px';
+    }
   }
 
   function setupMusicColumnSync() {
@@ -7476,6 +7499,8 @@
     document.getElementById('music-seek-slider').value = 0;
     document.getElementById('music-time-current').textContent = '0:00';
     document.getElementById('music-time-total').textContent = '0:00';
+
+    fitMusicAlbumArt(); // naya title/artist ki height badal sakti hai, isliye image ka size dobara fit karo
 
     document.querySelectorAll('.music-track-row').forEach(el => el.classList.remove('playing'));
     const activeRow = document.getElementById(`music-row-${i}`);
