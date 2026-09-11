@@ -25,6 +25,7 @@ const PDFDocument = require('pdfkit');
 const { Document: DocxDocument, Packer: DocxPacker, Paragraph: DocxParagraph, HeadingLevel: DocxHeadingLevel, TextRun: DocxTextRun, ImageRun: DocxImageRun } = require('docx');
 const PptxGenJS = require('pptxgenjs');
 const { imageSize } = require('image-size');
+const sharp = require('sharp');
 const { PDFDocument: PdfLibDocument, StandardFonts: PdfLibStandardFonts, rgb: pdfLibRgb, degrees: pdfLibDegrees } = require('@cantoo/pdf-lib');
 const { chromium } = require('playwright');
 const { diffLines } = require('diff');
@@ -1709,6 +1710,153 @@ app.post('/api/doc-tool/images-to-file', requireAuth, async (req, res) => {
     res.status(500).json({ error: 'File generate nahi ho payi. Dobara try karo' });
   }
 });
+
+// ─── IMAGE CONVERTER — koi bhi format se koi bhi format, quality compression,
+//     aur target file-size (KB/MB) tak size ghatao/badhao ──────────────────
+const MAX_IMG_TOOL_BYTES = 25 * 1024 * 1024; // 25MB per image
+const imgToolUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_IMG_TOOL_BYTES } });
+
+function withImgToolUpload(multerMiddleware, handler) {
+  return (req, res) => {
+    multerMiddleware(req, res, (err) => {
+      if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: `Image bahut badi hai (max ${MAX_IMG_TOOL_BYTES / 1024 / 1024}MB)` });
+      }
+      if (err) return res.status(400).json({ error: 'Upload fail ho gaya' });
+      handler(req, res);
+    });
+  };
+}
+
+// sharp.format se verified: jpeg/png/webp/tiff/gif/heif — sabhi is prebuilt
+// binary mein INPUT aur OUTPUT dono support karte hain. BMP ke liye koi
+// encoder available nahi hai is build mein, aur HEIC/HEIF output patent-
+// encumbered HEVC codec maangta hai — isliye output list mein sirf wahi
+// formats hain jo directly test karke verify kiye gaye hain. HEIC/HEIF
+// (iPhone photos) input ke taur par already accept ho jaate hain (sharp
+// khud decode kar leta hai) — bas naye output ke taur par offer nahi kiya.
+const IMAGE_CONVERT_FORMATS = {
+  jpeg: { ext: 'jpg',  mime: 'image/jpeg', label: 'JPG' },
+  png:  { ext: 'png',  mime: 'image/png',  label: 'PNG' },
+  webp: { ext: 'webp', mime: 'image/webp', label: 'WebP' },
+  avif: { ext: 'avif', mime: 'image/avif', label: 'AVIF' },
+  tiff: { ext: 'tiff', mime: 'image/tiff', label: 'TIFF' },
+  gif:  { ext: 'gif',  mime: 'image/gif',  label: 'GIF' },
+};
+// In formats mein hi numeric quality knob hota hai jiska file-size par
+// predictable/monotonic asar hota hai — target file-size search (binary
+// search + up/downscale) sirf inhi ke liye chalate hain. PNG lossless hai
+// (bina palette ke quality ka size par kaam asar) aur GIF palette-limited
+// hai, dono mein reliable target-size search possible nahi hai.
+const IMAGE_QUALITY_FORMATS = new Set(['jpeg', 'webp', 'avif', 'tiff']);
+
+function encodeImageBuffer(buffer, targetFormat, quality, scale, origWidth) {
+  let pipeline = sharp(buffer, { failOn: 'none' }).rotate(); // EXIF orientation ke hisaab se auto-seedha karo
+  if (scale && Math.abs(scale - 1) > 0.001 && origWidth) {
+    const w = Math.min(8000, Math.max(16, Math.round(origWidth * scale))); // 8000px cap — DoS-safe upscale limit
+    pipeline = pipeline.resize({ width: w });
+  }
+  switch (targetFormat) {
+    case 'jpeg': pipeline = pipeline.jpeg({ quality, mozjpeg: true }); break;
+    case 'png':  pipeline = pipeline.png({ compressionLevel: 9, quality, ...(quality < 100 ? { palette: true } : {}) }); break;
+    case 'webp': pipeline = pipeline.webp({ quality }); break;
+    case 'avif': pipeline = pipeline.avif({ quality }); break;
+    case 'tiff': pipeline = pipeline.tiff({ quality, compression: 'jpeg' }); break;
+    case 'gif':  pipeline = pipeline.gif(); break;
+    default: throw new Error('Ye format support nahi hai');
+  }
+  return pipeline.toBuffer();
+}
+
+// Target file-size (KB/MB) mode — user ek exact size maangta hai (jaise
+// government-form photo/signature ke liye "50KB se kam" ya "kam se kam
+// 20KB"). Pehle quality=1 aur quality=100 (native resolution) par size
+// naapte hain: agar target dono ke beech mein hai to quality binary-search
+// karte hain; agar target quality=100 se bhi bada hai to upscale karte hain
+// (real detail add nahi hoti, par size genuinely badhta hai — yही ek tarika
+// hai file ko "bada" banane ka); agar target quality=1 se bhi chhota hai to
+// downscale karte hain.
+async function convertImageToTargetSize(buffer, targetFormat, targetSizeBytes, origWidth) {
+  if (!IMAGE_QUALITY_FORMATS.has(targetFormat)) {
+    return encodeImageBuffer(buffer, targetFormat, 90, 1, origWidth);
+  }
+
+  const atMin = await encodeImageBuffer(buffer, targetFormat, 1, 1, origWidth);
+  const atMax = await encodeImageBuffer(buffer, targetFormat, 100, 1, origWidth);
+
+  if (targetSizeBytes >= atMax.length) {
+    let scale = 1, out = atMax, guard = 0;
+    while (out.length < targetSizeBytes && scale < 6 && guard < 8) {
+      scale *= 1.35;
+      out = await encodeImageBuffer(buffer, targetFormat, 100, scale, origWidth);
+      guard++;
+    }
+    return out;
+  }
+
+  if (targetSizeBytes <= atMin.length) {
+    let scale = 1, out = atMin, guard = 0;
+    while (out.length > targetSizeBytes && scale > 0.05 && guard < 8) {
+      scale *= 0.7;
+      out = await encodeImageBuffer(buffer, targetFormat, 1, scale, origWidth);
+      guard++;
+    }
+    return out;
+  }
+
+  let lo = 1, hi = 100, best = atMax, bestDiff = Math.abs(atMax.length - targetSizeBytes);
+  for (let i = 0; i < 7; i++) {
+    const mid = Math.round((lo + hi) / 2);
+    const out = await encodeImageBuffer(buffer, targetFormat, mid, 1, origWidth);
+    const diff = Math.abs(out.length - targetSizeBytes);
+    if (diff < bestDiff) { best = out; bestDiff = diff; }
+    if (out.length > targetSizeBytes) hi = mid - 1; else lo = mid + 1;
+    if (lo > hi) break;
+  }
+  return best;
+}
+
+app.post('/api/image-tools/convert', requireAuth, withImgToolUpload(imgToolUpload.single('image'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Koi image nahi mili' });
+
+  const targetFormat = String(req.body.targetFormat || '').toLowerCase();
+  if (!IMAGE_CONVERT_FORMATS[targetFormat]) return res.status(400).json({ error: 'Ye output format support nahi hai' });
+
+  const targetSizeKB = req.body.targetSizeKB ? Number(req.body.targetSizeKB) : null;
+  const quality = Math.min(100, Math.max(1, Number(req.body.quality) || 85));
+
+  try {
+    const srcMeta = await sharp(req.file.buffer, { failOn: 'none' }).metadata();
+    if (!srcMeta.width || !srcMeta.height) return res.status(400).json({ error: 'Ye file valid image nahi lag rahi' });
+
+    let outBuffer;
+    if (targetSizeKB && targetSizeKB > 0) {
+      outBuffer = await convertImageToTargetSize(req.file.buffer, targetFormat, Math.round(targetSizeKB * 1024), srcMeta.width);
+    } else {
+      outBuffer = await encodeImageBuffer(req.file.buffer, targetFormat, quality, 1, srcMeta.width);
+    }
+
+    const fmtMeta = IMAGE_CONVERT_FORMATS[targetFormat];
+    const uid = req.user.id;
+    const outName = `${uid.slice(0, 8)}_${Date.now()}_img.${fmtMeta.ext}`;
+    fs.writeFileSync(path.join(DOWNLOADS_DIR, outName), outBuffer);
+
+    logActivity(req, 'image_convert', { targetFormat, originalSizeBytes: req.file.size, outputSizeBytes: outBuffer.length });
+    res.json({
+      success: true,
+      fileUrl: `/files/${outName}`,
+      filename: outName,
+      format: targetFormat,
+      originalSizeBytes: req.file.size,
+      outputSizeBytes: outBuffer.length,
+      width: srcMeta.width,
+      height: srcMeta.height,
+    });
+  } catch (err) {
+    console.error('Image convert error:', err);
+    res.status(500).json({ error: 'Image convert nahi ho payi. Dobara try karo' });
+  }
+}));
 
 // ─── PDF TOOLS — Merge/Split/Compress/Convert/Edit, iLovePDF-jaisa ────────
 // Uploads seedha memory mein aate hain (koi disk-write nahi, ek-hi request

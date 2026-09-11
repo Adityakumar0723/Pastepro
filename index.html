@@ -128,6 +128,8 @@
     main:has(#pdf-edit-page.show) .hero { display: none; }
     main:has(#music-page.show) { max-width: 100%; padding-top: 24px; padding-bottom: 24px; }
     main:has(#music-page.show) .hero { display: none; }
+    main:has(#image-converter-page.show) { max-width: 100%; padding-top: 24px; padding-bottom: 24px; }
+    main:has(#image-converter-page.show) .hero { display: none; }
     main:has(#playground-page.show) { max-width: 1800px; padding-top: 24px; padding-bottom: 24px; padding-left: 16px; padding-right: 16px; }
     main:has(#playground-page.show) .hero { display: none; }
     main:has(#auth-view:not([style*="none"])) { max-width: 1040px; }
@@ -1108,6 +1110,7 @@
       <button class="sidebar-item" onclick="showVideoEditor()"><span class="sidebar-item-icon" style="background:var(--accent);"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg></span>Video Editor</button>
       <button class="sidebar-item" onclick="showFileConverter()"><span class="sidebar-item-icon" style="background:#14b8a6;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>File Converter</button>
       <button class="sidebar-item" onclick="showMediaConverter()"><span class="sidebar-item-icon" style="background:#f59e0b;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></span>Media Converter</button>
+      <button class="sidebar-item" onclick="showImageConverter()"><span class="sidebar-item-icon" style="background:#8b5cf6;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>Image Converter</button>
       <button class="sidebar-item" onclick="showPdfTools()"><span class="sidebar-item-icon" style="background:#e63946;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/><line x1="9" y1="11" x2="12" y2="11"/></svg></span>PDF Tools</button>
     </div>
   </div>
@@ -1156,6 +1159,7 @@
       <span class="pill">🎬 Video Editor</span>
       <span class="pill">📝 File Converter</span>
       <span class="pill">🎥 Media Converter</span>
+      <span class="pill">🖼️ Image Converter</span>
       <span class="pill">🧰 PDF Tools</span>
       <span class="pill">⚡ Fast Download</span>
       <span class="pill">🔒 Secure</span>
@@ -1193,6 +1197,7 @@
           <li>💬 AI Playground — apne assistant se chat karo, files bhejo, real files banwao</li>
           <li>📄 File Converter — text ya image se PDF, Word, Excel, PowerPoint bana lo</li>
           <li>🎞️ Media Converter — kisi bhi video/audio ko kisi bhi format mein badal do</li>
+          <li>🖼️ Image Converter — koi bhi format, compress karo, ya exact KB/MB size tak fit karo</li>
           <li>🧰 PDF Tools — merge, split, compress, convert aur visual PDF editor</li>
           <li>🔒 Bilkul free aur secure — koi hidden charge nahi</li>
         </ul>
@@ -1713,6 +1718,23 @@
           <div class="docs-shot-wrap">
             <img class="docs-shot" src="/docs-assets/media-converter-studio.png" alt="Media Converter with a file uploaded and format options" loading="lazy" />
             <div class="docs-shot-caption">A file uploaded and previewed, ready to convert into any format</div>
+          </div>
+        </div>
+
+        <hr class="docs-divider" />
+
+        <div class="docs-section">
+          <div class="docs-section-title">🖼️ Image Converter</div>
+          <p class="docs-section-desc">Upload any image and convert it to any other format, compress it with a quality slider, or hit an exact file size in KB/MB — useful for things like government-form photo/signature size limits.</p>
+          <ul class="docs-feature-list">
+            <li>Convert between JPG, PNG, WebP, AVIF, TIFF and GIF — HEIC/HEIF (iPhone photos) is accepted as input too</li>
+            <li>Quality slider for direct control over compression vs. sharpness</li>
+            <li>"Exact File Size" mode — type a target in KB or MB and it automatically compresses (or, if needed, upscales) to match, both shrinking and growing are supported</li>
+            <li>Before/after size shown right on the result, with a direct download link</li>
+          </ul>
+          <div class="docs-shot-wrap">
+            <img class="docs-shot" src="/docs-assets/image-converter.png" alt="Image Converter with a photo uploaded and format options" loading="lazy" />
+            <div class="docs-shot-caption">A photo uploaded, quality and target-size controls ready, format chips to convert into</div>
           </div>
         </div>
 
@@ -2488,6 +2510,86 @@
       <div style="display:flex; gap:12px; margin-top:16px;">
         <a id="mc-download-link" href="#" class="dl-btn dl-btn-green" style="flex:1;"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download Karo</a>
         <button type="button" class="dl-btn dl-btn-gray" onclick="document.getElementById('mc-result').style.display='none';"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:4px;"><polyline points="15 18 9 12 15 6"/></svg>Wapas Format Choose Karo</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- IMAGE CONVERTER — koi bhi format se koi bhi format, compress karo, ya
+       exact KB/MB file-size tak fit karo -->
+  <div id="image-converter-page" class="download-page">
+
+    <button class="back-btn" onclick="goHome()">← Wapas Jaao</button>
+
+    <div class="editor-page-banner">
+      <div class="dl-banner-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
+      <div>
+        <h2>Image Converter</h2>
+        <p>Koi bhi image upload karo — format badlo, compress karo, ya exact KB/MB size tak fit karo</p>
+      </div>
+    </div>
+
+    <div id="imgc-upload-zone" class="editor-upload-zone" onclick="document.getElementById('imgc-file-input').click()">
+      <input type="file" id="imgc-file-input" accept="image/*" style="display:none;" onchange="handleImgcFileSelect(event)" />
+      <div class="editor-upload-icon"><svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/></svg></div>
+      <p class="editor-upload-text">Image upload karne ke liye click karo</p>
+      <p class="editor-upload-hint">JPG, PNG, WebP, AVIF, TIFF, GIF, HEIC/HEIF — max 25MB</p>
+    </div>
+
+    <div class="pg-thinking" id="imgc-convert-thinking">
+      <span class="pg-dot"></span><span class="pg-dot"></span><span class="pg-dot"></span>
+      Convert ho raha hai...
+    </div>
+
+    <div class="editor-studio" id="imgc-body" style="display:none;">
+      <div class="editor-preview-col">
+        <div class="editor-preview-wrap">
+          <img id="imgc-preview-img" style="width:100%; display:block; border-radius:12px;" alt="" />
+        </div>
+        <div class="editor-apply-hint" id="imgc-file-info" style="margin-top:10px;"></div>
+        <button type="button" class="dl-btn dl-btn-gray" style="margin-top:14px;" onclick="resetImageConverter()"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:4px;"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Doosri image upload karo</button>
+      </div>
+
+      <div class="editor-panel">
+        <div class="editor-control-group">
+          <div class="pdft-field-label"><span>Quality</span><span class="pdft-field-value" id="imgc-quality-value">85%</span></div>
+          <input type="range" id="imgc-quality" min="1" max="100" value="85" class="pdft-field-input" oninput="document.getElementById('imgc-quality-value').textContent = this.value + '%'" />
+        </div>
+
+        <div class="editor-control-group" style="margin-top:14px;">
+          <label class="cap-toggle-switch" style="margin-bottom:4px;">
+            <input type="checkbox" id="imgc-target-toggle" onchange="toggleImgcTargetSize(this.checked)" />
+            <span class="cap-toggle-slider"></span>
+            <span class="cap-toggle-label">🎯 Exact File Size Chahiye</span>
+          </label>
+          <div id="imgc-target-row" style="display:none; gap:10px; align-items:center; margin-top:10px;">
+            <input type="number" id="imgc-target-value" class="pdft-field-input" placeholder="jaise 50" min="1" style="flex:1;" />
+            <button type="button" class="q-btn active" id="imgc-unit-kb" onclick="setImgcUnit('kb', this)">KB</button>
+            <button type="button" class="q-btn" id="imgc-unit-mb" onclick="setImgcUnit('mb', this)">MB</button>
+          </div>
+          <p style="font-size:11.5px; color:var(--muted); margin-top:8px; line-height:1.5;">Size ghata bhi sakte ho aur bada bhi (jaise govt-form photo/signature ke liye kaam aata hai). On hone par upar wali Quality slider ignore ho jaati hai.</p>
+        </div>
+
+        <div class="dl-section-label" style="margin-top:20px;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:3px;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>Image Format</div>
+        <div class="fc-format-grid">
+          <button type="button" class="fc-format-chip" onclick="convertImageTo('jpeg')"><span class="fc-format-icon" style="background:#3b82f6;">JPG</span>JPG</button>
+          <button type="button" class="fc-format-chip" onclick="convertImageTo('png')"><span class="fc-format-icon" style="background:#10b981;">PNG</span>PNG</button>
+          <button type="button" class="fc-format-chip" onclick="convertImageTo('webp')"><span class="fc-format-icon" style="background:#8b5cf6;">WEB</span>WebP</button>
+          <button type="button" class="fc-format-chip" onclick="convertImageTo('avif')"><span class="fc-format-icon" style="background:#f59e0b;">AVI</span>AVIF</button>
+          <button type="button" class="fc-format-chip" onclick="convertImageTo('tiff')"><span class="fc-format-icon" style="background:#ef4444;">TIF</span>TIFF</button>
+          <button type="button" class="fc-format-chip" onclick="convertImageTo('gif')"><span class="fc-format-icon" style="background:#ec4899;">GIF</span>GIF</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Result (shown after a successful convert) -->
+    <div class="editor-result" id="imgc-result" style="display:none;">
+      <div class="dl-section-label"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:3px;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>Convert Ho Gaya!</div>
+      <img id="imgc-result-img" style="width:100%; max-width:340px; display:block; border-radius:12px; margin-bottom:14px; border:1px solid var(--border);" alt="" />
+      <div id="imgc-result-sizes" style="font-size:13.5px; color:var(--text); margin-bottom:16px; font-weight:600;"></div>
+      <div style="display:flex; gap:12px;">
+        <a id="imgc-download-link" href="#" class="dl-btn dl-btn-green" style="flex:1;"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download Karo</a>
+        <button type="button" class="dl-btn dl-btn-gray" onclick="document.getElementById('imgc-result').style.display='none';"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:4px;"><polyline points="15 18 9 12 15 6"/></svg>Wapas Format Choose Karo</button>
       </div>
     </div>
 
@@ -3407,6 +3509,7 @@
     document.getElementById('pdf-tools-page').classList.remove('show');
     document.getElementById('pdf-edit-page').classList.remove('show');
     document.getElementById('music-page').classList.remove('show');
+    document.getElementById('image-converter-page').classList.remove('show');
   }
 
   // Show auth
@@ -3424,6 +3527,7 @@
     document.getElementById('pdf-tools-page').classList.remove('show');
     document.getElementById('pdf-edit-page').classList.remove('show');
     document.getElementById('music-page').classList.remove('show');
+    document.getElementById('image-converter-page').classList.remove('show');
     stopSearchPlayer();
     stopMusicPlayer();
     document.getElementById('header-user').style.display = 'none';
@@ -3442,6 +3546,7 @@
     document.getElementById('pdf-tools-page').classList.remove('show');
     document.getElementById('pdf-edit-page').classList.remove('show');
     document.getElementById('music-page').classList.remove('show');
+    document.getElementById('image-converter-page').classList.remove('show');
     stopMedia(document.getElementById('dl-preview-video'));
     stopMedia(document.getElementById('dl-preview-audio'));
     stopDlWaveform();
@@ -3495,6 +3600,7 @@
     document.getElementById('pdf-tools-page').classList.remove('show');
     document.getElementById('pdf-edit-page').classList.remove('show');
     document.getElementById('music-page').classList.remove('show');
+    document.getElementById('image-converter-page').classList.remove('show');
     document.getElementById('auth-view').style.display = 'none';
     document.getElementById('app-view').style.display = 'block';
     const input = document.getElementById('vid-url');
@@ -3520,6 +3626,7 @@
     document.getElementById('pdf-tools-page').classList.remove('show');
     document.getElementById('pdf-edit-page').classList.remove('show');
     document.getElementById('music-page').classList.remove('show');
+    document.getElementById('image-converter-page').classList.remove('show');
     document.getElementById('docs-page').classList.add('show');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -3540,6 +3647,7 @@
     document.getElementById('pdf-tools-page').classList.remove('show');
     document.getElementById('pdf-edit-page').classList.remove('show');
     document.getElementById('music-page').classList.remove('show');
+    document.getElementById('image-converter-page').classList.remove('show');
     document.getElementById('settings-page').classList.add('show');
     updateSettingsThemeButtons();
     loadAccountStats();
@@ -4067,6 +4175,7 @@
     document.getElementById('pdf-tools-page').classList.remove('show');
     document.getElementById('pdf-edit-page').classList.remove('show');
     document.getElementById('music-page').classList.remove('show');
+    document.getElementById('image-converter-page').classList.remove('show');
     document.getElementById('playground-page').classList.add('show');
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
@@ -4398,6 +4507,7 @@
     document.getElementById('pdf-tools-page').classList.remove('show');
     document.getElementById('pdf-edit-page').classList.remove('show');
     document.getElementById('music-page').classList.remove('show');
+    document.getElementById('image-converter-page').classList.remove('show');
     document.getElementById('search-page').classList.add('show');
     // Pehle har baar YouTube tab par reset ho jaata tha (aur usi ke saath
     // stopSearchPlayer() bhi chal jaata) — matlab kisi doosre section se
@@ -4506,6 +4616,7 @@
     document.getElementById('playground-page').classList.remove('show');
     document.getElementById('search-page').classList.remove('show');
     document.getElementById('music-page').classList.remove('show');
+    document.getElementById('image-converter-page').classList.remove('show');
     document.getElementById('video-editor-page').classList.add('show');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -4526,6 +4637,7 @@
     document.getElementById('pdf-tools-page').classList.remove('show');
     document.getElementById('pdf-edit-page').classList.remove('show');
     document.getElementById('music-page').classList.remove('show');
+    document.getElementById('image-converter-page').classList.remove('show');
     document.getElementById('file-converter-page').classList.add('show');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -4546,7 +4658,29 @@
     document.getElementById('pdf-tools-page').classList.remove('show');
     document.getElementById('pdf-edit-page').classList.remove('show');
     document.getElementById('music-page').classList.remove('show');
+    document.getElementById('image-converter-page').classList.remove('show');
     document.getElementById('media-converter-page').classList.add('show');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  window.showImageConverter = () => {
+    closeSidebar();
+    if (!(currentUser && authToken)) { showAuth(); showToast('Pehle login karo','error'); return; }
+    logVisit('image_converter_page');
+    document.getElementById('auth-view').style.display = 'none';
+    document.getElementById('app-view').style.display = 'none';
+    document.getElementById('download-page').classList.remove('show');
+    document.getElementById('docs-page').classList.remove('show');
+    document.getElementById('settings-page').classList.remove('show');
+    document.getElementById('playground-page').classList.remove('show');
+    document.getElementById('search-page').classList.remove('show');
+    document.getElementById('video-editor-page').classList.remove('show');
+    document.getElementById('file-converter-page').classList.remove('show');
+    document.getElementById('media-converter-page').classList.remove('show');
+    document.getElementById('pdf-tools-page').classList.remove('show');
+    document.getElementById('pdf-edit-page').classList.remove('show');
+    document.getElementById('music-page').classList.remove('show');
+    document.getElementById('image-converter-page').classList.add('show');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -4566,6 +4700,7 @@
     document.getElementById('media-converter-page').classList.remove('show');
     document.getElementById('pdf-edit-page').classList.remove('show');
     document.getElementById('music-page').classList.remove('show');
+    document.getElementById('image-converter-page').classList.remove('show');
     document.getElementById('pdf-tools-page').classList.add('show');
     pdftShowGrid();
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -4587,6 +4722,7 @@
     document.getElementById('media-converter-page').classList.remove('show');
     document.getElementById('pdf-tools-page').classList.remove('show');
     document.getElementById('music-page').classList.remove('show');
+    document.getElementById('image-converter-page').classList.remove('show');
     document.getElementById('pdf-edit-page').classList.add('show');
     window.scrollTo({ top: 0, behavior: 'smooth' });
     resetPdfEdit();
@@ -4851,6 +4987,102 @@
     }
   };
   const AUDIO_FORMATS_CLIENT = { mp3:1, m4a:1, wav:1, flac:1, opus:1 };
+
+  // ════════════════════════════════
+  //  IMAGE CONVERTER — koi bhi format se koi bhi format, quality compression,
+  //  aur target file-size (KB/MB). Har format-chip click seedha /api/image-
+  //  tools/convert ko file+settings bhejta hai (PDF Tools jaisa single-request
+  //  pattern) — Media Converter ki tarah alag upload-step ki zaroorat nahi,
+  //  kyunki image processing fast/synchronous hai.
+  // ════════════════════════════════
+  let imgcSelectedFile = null;
+  let imgcSizeUnit = 'kb';
+
+  function formatImgcBytes(bytes) {
+    if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+    return Math.round(bytes / 1024) + ' KB';
+  }
+
+  window.handleImgcFileSelect = (event) => {
+    const file = event.target.files && event.target.files[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { showToast('Sirf image files allowed hain', 'error'); return; }
+    if (file.size > 25 * 1024 * 1024) { showToast('Image bahut badi hai (max 25MB)', 'error'); return; }
+
+    imgcSelectedFile = file;
+    document.getElementById('imgc-upload-zone').style.display = 'none';
+    document.getElementById('imgc-preview-img').src = URL.createObjectURL(file);
+    document.getElementById('imgc-file-info').textContent = `${file.name} — ${formatImgcBytes(file.size)}`;
+    document.getElementById('imgc-result').style.display = 'none';
+    document.getElementById('imgc-body').style.display = 'grid';
+  };
+
+  window.resetImageConverter = () => {
+    imgcSelectedFile = null;
+    document.getElementById('imgc-file-input').value = '';
+    document.getElementById('imgc-upload-zone').style.display = '';
+    document.getElementById('imgc-body').style.display = 'none';
+    document.getElementById('imgc-result').style.display = 'none';
+    document.getElementById('imgc-preview-img').removeAttribute('src');
+    document.getElementById('imgc-target-toggle').checked = false;
+    document.getElementById('imgc-target-row').style.display = 'none';
+    document.getElementById('imgc-target-value').value = '';
+  };
+
+  window.toggleImgcTargetSize = (checked) => {
+    document.getElementById('imgc-target-row').style.display = checked ? 'flex' : 'none';
+  };
+
+  window.setImgcUnit = (unit, btn) => {
+    imgcSizeUnit = unit;
+    document.querySelectorAll('#imgc-target-row .q-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  };
+
+  window.convertImageTo = async (format) => {
+    if (!imgcSelectedFile) { showToast('Pehle image upload karo', 'error'); return; }
+
+    const fd = new FormData();
+    fd.append('image', imgcSelectedFile);
+    fd.append('targetFormat', format);
+    fd.append('quality', document.getElementById('imgc-quality').value);
+
+    const targetOn = document.getElementById('imgc-target-toggle').checked;
+    if (targetOn) {
+      const rawVal = Number(document.getElementById('imgc-target-value').value);
+      if (!rawVal || rawVal <= 0) { showToast('Target size sahi se daalo', 'error'); return; }
+      const targetSizeKB = imgcSizeUnit === 'mb' ? rawVal * 1024 : rawVal;
+      fd.append('targetSizeKB', targetSizeKB);
+    }
+
+    document.getElementById('imgc-convert-thinking').classList.add('active');
+    document.getElementById('imgc-result').style.display = 'none';
+    try {
+      const res = await fetch(`${BACKEND}/api/image-tools/convert`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${authToken}` },
+        body: fd,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || 'Convert fail ho gaya');
+
+      const fullUrl = `${BACKEND}${data.fileUrl}`;
+      document.getElementById('imgc-result-img').src = fullUrl;
+      const origKB = data.originalSizeBytes, outKB = data.outputSizeBytes;
+      const pctChange = origKB ? Math.round((1 - outKB / origKB) * 100) : 0;
+      const changeText = pctChange > 0 ? `${pctChange}% chhota` : (pctChange < 0 ? `${Math.abs(pctChange)}% bada` : 'same size');
+      document.getElementById('imgc-result-sizes').textContent = `${formatImgcBytes(origKB)} → ${formatImgcBytes(outKB)} (${changeText})`;
+      document.getElementById('imgc-download-link').href = `${fullUrl}?dl=1`;
+      document.getElementById('imgc-result').style.display = 'block';
+      document.getElementById('imgc-result').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      showToast('Convert ho gaya! ✓', 'success');
+    } catch (e) {
+      showToast(e.message || 'Convert fail ho gaya', 'error');
+    } finally {
+      document.getElementById('imgc-convert-thinking').classList.remove('active');
+    }
+  };
 
   // ════════════════════════════════
   //  PDF TOOLS — Merge/Split/Compress/Convert, ek hi config-driven generic
@@ -7188,6 +7420,7 @@
     stopMusicPlayer();
     document.getElementById('search-page').classList.remove('show');
     document.getElementById('music-page').classList.remove('show');
+    document.getElementById('image-converter-page').classList.remove('show');
     document.getElementById('app-view').style.display = 'block';
     document.getElementById('vid-url').value = url;
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -8006,6 +8239,7 @@
     document.getElementById('pdf-tools-page').classList.remove('show');
     document.getElementById('pdf-edit-page').classList.remove('show');
     document.getElementById('music-page').classList.remove('show');
+    document.getElementById('image-converter-page').classList.remove('show');
 
     const panel = document.getElementById('dl-bell-panel');
     if (panel) panel.style.display = 'none';
