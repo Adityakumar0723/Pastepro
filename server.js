@@ -1785,23 +1785,53 @@ async function convertImageToTargetSize(buffer, targetFormat, targetSizeBytes, o
   const atMax = await encodeImageBuffer(buffer, targetFormat, 100, 1, origWidth);
 
   if (targetSizeBytes >= atMax.length) {
-    let scale = 1, out = atMax, guard = 0;
-    while (out.length < targetSizeBytes && scale < 6 && guard < 8) {
-      scale *= 1.35;
-      out = await encodeImageBuffer(buffer, targetFormat, 100, scale, origWidth);
+    // Pehle multiplicatively upscale karte hain jab tak target cross na ho
+    // jaaye (bracket dhoondte hain), phir usi bracket ke andar SCALE ko
+    // binary-search karte hain — sirf ek jump se rukne par size target se
+    // kaafi zyada (overshoot) ho sakta tha, ye refinement usko exact ke
+    // kaafi kareeb le aata hai.
+    let loScale = 1, hiScale = 1, hiOut = atMax, guard = 0;
+    while (hiOut.length < targetSizeBytes && hiScale < 8 && guard < 8) {
+      loScale = hiScale;
+      hiScale = Math.min(8, hiScale * 1.35);
+      hiOut = await encodeImageBuffer(buffer, targetFormat, 100, hiScale, origWidth);
       guard++;
     }
-    return out;
+    if (hiOut.length < targetSizeBytes) return hiOut; // 8x cap tak bhi nahi pahoncha — yahi max possible hai
+
+    let best = hiOut, bestDiff = Math.abs(hiOut.length - targetSizeBytes);
+    let lo = loScale, hi = hiScale;
+    for (let i = 0; i < 6; i++) {
+      const mid = (lo + hi) / 2;
+      const out = await encodeImageBuffer(buffer, targetFormat, 100, mid, origWidth);
+      const diff = Math.abs(out.length - targetSizeBytes);
+      if (diff < bestDiff) { best = out; bestDiff = diff; }
+      if (out.length > targetSizeBytes) hi = mid; else lo = mid;
+    }
+    return best;
   }
 
   if (targetSizeBytes <= atMin.length) {
-    let scale = 1, out = atMin, guard = 0;
-    while (out.length > targetSizeBytes && scale > 0.05 && guard < 8) {
-      scale *= 0.7;
-      out = await encodeImageBuffer(buffer, targetFormat, 1, scale, origWidth);
+    // Same refinement, downscale direction (bracket + scale binary-search).
+    let loScale = 1, hiScale = 1, loOut = atMin, guard = 0;
+    while (loOut.length > targetSizeBytes && loScale > 0.02 && guard < 8) {
+      hiScale = loScale;
+      loScale = Math.max(0.02, loScale * 0.7);
+      loOut = await encodeImageBuffer(buffer, targetFormat, 1, loScale, origWidth);
       guard++;
     }
-    return out;
+    if (loOut.length > targetSizeBytes) return loOut; // 0.02x floor tak bhi target se bada hai — yahi min possible hai
+
+    let best = loOut, bestDiff = Math.abs(loOut.length - targetSizeBytes);
+    let lo = loScale, hi = hiScale;
+    for (let i = 0; i < 6; i++) {
+      const mid = (lo + hi) / 2;
+      const out = await encodeImageBuffer(buffer, targetFormat, 1, mid, origWidth);
+      const diff = Math.abs(out.length - targetSizeBytes);
+      if (diff < bestDiff) { best = out; bestDiff = diff; }
+      if (out.length > targetSizeBytes) lo = mid; else hi = mid;
+    }
+    return best;
   }
 
   let lo = 1, hi = 100, best = atMax, bestDiff = Math.abs(atMax.length - targetSizeBytes);
@@ -1855,6 +1885,65 @@ app.post('/api/image-tools/convert', requireAuth, withImgToolUpload(imgToolUploa
   } catch (err) {
     console.error('Image convert error:', err);
     res.status(500).json({ error: 'Image convert nahi ho payi. Dobara try karo' });
+  }
+}));
+
+const MAX_IMG_BATCH_FILES = 20;
+
+// Multiple images ek saath — sab par same format/quality/target-size apply
+// hoke ek hi ZIP mein wapas aate hain (jaisa Split PDF/PDF-to-JPG ka pattern hai).
+app.post('/api/image-tools/convert-batch', requireAuth, withImgToolUpload(imgToolUpload.array('images', MAX_IMG_BATCH_FILES), async (req, res) => {
+  if (!req.files || !req.files.length) return res.status(400).json({ error: 'Koi images nahi mili' });
+
+  const targetFormat = String(req.body.targetFormat || '').toLowerCase();
+  if (!IMAGE_CONVERT_FORMATS[targetFormat]) return res.status(400).json({ error: 'Ye output format support nahi hai' });
+
+  const targetSizeKB = req.body.targetSizeKB ? Number(req.body.targetSizeKB) : null;
+  const quality = Math.min(100, Math.max(1, Number(req.body.quality) || 85));
+  const fmtMeta = IMAGE_CONVERT_FORMATS[targetFormat];
+
+  try {
+    const zip = new AdmZip();
+    let totalOriginal = 0, totalOutput = 0, converted = 0;
+
+    for (const file of req.files) {
+      try {
+        const srcMeta = await sharp(file.buffer, { failOn: 'none' }).metadata();
+        if (!srcMeta.width || !srcMeta.height) continue; // corrupt/non-image file — skip, don't fail the whole batch
+
+        const outBuffer = (targetSizeKB && targetSizeKB > 0)
+          ? await convertImageToTargetSize(file.buffer, targetFormat, Math.round(targetSizeKB * 1024), srcMeta.width)
+          : await encodeImageBuffer(file.buffer, targetFormat, quality, 1, srcMeta.width);
+
+        const baseName = (file.originalname || `image-${converted + 1}`).replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_') || `image-${converted + 1}`;
+        zip.addFile(`${baseName}.${fmtMeta.ext}`, outBuffer);
+        totalOriginal += file.size;
+        totalOutput += outBuffer.length;
+        converted++;
+      } catch (perFileErr) {
+        console.error('Batch image convert (single file) error:', perFileErr);
+      }
+    }
+
+    if (!converted) return res.status(400).json({ error: 'Koi bhi image convert nahi ho payi — valid image files upload karo' });
+
+    const uid = req.user.id;
+    const outName = `${uid.slice(0, 8)}_${Date.now()}_imgbatch.zip`;
+    fs.writeFileSync(path.join(DOWNLOADS_DIR, outName), zip.toBuffer());
+
+    logActivity(req, 'image_convert_batch', { targetFormat, count: converted, totalOriginal, totalOutput });
+    res.json({
+      success: true,
+      fileUrl: `/files/${outName}`,
+      filename: outName,
+      format: targetFormat,
+      count: converted,
+      totalOriginalSizeBytes: totalOriginal,
+      totalOutputSizeBytes: totalOutput,
+    });
+  } catch (err) {
+    console.error('Image batch convert error:', err);
+    res.status(500).json({ error: 'Batch convert nahi ho paya. Dobara try karo' });
   }
 }));
 

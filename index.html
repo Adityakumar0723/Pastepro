@@ -1731,6 +1731,7 @@
             <li>Quality slider for direct control over compression vs. sharpness</li>
             <li>"Exact File Size" mode — type a target in KB or MB and it automatically compresses (or, if needed, upscales) to match, both shrinking and growing are supported</li>
             <li>Before/after size shown right on the result, with a direct download link</li>
+            <li>Multiple Images section — upload up to 20 photos at once, same format/quality/target-size applied to every one, downloaded as a single ZIP</li>
           </ul>
           <div class="docs-shot-wrap">
             <img class="docs-shot" src="/docs-assets/image-converter.png" alt="Image Converter with a photo uploaded and format options" loading="lazy" />
@@ -2571,14 +2572,16 @@
         </div>
 
         <div class="dl-section-label" style="margin-top:20px;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:3px;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>Image Format</div>
-        <div class="fc-format-grid">
-          <button type="button" class="fc-format-chip" onclick="convertImageTo('jpeg')"><span class="fc-format-icon" style="background:#3b82f6;">JPG</span>JPG</button>
-          <button type="button" class="fc-format-chip" onclick="convertImageTo('png')"><span class="fc-format-icon" style="background:#10b981;">PNG</span>PNG</button>
-          <button type="button" class="fc-format-chip" onclick="convertImageTo('webp')"><span class="fc-format-icon" style="background:#8b5cf6;">WEB</span>WebP</button>
-          <button type="button" class="fc-format-chip" onclick="convertImageTo('avif')"><span class="fc-format-icon" style="background:#f59e0b;">AVI</span>AVIF</button>
-          <button type="button" class="fc-format-chip" onclick="convertImageTo('tiff')"><span class="fc-format-icon" style="background:#ef4444;">TIF</span>TIFF</button>
-          <button type="button" class="fc-format-chip" onclick="convertImageTo('gif')"><span class="fc-format-icon" style="background:#ec4899;">GIF</span>GIF</button>
+        <div class="fc-format-grid" id="imgc-format-grid">
+          <button type="button" class="fc-format-chip" data-format="jpeg" onclick="selectImgcFormat('jpeg', this)"><span class="fc-format-icon" style="background:#3b82f6;">JPG</span>JPG</button>
+          <button type="button" class="fc-format-chip" data-format="png" onclick="selectImgcFormat('png', this)"><span class="fc-format-icon" style="background:#10b981;">PNG</span>PNG</button>
+          <button type="button" class="fc-format-chip" data-format="webp" onclick="selectImgcFormat('webp', this)"><span class="fc-format-icon" style="background:#8b5cf6;">WEB</span>WebP</button>
+          <button type="button" class="fc-format-chip" data-format="avif" onclick="selectImgcFormat('avif', this)"><span class="fc-format-icon" style="background:#f59e0b;">AVI</span>AVIF</button>
+          <button type="button" class="fc-format-chip" data-format="tiff" onclick="selectImgcFormat('tiff', this)"><span class="fc-format-icon" style="background:#ef4444;">TIF</span>TIFF</button>
+          <button type="button" class="fc-format-chip" data-format="gif" onclick="selectImgcFormat('gif', this)"><span class="fc-format-icon" style="background:#ec4899;">GIF</span>GIF</button>
         </div>
+
+        <button type="button" class="dl-btn dl-btn-green editor-apply-btn" style="margin-top:18px;" id="imgc-convert-btn" disabled onclick="convertImageTo()">Convert Karo →</button>
       </div>
     </div>
 
@@ -2591,6 +2594,72 @@
         <a id="imgc-download-link" href="#" class="dl-btn dl-btn-green" style="flex:1;"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download Karo</a>
         <button type="button" class="dl-btn dl-btn-gray" onclick="document.getElementById('imgc-result').style.display='none';"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:4px;"><polyline points="15 18 9 12 15 6"/></svg>Wapas Format Choose Karo</button>
       </div>
+    </div>
+
+    <hr class="docs-divider" style="margin:36px 0;" />
+
+    <!-- Multiple Images — same format/quality/target-size applied to every
+         file, result comes back as one ZIP (jaisa Split PDF/PDF-to-JPG karte hain) -->
+    <div class="editor-page-banner" style="margin-bottom:20px;">
+      <div class="dl-banner-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="14" height="14" rx="2"/><path d="M6 22h14a2 2 0 0 0 2-2V8"/></svg></div>
+      <div>
+        <h2>Multiple Images Ek Saath</h2>
+        <p>Kai images ek saath upload karo, sabko same format/size mein convert karke ek ZIP mein download karo</p>
+      </div>
+    </div>
+
+    <div id="imgcb-upload-zone" class="editor-upload-zone" onclick="document.getElementById('imgcb-file-input').click()">
+      <input type="file" id="imgcb-file-input" accept="image/*" multiple style="display:none;" onchange="handleImgcbFileSelect(event)" />
+      <div class="editor-upload-icon"><svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/></svg></div>
+      <p class="editor-upload-text">Multiple images upload karne ke liye click karo</p>
+      <p class="editor-upload-hint">Ek saath max 20 images, har ek max 25MB</p>
+    </div>
+
+    <div id="imgcb-preview-wrap" style="display:none;">
+      <div id="imgcb-preview-list" class="fc-image-preview-list"></div>
+      <button type="button" class="dl-btn dl-btn-gray" style="margin:14px 0 24px;" onclick="resetImageConverterBatch()"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:4px;"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Doosri images upload karo</button>
+
+      <div class="editor-control-group">
+        <div class="pdft-field-label"><span>Quality</span><span class="pdft-field-value" id="imgcb-quality-value">85%</span></div>
+        <input type="range" id="imgcb-quality" min="1" max="100" value="85" class="pdft-field-input" oninput="document.getElementById('imgcb-quality-value').textContent = this.value + '%'" />
+      </div>
+
+      <div class="editor-control-group" style="margin-top:14px;">
+        <label class="cap-toggle-switch" style="margin-bottom:4px;">
+          <input type="checkbox" id="imgcb-target-toggle" onchange="toggleImgcbTargetSize(this.checked)" />
+          <span class="cap-toggle-slider"></span>
+          <span class="cap-toggle-label">🎯 Har Image Ka Exact Size Chahiye</span>
+        </label>
+        <div id="imgcb-target-row" style="display:none; gap:10px; align-items:center; margin-top:10px;">
+          <input type="number" id="imgcb-target-value" class="pdft-field-input" placeholder="jaise 50" min="1" style="flex:1;" />
+          <button type="button" class="q-btn active" id="imgcb-unit-kb" onclick="setImgcbUnit('kb', this)">KB</button>
+          <button type="button" class="q-btn" id="imgcb-unit-mb" onclick="setImgcbUnit('mb', this)">MB</button>
+        </div>
+        <p style="font-size:11.5px; color:var(--muted); margin-top:8px; line-height:1.5;">Ye setting har image par alag-alag apply hoti hai (sab ek hi target size tak fit ho jaayengi).</p>
+      </div>
+
+      <div class="dl-section-label" style="margin-top:20px;">Image Format</div>
+      <div class="fc-format-grid" id="imgcb-format-grid">
+        <button type="button" class="fc-format-chip" data-format="jpeg" onclick="selectImgcbFormat('jpeg', this)"><span class="fc-format-icon" style="background:#3b82f6;">JPG</span>JPG</button>
+        <button type="button" class="fc-format-chip" data-format="png" onclick="selectImgcbFormat('png', this)"><span class="fc-format-icon" style="background:#10b981;">PNG</span>PNG</button>
+        <button type="button" class="fc-format-chip" data-format="webp" onclick="selectImgcbFormat('webp', this)"><span class="fc-format-icon" style="background:#8b5cf6;">WEB</span>WebP</button>
+        <button type="button" class="fc-format-chip" data-format="avif" onclick="selectImgcbFormat('avif', this)"><span class="fc-format-icon" style="background:#f59e0b;">AVI</span>AVIF</button>
+        <button type="button" class="fc-format-chip" data-format="tiff" onclick="selectImgcbFormat('tiff', this)"><span class="fc-format-icon" style="background:#ef4444;">TIF</span>TIFF</button>
+        <button type="button" class="fc-format-chip" data-format="gif" onclick="selectImgcbFormat('gif', this)"><span class="fc-format-icon" style="background:#ec4899;">GIF</span>GIF</button>
+      </div>
+
+      <button type="button" class="dl-btn dl-btn-green editor-apply-btn" style="margin-top:18px;" id="imgcb-convert-btn" disabled onclick="convertImageBatch()">Sab Convert Karo →</button>
+
+      <div class="pg-thinking" id="imgcb-convert-thinking" style="margin-top:16px;">
+        <span class="pg-dot"></span><span class="pg-dot"></span><span class="pg-dot"></span>
+        Sab images convert ho rahi hain...
+      </div>
+    </div>
+
+    <div class="editor-result" id="imgcb-result" style="display:none;">
+      <div class="dl-section-label"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:3px;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>Convert Ho Gaya!</div>
+      <div id="imgcb-result-text" style="font-size:13.5px; color:var(--text); margin-bottom:16px; font-weight:600;"></div>
+      <a id="imgcb-download-link" href="#" class="dl-btn dl-btn-green" style="width:100%;"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>ZIP Download Karo</a>
     </div>
 
   </div>
@@ -4997,6 +5066,7 @@
   // ════════════════════════════════
   let imgcSelectedFile = null;
   let imgcSizeUnit = 'kb';
+  let imgcSelectedFormat = null;
 
   function formatImgcBytes(bytes) {
     if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
@@ -5020,6 +5090,7 @@
 
   window.resetImageConverter = () => {
     imgcSelectedFile = null;
+    imgcSelectedFormat = null;
     document.getElementById('imgc-file-input').value = '';
     document.getElementById('imgc-upload-zone').style.display = '';
     document.getElementById('imgc-body').style.display = 'none';
@@ -5028,6 +5099,8 @@
     document.getElementById('imgc-target-toggle').checked = false;
     document.getElementById('imgc-target-row').style.display = 'none';
     document.getElementById('imgc-target-value').value = '';
+    document.querySelectorAll('#imgc-format-grid .fc-format-chip').forEach(b => b.classList.remove('active'));
+    document.getElementById('imgc-convert-btn').disabled = true;
   };
 
   window.toggleImgcTargetSize = (checked) => {
@@ -5040,12 +5113,20 @@
     btn.classList.add('active');
   };
 
-  window.convertImageTo = async (format) => {
+  window.selectImgcFormat = (format, btn) => {
+    imgcSelectedFormat = format;
+    document.querySelectorAll('#imgc-format-grid .fc-format-chip').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('imgc-convert-btn').disabled = false;
+  };
+
+  window.convertImageTo = async () => {
     if (!imgcSelectedFile) { showToast('Pehle image upload karo', 'error'); return; }
+    if (!imgcSelectedFormat) { showToast('Pehle ek format choose karo', 'error'); return; }
 
     const fd = new FormData();
     fd.append('image', imgcSelectedFile);
-    fd.append('targetFormat', format);
+    fd.append('targetFormat', imgcSelectedFormat);
     fd.append('quality', document.getElementById('imgc-quality').value);
 
     const targetOn = document.getElementById('imgc-target-toggle').checked;
@@ -5081,6 +5162,108 @@
       showToast(e.message || 'Convert fail ho gaya', 'error');
     } finally {
       document.getElementById('imgc-convert-thinking').classList.remove('active');
+    }
+  };
+
+  // ─── Multiple Images (batch) — same format/quality/target-size sab par,
+  //     result ek ZIP mein ───
+  let imgcbSelectedFiles = [];
+  let imgcbSizeUnit = 'kb';
+  let imgcbSelectedFormat = null;
+
+  window.handleImgcbFileSelect = (event) => {
+    const files = [...(event.target.files || [])];
+    event.target.value = '';
+    if (!files.length) return;
+
+    const valid = [];
+    for (const f of files) {
+      if (!f.type.startsWith('image/')) { showToast(`${f.name}: sirf image files allowed hain`, 'error'); continue; }
+      if (f.size > 25 * 1024 * 1024) { showToast(`${f.name}: bahut badi hai (max 25MB)`, 'error'); continue; }
+      valid.push(f);
+    }
+    if (!valid.length) return;
+
+    imgcbSelectedFiles = [...imgcbSelectedFiles, ...valid].slice(0, 20);
+    if (imgcbSelectedFiles.length >= 20) showToast('Max 20 images ek saath', 'error');
+
+    const list = document.getElementById('imgcb-preview-list');
+    list.innerHTML = imgcbSelectedFiles.map(f => `<img class="fc-image-thumb" src="${URL.createObjectURL(f)}" alt="" />`).join('');
+    document.getElementById('imgcb-upload-zone').style.display = 'none';
+    document.getElementById('imgcb-preview-wrap').style.display = 'block';
+    document.getElementById('imgcb-result').style.display = 'none';
+  };
+
+  window.resetImageConverterBatch = () => {
+    imgcbSelectedFiles = [];
+    imgcbSelectedFormat = null;
+    document.getElementById('imgcb-file-input').value = '';
+    document.getElementById('imgcb-preview-list').innerHTML = '';
+    document.getElementById('imgcb-upload-zone').style.display = '';
+    document.getElementById('imgcb-preview-wrap').style.display = 'none';
+    document.getElementById('imgcb-result').style.display = 'none';
+    document.getElementById('imgcb-target-toggle').checked = false;
+    document.getElementById('imgcb-target-row').style.display = 'none';
+    document.getElementById('imgcb-target-value').value = '';
+    document.querySelectorAll('#imgcb-format-grid .fc-format-chip').forEach(b => b.classList.remove('active'));
+    document.getElementById('imgcb-convert-btn').disabled = true;
+  };
+
+  window.toggleImgcbTargetSize = (checked) => {
+    document.getElementById('imgcb-target-row').style.display = checked ? 'flex' : 'none';
+  };
+
+  window.setImgcbUnit = (unit, btn) => {
+    imgcbSizeUnit = unit;
+    document.querySelectorAll('#imgcb-target-row .q-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  };
+
+  window.selectImgcbFormat = (format, btn) => {
+    imgcbSelectedFormat = format;
+    document.querySelectorAll('#imgcb-format-grid .fc-format-chip').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('imgcb-convert-btn').disabled = false;
+  };
+
+  window.convertImageBatch = async () => {
+    if (!imgcbSelectedFiles.length) { showToast('Pehle images upload karo', 'error'); return; }
+    if (!imgcbSelectedFormat) { showToast('Pehle ek format choose karo', 'error'); return; }
+
+    const fd = new FormData();
+    imgcbSelectedFiles.forEach(f => fd.append('images', f));
+    fd.append('targetFormat', imgcbSelectedFormat);
+    fd.append('quality', document.getElementById('imgcb-quality').value);
+
+    const targetOn = document.getElementById('imgcb-target-toggle').checked;
+    if (targetOn) {
+      const rawVal = Number(document.getElementById('imgcb-target-value').value);
+      if (!rawVal || rawVal <= 0) { showToast('Target size sahi se daalo', 'error'); return; }
+      const targetSizeKB = imgcbSizeUnit === 'mb' ? rawVal * 1024 : rawVal;
+      fd.append('targetSizeKB', targetSizeKB);
+    }
+
+    document.getElementById('imgcb-convert-thinking').classList.add('active');
+    document.getElementById('imgcb-result').style.display = 'none';
+    try {
+      const res = await fetch(`${BACKEND}/api/image-tools/convert-batch`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${authToken}` },
+        body: fd,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || 'Convert fail ho gaya');
+
+      const fullUrl = `${BACKEND}${data.fileUrl}`;
+      document.getElementById('imgcb-result-text').textContent = `${data.count} images convert ho gayi — ${formatImgcBytes(data.totalOriginalSizeBytes)} → ${formatImgcBytes(data.totalOutputSizeBytes)}`;
+      document.getElementById('imgcb-download-link').href = `${fullUrl}?dl=1`;
+      document.getElementById('imgcb-result').style.display = 'block';
+      document.getElementById('imgcb-result').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      showToast('Convert ho gaya! ✓', 'success');
+    } catch (e) {
+      showToast(e.message || 'Convert fail ho gaya', 'error');
+    } finally {
+      document.getElementById('imgcb-convert-thinking').classList.remove('active');
     }
   };
 
