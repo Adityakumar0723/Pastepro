@@ -1743,9 +1743,9 @@
 
         <div class="docs-section">
           <div class="docs-section-title">🧰 PDF Tools</div>
-          <p class="docs-section-desc">A full iLovePDF-style toolset — 32 tools across Organize, Optimize, Convert, Edit, PDF Security and PDF Intelligence, filterable by category. Every tool shows a live progress percentage while it works, and opens the result straight in the canvas viewer (ZIP-producing tools download directly instead).</p>
+          <p class="docs-section-desc">A full iLovePDF-style toolset — 33 tools across Organize, Optimize, Convert, Edit, PDF Security and PDF Intelligence, filterable by category. Every tool shows a live progress percentage while it works, and opens the result straight in the canvas viewer (ZIP-producing tools download directly instead).</p>
           <ul class="docs-feature-list">
-            <li><strong>Organize:</strong> Merge PDF (combine files in upload order) · Split PDF (every page → its own file, as a ZIP) · JPG to PDF (one or more images → one PDF, each on its own page) · Scan to PDF (same, with camera capture on mobile) · Organize PDF (thumbnail preview of every page — reorder with ↑/↓, delete any page, then rebuild) · Crop PDF (independent top/bottom/left/right margin sliders, applied to every page)</li>
+            <li><strong>Organize:</strong> Merge PDF (combine files in upload order) · Split PDF (every page → its own file, as a ZIP) · Files to ZIP (any files, any mix of types, bundled into one ZIP) · JPG to PDF (one or more images → one PDF, each on its own page) · Scan to PDF (same, with camera capture on mobile) · Organize PDF (thumbnail preview of every page — reorder with ↑/↓, delete any page, then rebuild) · Crop PDF (independent top/bottom/left/right margin sliders, applied to every page)</li>
             <li><strong>Optimize:</strong> Compress PDF (real before/after size shown, no exaggerated claims) · Repair PDF (best-effort fix for a damaged/corrupt file) · OCR PDF (for scanned/image-only PDFs with no text layer — rasterizes each page and runs it through the vision AI, producing a Word document)</li>
             <li><strong>Convert:</strong> PDF ↔ Word, PowerPoint and Excel in both directions · PDF to JPG (every page → a JPG, as a ZIP) · HTML to PDF (paste a URL to fetch and print it, or paste raw HTML directly) · PDF to Markdown (each page becomes a `## Page N` section — handy for notes or feeding into an LLM)</li>
             <li><strong>Edit:</strong> Edit PDF (click "Text Daalo"/"Image Daalo" then click any page to drop it there; drag to reposition, resize images, change text font size/color inline) · Watermark (your text stamped on every page — text, opacity, rotation, size and color are all adjustable) · Rotate PDF (90°/180°/270°, applied to every page) · Page Numbers (position and starting number configurable) · Compare PDF (upload two PDFs, see a line-by-line diff per page — added lines in green, removed in red) · PDF Forms (auto-detects existing fillable fields and builds a form to fill them; if a PDF has none, click anywhere on a page to add a brand-new fillable text field instead)</li>
@@ -2729,6 +2729,11 @@
           <span class="pdft-tool-icon" style="background:#e63946;"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l7 7"/><path d="M21 21l-7-7"/><path d="M3 10V3h7"/><path d="M21 14v7h-7"/></svg></span>
           <div class="pdft-tool-title">Split PDF</div>
           <div class="pdft-tool-desc">Har page ko apni alag PDF file bana do — ek ZIP mein sab mil jaayengi.</div>
+        </button>
+        <button type="button" class="pdft-tool-card" data-cat="organize" onclick="pdftOpenTool('zip-files')">
+          <span class="pdft-tool-icon" style="background:#0ea5e9;"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg></span>
+          <div class="pdft-tool-title">Files ko ZIP Banao</div>
+          <div class="pdft-tool-desc">Kisi bhi type ki multiple files (PDF, image, doc, kuch bhi) ek ZIP mein daal do.</div>
         </button>
         <button type="button" class="pdft-tool-card" data-cat="optimize" onclick="pdftOpenTool('compress')">
           <span class="pdft-tool-icon" style="background:#16a34a;"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg></span>
@@ -5331,6 +5336,11 @@
       accept: 'application/pdf,.pdf', badge: 'PDF', badgeColor: '#e63946', title: 'Split PDF',
       desc: 'Har page ko apni alag PDF file bana do.', uploadText: 'Ek PDF file upload karo',
       uploadHint: 'PDF — max 30MB, kam se kam 2 pages honi chahiye', actionLabel: 'Split Karo', outputKind: 'zip', zipItemLabel: 'PDF files' },
+    'zip-files': { endpoint: '/api/pdf-tools/zip-files', field: 'files', multiple: true, minFiles: 1,
+      accept: '', badge: 'ZIP', badgeColor: '#0ea5e9', title: 'Files ko ZIP Banao',
+      desc: 'Kisi bhi type ki multiple files (PDF, image, doc, kuch bhi) ek ZIP mein daal do.',
+      uploadText: 'Koi bhi files upload karo (kisi bhi type ki)', uploadHint: 'Kisi bhi file type — ek file max 30MB, max 10 files',
+      actionLabel: 'ZIP Banao', outputKind: 'zip', zipItemLabel: 'files' },
     'jpg-to-pdf': { endpoint: '/api/pdf-tools/jpg-to-pdf', field: 'files', multiple: true, minFiles: 1,
       accept: 'image/png,image/jpeg', badge: 'PDF', badgeColor: '#e63946', title: 'JPG to PDF',
       desc: 'Ek ya zyada images ko ek PDF mein convert karo.', uploadText: 'Ek ya zyada images upload karo',

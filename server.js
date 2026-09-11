@@ -3003,6 +3003,43 @@ app.post('/api/pdf-tools/redact', requireAuth, withPdfToolUpload(pdfToolUpload.s
   }
 }));
 
+// Kisi bhi type ki multiple files (PDF ho, image ho, doc ho, kuch bhi) ek
+// ZIP mein daal do — koi mimeCheck nahi, pdfToolUpload waise bhi kisi
+// file-type ko multer level par restrict nahi karta (verified: koi
+// fileFilter set nahi hai), isliye ye sabse permissive tool hai.
+app.post('/api/pdf-tools/zip-files', requireAuth, withPdfToolUpload(pdfToolUpload.array('files', 20), async (req, res) => {
+  const files = req.files || [];
+  if (!files.length) return res.status(400).json({ error: 'Koi file nahi mili' });
+
+  try {
+    const zip = new AdmZip();
+    const usedNames = new Set();
+    files.forEach((f, i) => {
+      const original = f.originalname || `file-${i + 1}`;
+      let finalName = original;
+      let suffix = 1;
+      // Do files ka same naam ho sakta hai — duplicate ko "(1)", "(2)" laga
+      // ke rename karte hain taaki ZIP ke andar koi overwrite na ho.
+      while (usedNames.has(finalName)) {
+        const dot = original.lastIndexOf('.');
+        finalName = dot > 0 ? `${original.slice(0, dot)} (${suffix})${original.slice(dot)}` : `${original} (${suffix})`;
+        suffix++;
+      }
+      usedNames.add(finalName);
+      zip.addFile(finalName, f.buffer);
+    });
+
+    const uid = req.user.id;
+    const outName = `${uid.slice(0, 8)}_${Date.now()}_pt.zip`;
+    fs.writeFileSync(path.join(DOWNLOADS_DIR, outName), zip.toBuffer());
+    logActivity(req, 'pdf_zip_files', { count: files.length });
+    res.json({ success: true, fileUrl: `/files/${outName}`, filename: outName, pageCount: files.length });
+  } catch (err) {
+    console.error('zip-files error:', err);
+    res.status(500).json({ error: 'ZIP banane mein dikkat aa gayi. Dobara try karo' });
+  }
+}));
+
 // ─── PDF TOOLS WORKFLOWS — kai tools ko ek saved chain mein jod ke ek hi
 //     click mein sabko sequence mein run karo (iLovePDF ke "Workflow"
 //     feature jaisa). Har entry ka `run` upar-defined generator functions
