@@ -7661,6 +7661,12 @@
     thinking.classList.add('active');
     stopMusicPlayer();
     document.getElementById('music-results').innerHTML = '';
+    // stopMusicPlayer() card ko reset kar deta hai (placeholder wapas aa jaata
+    // hai), par music-body abhi bhi dikh raha hota agar pichli search se pehle
+    // se visible tha — matlab naye results aane tak ek khaali/placeholder
+    // now-playing card akela latakta rehta tha. Naye results aane tak poora
+    // section hi chhupa dete hain.
+    document.getElementById('music-body').style.display = 'none';
 
     try {
       const res = await fetch(`${BACKEND}/api/search`, {
