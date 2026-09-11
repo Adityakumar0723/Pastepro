@@ -3712,6 +3712,57 @@ app.post('/api/search', requireAuth, async (req, res) => {
   });
 });
 
+// Music Player ka "Share" button ek link banata hai (?music=<videoId>) —
+// jo bhi wo link khole, humein us EK specific video ka info chahiye hota hai
+// (poori keyword search nahi) taaki seedha wahi track load karke play kiya
+// ja sake.
+app.get('/api/music/track-info', requireAuth, async (req, res) => {
+  const videoId = String(req.query.videoId || '').trim();
+  if (!/^[\w-]{5,20}$/.test(videoId)) return res.status(400).json({ error: 'Invalid video id' });
+
+  const ytdlpCmd = await resolveYtdlpCommand();
+  if (!ytdlpCmd) return res.status(500).json({ error: 'yt-dlp install nahi hai' });
+
+  const { cmd, extraArgs } = splitYtdlpCommand(ytdlpCmd);
+  const url = `https://www.youtube.com/watch?v=${videoId}`;
+  const baseArgs    = ['--skip-download', '--dump-json', ...cookiesArgs(), ...proxyArgs(), url];
+  const primaryArgs = [...extraArgs, ...baseArgs];
+  const retryArgs   = [...extraArgs, '--extractor-args', 'youtube:player_client=visionos,tv_simply,ios,android,mweb,web_creator,web,tv;formats=missing_pot', ...baseArgs];
+
+  const handle = (error, stdout, stderr) => {
+    if (error) {
+      console.error('Track-info error:', stderr || error.message);
+      return res.status(500).json({ error: 'Ye video load nahi ho saka' });
+    }
+    try {
+      const info = JSON.parse(stdout);
+      const thumbs = info.thumbnails || [];
+      const thumb  = thumbs.length ? thumbs[thumbs.length - 1].url : null;
+      const track = {
+        id: info.id || videoId,
+        title: info.title || 'Untitled',
+        channel: info.channel || info.uploader || '',
+        duration: info.duration_string || '',
+        views: info.view_count || 0,
+        thumbnail: thumb,
+        url: info.webpage_url || url,
+      };
+      logActivity(req, 'music_shared_track_open', { videoId });
+      res.json({ success: true, track });
+    } catch (e) {
+      res.status(500).json({ error: 'Ye video load nahi ho saka' });
+    }
+  };
+
+  execFile(cmd, primaryArgs, { timeout: 20 * 1000, cwd: DOWNLOADS_DIR, maxBuffer: 20 * 1024 * 1024 }, (error, stdout, stderr) => {
+    const hitBotCheck = error && (stderr || '').toLowerCase().includes('sign in to confirm');
+    if (hitBotCheck) {
+      return execFile(cmd, retryArgs, { timeout: 20 * 1000, cwd: DOWNLOADS_DIR, maxBuffer: 20 * 1024 * 1024 }, (error2, stdout2, stderr2) => handle(error2, stdout2, stderr2));
+    }
+    handle(error, stdout, stderr);
+  });
+});
+
 // ─── SEARCH PAGE — live word-by-word captions while previewing ───
 // YouTube ke auto-captions do cheezein deti hain: original spoken language
 // ka ASR track (metadata mein "<lang>-orig" key se marked) aur usi track ka

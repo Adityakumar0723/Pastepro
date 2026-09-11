@@ -2103,8 +2103,9 @@
             <input type="range" class="music-volume-slider" id="music-volume-slider" min="0" max="100" value="80" oninput="setMusicVolume(this.value)" />
           </div>
 
-          <div class="music-download-row">
-            <button type="button" class="dl-btn dl-btn-green" style="width:100%;" id="music-download-btn" onclick="downloadCurrentMusicTrack()">⬇ MP3 Download Karo</button>
+          <div class="music-download-row" style="display:flex; gap:10px;">
+            <button type="button" class="dl-btn dl-btn-green" style="flex:1;" id="music-download-btn" onclick="downloadCurrentMusicTrack()">⬇ MP3 Download Karo</button>
+            <button type="button" class="dl-btn dl-btn-gray" style="width:auto; padding:11px 16px;" id="music-share-btn" onclick="shareCurrentMusicTrack()" title="Share Karo"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></button>
           </div>
 
           <div class="music-status-note" id="music-status-note"></div>
@@ -3579,6 +3580,7 @@
     document.getElementById('pdf-edit-page').classList.remove('show');
     document.getElementById('music-page').classList.remove('show');
     document.getElementById('image-converter-page').classList.remove('show');
+    handleSharedMusicLink(); // ?music=<videoId> link se aaya ho to seedha wo track khol do
   }
 
   // Show auth
@@ -8026,6 +8028,71 @@
     if (musicCurrentIndex < 0) return;
     downloadMusicResult(musicCurrentIndex);
   };
+
+  // Share link — ?music=<videoId> ke saath, jo bhi khole use seedha wahi
+  // track Music Player mein load+play ho jaata hai (handleSharedMusicLink
+  // dekho, showApp() ke andar se call hota hai).
+  window.shareCurrentMusicTrack = async () => {
+    if (musicCurrentIndex < 0) { showToast('Pehle koi gaana select karo', 'error'); return; }
+    const track = musicResults[musicCurrentIndex];
+    if (!track) return;
+
+    const shareUrl = `${window.location.origin}${window.location.pathname}?music=${encodeURIComponent(track.id)}`;
+    const shareTitle = `${track.title} — PastePro Music`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: shareTitle, text: 'Ye gaana suno:', url: shareUrl });
+      } catch (e) {
+        // User ne share sheet cancel kar diya — koi error dikhane ki zaroorat nahi
+      }
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      showToast('Link copy ho gaya! Kahin bhi paste karo 🔗', 'success');
+    } catch (e) {
+      showToast(shareUrl, 'success');
+    }
+  };
+
+  // Music page khulte hi (URL mein ?music=<videoId> hone par) seedha wahi
+  // shared track load karke bajao — search karne ki zaroorat nahi.
+  async function playSharedMusicTrack(videoId) {
+    document.getElementById('music-thinking').classList.add('active');
+    try {
+      const res = await fetch(`${BACKEND}/api/music/track-info?videoId=${encodeURIComponent(videoId)}`, {
+        headers: { 'Authorization': `Bearer ${authToken}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || 'Shared track load nahi ho saka');
+
+      musicResults = [data.track];
+      renderMusicResults(musicResults);
+      document.getElementById('music-body').style.display = 'grid';
+      setupMusicColumnSync();
+      playMusicTrack(0);
+    } catch (e) {
+      showToast(e.message || 'Shared track load nahi ho saka', 'error');
+    } finally {
+      document.getElementById('music-thinking').classList.remove('active');
+    }
+  }
+
+  // Sirf ek baar chalta hai — URL se ?music=<videoId> nikaal ke turant
+  // wahi URL se hata deta hai (taaki reload/navigation par dobara na chale),
+  // phir Music page khol ke seedha wo track play karta hai.
+  function handleSharedMusicLink() {
+    const videoId = new URLSearchParams(window.location.search).get('music');
+    if (!videoId || !/^[\w-]{5,20}$/.test(videoId)) return;
+    const cleanUrl = new URL(window.location.href);
+    cleanUrl.searchParams.delete('music');
+    window.history.replaceState({}, '', cleanUrl.toString());
+
+    showMusic();
+    playSharedMusicTrack(videoId);
+  }
 
   function updateMusicProgressUI() {
     if (!musicPlayer || typeof musicPlayer.getCurrentTime !== 'function') return;
