@@ -5269,11 +5269,13 @@
       const origKB = data.originalSizeBytes, outKB = data.outputSizeBytes;
       const pctChange = origKB ? Math.round((1 - outKB / origKB) * 100) : 0;
       const changeText = pctChange > 0 ? `${pctChange}% chhota` : (pctChange < 0 ? `${Math.abs(pctChange)}% bada` : 'same size');
-      document.getElementById('imgc-result-sizes').textContent = `${formatImgcBytes(origKB)} → ${formatImgcBytes(outKB)} (${changeText})`;
+      let sizesText = `${formatImgcBytes(origKB)} → ${formatImgcBytes(outKB)} (${changeText})`;
+      if (data.sizeCapped) sizesText += ' — is image ke liye jo exact size maanga tha wo possible nahi tha, sabse kareebi size diya gaya hai';
+      document.getElementById('imgc-result-sizes').textContent = sizesText;
       document.getElementById('imgc-download-link').href = `${fullUrl}?dl=1`;
       document.getElementById('imgc-result').style.display = 'block';
       document.getElementById('imgc-result').scrollIntoView({ behavior: 'smooth', block: 'center' });
-      showToast('Convert ho gaya! ✓', 'success');
+      showToast(data.sizeCapped ? 'Convert ho gaya — exact size possible nahi tha, kareebi diya' : 'Convert ho gaya! ✓', 'success');
     } catch (e) {
       showToast(e.message || 'Convert fail ho gaya', 'error');
     } finally {
@@ -5371,7 +5373,9 @@
       if (!res.ok || !data.success) throw new Error(data.error || 'Convert fail ho gaya');
 
       const fullUrl = `${BACKEND}${data.fileUrl}`;
-      document.getElementById('imgcb-result-text').textContent = `${data.count} images convert ho gayi — ${formatImgcBytes(data.totalOriginalSizeBytes)} → ${formatImgcBytes(data.totalOutputSizeBytes)}`;
+      let batchText = `${data.count} images convert ho gayi — ${formatImgcBytes(data.totalOriginalSizeBytes)} → ${formatImgcBytes(data.totalOutputSizeBytes)}`;
+      if (data.sizeCapped) batchText += ' — kuch images ke liye exact size possible nahi tha, kareebi size diya gaya hai';
+      document.getElementById('imgcb-result-text').textContent = batchText;
       document.getElementById('imgcb-download-link').href = `${fullUrl}?dl=1`;
       document.getElementById('imgcb-result').style.display = 'block';
       document.getElementById('imgcb-result').scrollIntoView({ behavior: 'smooth', block: 'center' });

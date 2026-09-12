@@ -1805,12 +1805,16 @@ const IMAGE_CONVERT_FORMATS = {
   tiff: { ext: 'tiff', mime: 'image/tiff', label: 'TIFF' },
   gif:  { ext: 'gif',  mime: 'image/gif',  label: 'GIF' },
 };
-// In formats mein hi numeric quality knob hota hai jiska file-size par
-// predictable/monotonic asar hota hai — target file-size search (binary
-// search + up/downscale) sirf inhi ke liye chalate hain. PNG lossless hai
-// (bina palette ke quality ka size par kaam asar) aur GIF palette-limited
-// hai, dono mein reliable target-size search possible nahi hai.
-const IMAGE_QUALITY_FORMATS = new Set(['jpeg', 'webp', 'avif', 'tiff']);
+// Pehle PNG/GIF ko yahan se bahar rakha tha ("lossless/palette-limited,
+// quality ka asar nahi") — par directly test karke verify hua ki dono mein
+// hi ek real size-affecting knob hota hai: PNG mein palette:true (color
+// quantization) aur GIF mein colours count — bas seedha "quality" param
+// pass karne se PNG/GIF size bilkul badalta hi nahi tha (isi wajah se
+// "size increase/decrease kaam nahi kar raha" — in dono formats ke liye
+// target size chup-chaap ignore ho raha tha). Ab encodeImageBuffer in
+// dono ko bhi quality se map karta hai, isliye target-size search yahan
+// bhi kaam karta hai.
+const IMAGE_QUALITY_FORMATS = new Set(['jpeg', 'webp', 'avif', 'tiff', 'png', 'gif']);
 
 function encodeImageBuffer(buffer, targetFormat, quality, scale, origWidth) {
   let pipeline = sharp(buffer, { failOn: 'none' }).rotate(); // EXIF orientation ke hisaab se auto-seedha karo
@@ -1820,11 +1824,28 @@ function encodeImageBuffer(buffer, targetFormat, quality, scale, origWidth) {
   }
   switch (targetFormat) {
     case 'jpeg': pipeline = pipeline.jpeg({ quality, mozjpeg: true }); break;
-    case 'png':  pipeline = pipeline.png({ compressionLevel: 9, quality, ...(quality < 100 ? { palette: true } : {}) }); break;
+    case 'png': {
+      // Sirf 'quality' pass karna PNG ka size par (10-99 ke poore range mein)
+      // koi asar hi nahi karta tha (verified) — palette mode ka asli lever
+      // 'colours' (kitne unique colors palette mein) hai, jo GIF jaisa hi ek
+      // achha, monotonic size-range deta hai. quality=100 par palette bilkul
+      // skip karte hain (poori lossless truecolor image — sabse bada size).
+      const colours = Math.max(2, Math.min(256, Math.round((quality / 100) * 256)));
+      pipeline = pipeline.png({ compressionLevel: 9, ...(quality < 100 ? { palette: true, colours } : {}) });
+      break;
+    }
     case 'webp': pipeline = pipeline.webp({ quality }); break;
     case 'avif': pipeline = pipeline.avif({ quality }); break;
     case 'tiff': pipeline = pipeline.tiff({ quality, compression: 'jpeg' }); break;
-    case 'gif':  pipeline = pipeline.gif(); break;
+    case 'gif': {
+      // GIF ka real size-lever palette rang (colours count) hai, quality
+      // nahi — 1-100 ko 2-256 colours mein map karte hain taaki target-size
+      // search yahan bhi kaam kare (verified: colours 2->~16KB se 256->~193KB
+      // tak achha, monotonic-ish range deta hai ek realistic image par).
+      const colours = Math.max(2, Math.min(256, Math.round((quality / 100) * 256)));
+      pipeline = pipeline.gif({ colours });
+      break;
+    }
     default: throw new Error('Ye format support nahi hai');
   }
   return pipeline.toBuffer();
@@ -1838,28 +1859,34 @@ function encodeImageBuffer(buffer, targetFormat, quality, scale, origWidth) {
 // (real detail add nahi hoti, par size genuinely badhta hai — yही ek tarika
 // hai file ko "bada" banane ka); agar target quality=1 se bhi chhota hai to
 // downscale karte hain.
+// Return shape: { buffer, capped } — "capped" true matlab requested target
+// genuinely reach nahi ho paaya (safety pixel-cap ya format ki apni
+// compressibility limit tak pahonch gaye) — caller (API response) ko isse
+// user ko sach batana chahiye, chup-chaap far-off result nahi dena chahiye.
 async function convertImageToTargetSize(buffer, targetFormat, targetSizeBytes, origWidth) {
   if (!IMAGE_QUALITY_FORMATS.has(targetFormat)) {
-    return encodeImageBuffer(buffer, targetFormat, 90, 1, origWidth);
+    return { buffer: await encodeImageBuffer(buffer, targetFormat, 90, 1, origWidth), capped: false };
   }
 
   const atMin = await encodeImageBuffer(buffer, targetFormat, 1, 1, origWidth);
   const atMax = await encodeImageBuffer(buffer, targetFormat, 100, 1, origWidth);
 
   if (targetSizeBytes >= atMax.length) {
-    // Pehle multiplicatively upscale karte hain jab tak target cross na ho
-    // jaaye (bracket dhoondte hain), phir usi bracket ke andar SCALE ko
-    // binary-search karte hain — sirf ek jump se rukne par size target se
-    // kaafi zyada (overshoot) ho sakta tha, ye refinement usko exact ke
-    // kaafi kareeb le aata hai.
+    // Upscale ki true ceiling origWidth par depend karti hai — encodeImageBuffer
+    // khud width ko 8000px tak cap karta hai (DoS-safe), to bracket-search
+    // usi asli ceiling tak jaani chahiye, na ki ek arbitrary "8x" tak (chhoti
+    // images ke liye 8x us 8000px cap se bhi kaafi kam ho sakta hai — jis se
+    // target genuinely reachable hone par bhi hum beech mein hi ruk jaate
+    // the aur "not working" jaisa lagta tha).
+    const maxScale = origWidth ? Math.max(1, 8000 / origWidth) : 8;
     let loScale = 1, hiScale = 1, hiOut = atMax, guard = 0;
-    while (hiOut.length < targetSizeBytes && hiScale < 8 && guard < 8) {
+    while (hiOut.length < targetSizeBytes && hiScale < maxScale && guard < 20) {
       loScale = hiScale;
-      hiScale = Math.min(8, hiScale * 1.35);
+      hiScale = Math.min(maxScale, hiScale * 1.5);
       hiOut = await encodeImageBuffer(buffer, targetFormat, 100, hiScale, origWidth);
       guard++;
     }
-    if (hiOut.length < targetSizeBytes) return hiOut; // 8x cap tak bhi nahi pahoncha — yahi max possible hai
+    if (hiOut.length < targetSizeBytes) return { buffer: hiOut, capped: true }; // safety pixel-cap tak bhi nahi pahoncha — is content/format ke liye yahi max possible hai
 
     let best = hiOut, bestDiff = Math.abs(hiOut.length - targetSizeBytes);
     let lo = loScale, hi = hiScale;
@@ -1870,19 +1897,21 @@ async function convertImageToTargetSize(buffer, targetFormat, targetSizeBytes, o
       if (diff < bestDiff) { best = out; bestDiff = diff; }
       if (out.length > targetSizeBytes) hi = mid; else lo = mid;
     }
-    return best;
+    return { buffer: best, capped: false };
   }
 
   if (targetSizeBytes <= atMin.length) {
-    // Same refinement, downscale direction (bracket + scale binary-search).
+    // Same refinement, downscale direction — floor bhi origWidth ke hisaab se
+    // (16px se neeche encodeImageBuffer khud nahi jaane deta).
+    const minScale = origWidth ? Math.max(0.01, 16 / origWidth) : 0.02;
     let loScale = 1, hiScale = 1, loOut = atMin, guard = 0;
-    while (loOut.length > targetSizeBytes && loScale > 0.02 && guard < 8) {
+    while (loOut.length > targetSizeBytes && loScale > minScale && guard < 20) {
       hiScale = loScale;
-      loScale = Math.max(0.02, loScale * 0.7);
+      loScale = Math.max(minScale, loScale * 0.7);
       loOut = await encodeImageBuffer(buffer, targetFormat, 1, loScale, origWidth);
       guard++;
     }
-    if (loOut.length > targetSizeBytes) return loOut; // 0.02x floor tak bhi target se bada hai — yahi min possible hai
+    if (loOut.length > targetSizeBytes) return { buffer: loOut, capped: true }; // resolution floor tak bhi target se bada hai — yahi min possible hai
 
     let best = loOut, bestDiff = Math.abs(loOut.length - targetSizeBytes);
     let lo = loScale, hi = hiScale;
@@ -1893,7 +1922,7 @@ async function convertImageToTargetSize(buffer, targetFormat, targetSizeBytes, o
       if (diff < bestDiff) { best = out; bestDiff = diff; }
       if (out.length > targetSizeBytes) lo = mid; else hi = mid;
     }
-    return best;
+    return { buffer: best, capped: false };
   }
 
   let lo = 1, hi = 100, best = atMax, bestDiff = Math.abs(atMax.length - targetSizeBytes);
@@ -1905,7 +1934,7 @@ async function convertImageToTargetSize(buffer, targetFormat, targetSizeBytes, o
     if (out.length > targetSizeBytes) hi = mid - 1; else lo = mid + 1;
     if (lo > hi) break;
   }
-  return best;
+  return { buffer: best, capped: false };
 }
 
 app.post('/api/image-tools/convert', requireAuth, withImgToolUpload(imgToolUpload.single('image'), async (req, res) => {
@@ -1921,9 +1950,11 @@ app.post('/api/image-tools/convert', requireAuth, withImgToolUpload(imgToolUploa
     const srcMeta = await sharp(req.file.buffer, { failOn: 'none' }).metadata();
     if (!srcMeta.width || !srcMeta.height) return res.status(400).json({ error: 'Ye file valid image nahi lag rahi' });
 
-    let outBuffer;
+    let outBuffer, sizeCapped = false;
     if (targetSizeKB && targetSizeKB > 0) {
-      outBuffer = await convertImageToTargetSize(req.file.buffer, targetFormat, Math.round(targetSizeKB * 1024), srcMeta.width);
+      const result = await convertImageToTargetSize(req.file.buffer, targetFormat, Math.round(targetSizeKB * 1024), srcMeta.width);
+      outBuffer = result.buffer;
+      sizeCapped = result.capped;
     } else {
       outBuffer = await encodeImageBuffer(req.file.buffer, targetFormat, quality, 1, srcMeta.width);
     }
@@ -1943,6 +1974,7 @@ app.post('/api/image-tools/convert', requireAuth, withImgToolUpload(imgToolUploa
       outputSizeBytes: outBuffer.length,
       width: srcMeta.width,
       height: srcMeta.height,
+      sizeCapped, // true = requested exact size is beyond safe limits for this image/format; closest possible was returned
     });
   } catch (err) {
     console.error('Image convert error:', err);
@@ -1966,16 +1998,21 @@ app.post('/api/image-tools/convert-batch', requireAuth, withImgToolUpload(imgToo
 
   try {
     const zip = new AdmZip();
-    let totalOriginal = 0, totalOutput = 0, converted = 0;
+    let totalOriginal = 0, totalOutput = 0, converted = 0, anyCapped = false;
 
     for (const file of req.files) {
       try {
         const srcMeta = await sharp(file.buffer, { failOn: 'none' }).metadata();
         if (!srcMeta.width || !srcMeta.height) continue; // corrupt/non-image file — skip, don't fail the whole batch
 
-        const outBuffer = (targetSizeKB && targetSizeKB > 0)
-          ? await convertImageToTargetSize(file.buffer, targetFormat, Math.round(targetSizeKB * 1024), srcMeta.width)
-          : await encodeImageBuffer(file.buffer, targetFormat, quality, 1, srcMeta.width);
+        let outBuffer;
+        if (targetSizeKB && targetSizeKB > 0) {
+          const result = await convertImageToTargetSize(file.buffer, targetFormat, Math.round(targetSizeKB * 1024), srcMeta.width);
+          outBuffer = result.buffer;
+          if (result.capped) anyCapped = true;
+        } else {
+          outBuffer = await encodeImageBuffer(file.buffer, targetFormat, quality, 1, srcMeta.width);
+        }
 
         const baseName = (file.originalname || `image-${converted + 1}`).replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_') || `image-${converted + 1}`;
         zip.addFile(`${baseName}.${fmtMeta.ext}`, outBuffer);
@@ -2002,6 +2039,7 @@ app.post('/api/image-tools/convert-batch', requireAuth, withImgToolUpload(imgToo
       count: converted,
       totalOriginalSizeBytes: totalOriginal,
       totalOutputSizeBytes: totalOutput,
+      sizeCapped: anyCapped,
     });
   } catch (err) {
     console.error('Image batch convert error:', err);
