@@ -696,6 +696,14 @@
     .pg-confirm-modal-inner { width:100%; max-width:360px; background:var(--card); border:1px solid var(--border); border-radius:14px; padding:22px; }
     .pg-confirm-modal-inner p { margin:0 0 18px; font-size:14px; line-height:1.5; color:var(--text); word-break:break-word; }
     .pg-confirm-modal-actions { display:flex; justify-content:flex-end; gap:10px; }
+    .music-share-modal-inner { max-width:400px; }
+    .music-share-link-row { display:flex; gap:8px; margin-bottom:22px; }
+    .music-share-link-input { flex:1; min-width:0; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:var(--surface); color:var(--text); font-family:'Space Grotesk',sans-serif; font-size:12px; }
+    .music-share-platform-grid { display:grid; grid-template-columns:repeat(5, 1fr); gap:10px; }
+    .music-share-platform-btn { display:flex; flex-direction:column; align-items:center; gap:6px; background:none; border:none; cursor:pointer; padding:8px 2px; border-radius:10px; transition:background 0.15s; }
+    .music-share-platform-btn:hover { background:var(--surface); }
+    .music-share-platform-icon { width:42px; height:42px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+    .music-share-platform-label { font-size:10.5px; color:var(--muted); font-weight:600; }
     .pg-confirm-cancel-btn { background:none; border:1px solid var(--border); color:var(--text); border-radius:8px; padding:8px 16px; font-size:13px; font-weight:600; cursor:pointer; }
     .pg-confirm-cancel-btn:hover { background:var(--border); }
     .pg-confirm-delete-btn { background:var(--accent); border:1px solid var(--accent); color:#fff; border-radius:8px; padding:8px 16px; font-size:13px; font-weight:600; cursor:pointer; }
@@ -8178,29 +8186,100 @@
   // Share link — ?music=<videoId> ke saath, jo bhi khole use seedha wahi
   // track Music Player mein load+play ho jaata hai (handleSharedMusicLink
   // dekho, showApp() ke andar se call hota hai).
-  window.shareCurrentMusicTrack = async () => {
+  let musicShareUrl = '';
+  let musicShareTitle = '';
+
+  window.shareCurrentMusicTrack = () => {
     if (musicCurrentIndex < 0) { showToast('Pehle koi gaana select karo', 'error'); return; }
     const track = musicResults[musicCurrentIndex];
     if (!track) return;
 
-    const shareUrl = `${window.location.origin}${window.location.pathname}?music=${encodeURIComponent(track.id)}`;
-    const shareTitle = `${track.title} — PastePro Music`;
+    musicShareUrl = `${window.location.origin}${window.location.pathname}?music=${encodeURIComponent(track.id)}`;
+    musicShareTitle = track.title;
+    document.getElementById('music-share-link-input').value = musicShareUrl;
+    document.getElementById('music-share-modal').style.display = 'flex';
+  };
 
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: shareTitle, text: 'Ye gaana suno:', url: shareUrl });
-      } catch (e) {
-        // User ne share sheet cancel kar diya — koi error dikhane ki zaroorat nahi
-      }
-      return;
-    }
+  window.closeMusicShareModal = () => {
+    document.getElementById('music-share-modal').style.display = 'none';
+  };
 
+  // navigator.clipboard sirf secure context (HTTPS/localhost) mein available
+  // hota hai, aur kai purane/embedded browsers mein bilkul nahi hota — agar
+  // wo fail ho jaaye to ek hidden textarea + execCommand('copy') wala purana
+  // (par bahut zyada compatible) tarika try karte hain, taaki copy kabhi bhi
+  // sirf "manually select karke copy karo" tak seedhe na aa jaaye.
+  async function robustCopyToClipboard(text) {
     try {
-      await navigator.clipboard.writeText(shareUrl);
-      showToast('Link copy ho gaya! Kahin bhi paste karo 🔗', 'success');
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch (e) { /* fall through to legacy method */ }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      ta.style.top = '-9999px';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
     } catch (e) {
-      showToast(shareUrl, 'success');
+      return false;
     }
+  }
+
+  window.copyMusicShareLink = async () => {
+    const ok = await robustCopyToClipboard(musicShareUrl);
+    const btn = document.getElementById('music-share-copy-btn');
+    if (ok) {
+      showToast('Link copy ho gaya! 🔗', 'success');
+      const orig = btn.textContent;
+      btn.textContent = 'Copied ✓';
+      setTimeout(() => { btn.textContent = orig; }, 1500);
+    } else {
+      // Copy poori tarah fail ho gaya (bahut rare) — link input already
+      // dikh raha hai, use select kar dete hain taaki manually copy ho sake.
+      showToast('Copy fail ho gaya — link ko manually select karke copy karo', 'error');
+      const input = document.getElementById('music-share-link-input');
+      input.focus();
+      input.select();
+    }
+  };
+
+  window.shareMusicToPlatform = (platform) => {
+    const url = musicShareUrl;
+    const text = `${musicShareTitle} — PastePro Music par suno:`;
+    let shareLink = '';
+    switch (platform) {
+      case 'whatsapp':
+        shareLink = `https://wa.me/?text=${encodeURIComponent(text + ' ' + url)}`;
+        break;
+      case 'twitter':
+        shareLink = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
+        break;
+      case 'facebook':
+        shareLink = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
+        break;
+      case 'reddit':
+        shareLink = `https://reddit.com/submit?url=${encodeURIComponent(url)}&title=${encodeURIComponent(musicShareTitle)}`;
+        break;
+      case 'instagram':
+        // Instagram ka koi public web share-intent URL nahi hai (sirf apna
+        // mobile app SDK se Stories share hoti hain, arbitrary link ke saath
+        // koi web-based "share to Instagram" possible nahi hai) — isliye
+        // link copy karke Instagram khol dete hain, user khud DM/Story/bio
+        // mein paste kar sakta hai.
+        robustCopyToClipboard(url);
+        showToast('Link copy ho gaya — Instagram mein paste karo (DM ya Story mein) 🔗', 'success');
+        shareLink = 'https://www.instagram.com/';
+        break;
+    }
+    if (shareLink) window.open(shareLink, '_blank', 'noopener,noreferrer');
   };
 
   // Music page khulte hi (URL mein ?music=<videoId> hone par) seedha wahi
@@ -8231,7 +8310,13 @@
   // phir Music page khol ke seedha wo track play karta hai.
   function handleSharedMusicLink() {
     const videoId = new URLSearchParams(window.location.search).get('music');
-    if (!videoId || !/^[\w-]{5,20}$/.test(videoId)) return;
+    if (!videoId) return; // ?music= hai hi nahi — normal load, kuch nahi karna
+    if (!/^[\w-]{5,20}$/.test(videoId)) {
+      // videoId mila par format ajeeb hai — chup-chaap fail hone ke bajaye
+      // console mein nazar aana chahiye taaki future debugging aasaan ho.
+      console.warn('Shared music link ka videoId invalid lag raha hai:', videoId);
+      return;
+    }
     const cleanUrl = new URL(window.location.href);
     cleanUrl.searchParams.delete('music');
     window.history.replaceState({}, '', cleanUrl.toString());
@@ -9509,6 +9594,44 @@
     <div class="pg-confirm-modal-actions">
       <button type="button" class="pg-confirm-cancel-btn" onclick="closePgConfirmModal()">Cancel</button>
       <button type="button" class="pg-confirm-delete-btn" onclick="confirmDeletePgSession()">Delete Karo</button>
+    </div>
+  </div>
+</div>
+
+<!-- MUSIC SHARE MODAL — copy link + real platform icons (WhatsApp/Instagram/X/Facebook/Reddit) -->
+<div class="pg-confirm-modal" id="music-share-modal" style="display:none;" onclick="if(event.target===this) closeMusicShareModal()">
+  <div class="pg-confirm-modal-inner music-share-modal-inner">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:18px;">
+      <div style="font-weight:700; font-size:15px;">🔗 Gaana Share Karo</div>
+      <button type="button" class="pg-attach-modal-close" onclick="closeMusicShareModal()">✕</button>
+    </div>
+
+    <div class="music-share-link-row">
+      <input type="text" id="music-share-link-input" class="music-share-link-input" readonly onclick="this.select()" />
+      <button type="button" class="dl-btn dl-btn-green" style="width:auto; padding:10px 16px; flex-shrink:0;" id="music-share-copy-btn" onclick="copyMusicShareLink()">Copy</button>
+    </div>
+
+    <div class="music-share-platform-grid">
+      <button type="button" class="music-share-platform-btn" onclick="shareMusicToPlatform('whatsapp')">
+        <span class="music-share-platform-icon" style="background:#25D366;"><svg viewBox="0 0 24 24" width="21" height="21" fill="white"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0012.04 2zm0 18.13c-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.26 8.26 0 01-1.27-4.36c0-4.54 3.7-8.24 8.25-8.24 2.2 0 4.27.86 5.83 2.42a8.19 8.19 0 012.41 5.83c0 4.54-3.7 8.24-8.24 8.24zm4.52-6.16c-.25-.12-1.47-.72-1.69-.81-.23-.08-.39-.12-.56.12-.17.25-.64.81-.78.97-.14.17-.29.19-.53.06-.25-.12-1.05-.39-1.99-1.23-.74-.66-1.23-1.47-1.38-1.72-.14-.25-.02-.38.11-.51.11-.11.25-.29.37-.43.12-.14.16-.25.25-.41.08-.17.04-.31-.02-.43-.06-.12-.56-1.34-.76-1.84-.2-.48-.41-.42-.56-.42-.14 0-.31-.01-.47-.01-.17 0-.43.06-.66.31-.23.25-.86.85-.86 2.07 0 1.22.89 2.4 1.01 2.57.12.17 1.75 2.67 4.24 3.74.59.26 1.06.41 1.42.52.6.19 1.14.16 1.57.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.08.14-1.18-.06-.11-.23-.17-.48-.29z"/></svg></span>
+        <span class="music-share-platform-label">WhatsApp</span>
+      </button>
+      <button type="button" class="music-share-platform-btn" onclick="shareMusicToPlatform('instagram')">
+        <span class="music-share-platform-icon" style="background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888);"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg></span>
+        <span class="music-share-platform-label">Instagram</span>
+      </button>
+      <button type="button" class="music-share-platform-btn" onclick="shareMusicToPlatform('twitter')">
+        <span class="music-share-platform-icon" style="background:#000;"><svg viewBox="0 0 24 24" width="18" height="18" fill="white"><path d="M18.24 2.25h3.31l-7.23 8.26 8.5 11.24h-6.65l-5.21-6.82-5.96 6.82H1.68l7.73-8.84L1.25 2.25h6.82l4.71 6.23zm-1.16 17.52h1.83L7.08 4.13H5.12z"/></svg></span>
+        <span class="music-share-platform-label">X</span>
+      </button>
+      <button type="button" class="music-share-platform-btn" onclick="shareMusicToPlatform('facebook')">
+        <span class="music-share-platform-icon" style="background:#1877F2;"><svg viewBox="0 0 24 24" width="20" height="20" fill="white"><path d="M22 12.06C22 6.5 17.52 2 12 2S2 6.5 2 12.06c0 5 3.66 9.15 8.44 9.94v-7.03H7.9v-2.91h2.54V9.85c0-2.5 1.49-3.89 3.77-3.89 1.09 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.78l-.44 2.91h-2.34v7.03C18.34 21.21 22 17.06 22 12.06z"/></svg></span>
+        <span class="music-share-platform-label">Facebook</span>
+      </button>
+      <button type="button" class="music-share-platform-btn" onclick="shareMusicToPlatform('reddit')">
+        <span class="music-share-platform-icon" style="background:#FF4500;"><svg viewBox="0 0 24 24" width="20" height="20" fill="white"><path d="M12 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.01 4.744c.688 0 1.25.561 1.25 1.249a1.25 1.25 0 0 1-2.498.056l-2.597-.547-.8 3.747c1.824.07 3.48.632 4.674 1.488.308-.309.73-.491 1.207-.491.968 0 1.754.786 1.754 1.754 0 .716-.435 1.333-1.01 1.614a3.111 3.111 0 0 1 .042.52c0 2.694-3.13 4.87-7.004 4.87-3.874 0-7.004-2.176-7.004-4.87 0-.183.015-.366.043-.534A1.748 1.748 0 0 1 4.028 12c0-.968.786-1.754 1.754-1.754.463 0 .898.196 1.207.49 1.207-.883 2.878-1.43 4.744-1.487l.885-4.182a.342.342 0 0 1 .14-.197.35.35 0 0 1 .238-.042l2.906.617a1.214 1.214 0 0 1 1.108-.701zM9.25 12C8.561 12 8 12.562 8 13.25c0 .687.561 1.248 1.25 1.248.687 0 1.248-.561 1.248-1.249 0-.688-.561-1.249-1.249-1.249zm5.5 0c-.687 0-1.248.561-1.248 1.25 0 .687.561 1.248 1.249 1.248.688 0 1.249-.561 1.249-1.249 0-.687-.562-1.249-1.25-1.249zm-5.466 3.99a.327.327 0 0 0-.231.094.33.33 0 0 0 0 .463c.842.842 2.484.913 2.961.913.477 0 2.105-.056 2.961-.913a.361.361 0 0 0 .029-.463.33.33 0 0 0-.464 0c-.588.588-1.822.79-2.512.79-.69 0-1.94-.202-2.512-.79a.326.326 0 0 0-.232-.095z"/></svg></span>
+        <span class="music-share-platform-label">Reddit</span>
+      </button>
     </div>
   </div>
 </div>
