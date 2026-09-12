@@ -8408,10 +8408,20 @@
     // bina kisi extra kaam ke playlist par bhi kaam kar jaata hai.
     musicResults = musicPlaylistItems.map(p => ({ id: p.videoId, title: p.title, channel: p.channel, thumbnail: p.thumbnail, duration: p.duration }));
     renderMusicResults(musicResults);
-    document.getElementById('music-body').style.display = 'block';
+    document.getElementById('music-body').style.display = 'grid';
     setupMusicColumnSync();
     closeMusicPlaylistModal();
     playMusicTrack(i);
+  };
+
+  // Modal ke "Poori Playlist Kholo" button se — poori playlist ko EXACT
+  // wahi full-page now-playing+list view mein khol deta hai jaisa normal
+  // search ke baad music player dikhta hai (playMusicPlaylistTrack hi
+  // reuse karte hain, jo already musicResults/results-list/music-body
+  // sab kuch sahi tarah set karta hai).
+  window.openFullPlaylistView = () => {
+    if (!musicPlaylistItems.length) { showToast('Playlist khaali hai — pehle kuch gaane add karo', 'error'); return; }
+    playMusicPlaylistTrack(0);
   };
 
   window.removeMusicPlaylistItem = async (id) => {
@@ -9888,6 +9898,7 @@
       <div style="font-weight:700; font-size:15px;">🎵 Meri Playlist</div>
       <button type="button" class="pg-attach-modal-close" onclick="closeMusicPlaylistModal()">✕</button>
     </div>
+    <button type="button" class="dl-btn dl-btn-green" style="width:100%; margin:10px 0 14px;" id="music-playlist-openall-btn" onclick="openFullPlaylistView()">🎧 Poori Playlist Kholo aur Chalao</button>
     <div id="music-playlist-modal-list" class="music-playlist-list"></div>
   </div>
 </div>
