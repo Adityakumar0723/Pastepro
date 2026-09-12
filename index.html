@@ -978,6 +978,9 @@
     .music-download-row { margin-top:10px; }
     .music-download-row .dl-btn { padding:11px; font-size:13.5px; }
     .music-status-note { font-size:12px; color:var(--muted); text-align:center; margin-top:14px; }
+    #music-inapp-browser-banner { padding:12px 16px; margin-bottom:16px; border-radius:12px; border:1px solid #f5a623; background:rgba(245,166,35,0.12); color:var(--text); font-size:13px; line-height:1.5; }
+    .music-inapp-open-btn { padding:8px 16px; border-radius:8px; border:none; background:#f5a623; color:#1a1200; font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:700; cursor:pointer; }
+    .music-inapp-open-btn:hover { filter:brightness(1.08); }
     /* Mobile browsers (khaas kar iOS Safari) unmuted autoplay ko bina fresh
        tap ke allow hi nahi karte — isliye pehla track hamesha MUTED start
        hota hai (muted autoplay HAR browser mein guaranteed allowed hai, isse
@@ -2058,6 +2061,13 @@
   <div id="music-page" class="download-page">
 
     <button class="back-btn" onclick="goHome()">← Wapas Jaao</button>
+
+    <div id="music-inapp-browser-banner" style="display:none;">
+      ⚠️ Lag raha hai ye Instagram/Facebook/TikTok jaise kisi app ke andar wale browser mein khula hai — in browsers mein YouTube-based gaana play nahi ho pata (ye us app ka apna restriction hai). Best experience ke liye normal browser mein kholo:
+      <div style="margin-top:8px;">
+        <button type="button" class="music-inapp-open-btn" onclick="openMusicInExternalBrowser()">🔗 Browser Mein Kholo</button>
+      </div>
+    </div>
 
     <div class="music-searchbar-row">
       <div class="music-searchbar">
@@ -4690,10 +4700,37 @@
   };
 
   // ─── MUSIC PLAYER — Spotify-jaisa dark UI, YouTube ke audio se bajta hai ───
+  // Instagram/Facebook/TikTok jaise apps ke apne in-app WebView browsers
+  // (link kisi post/bio/DM se khola gaya ho) mein YouTube ka embedded iframe
+  // player play hi nahi hota — ye us app ke WebView ka apna restriction hai
+  // (third-party embed/autoplay policy), humari taraf se koi bug nahi. Isko
+  // "fix" nahi kiya ja sakta, par honestly detect karke user ko real रास्ता
+  // (normal browser mein kholo) dikha sakte hain.
+  function isInAppBrowser() {
+    return /Instagram|FBAN|FBAV|FB_IAB|FBIOS|Line\/|MicroMessenger|TikTok|BytedanceWebview|Snapchat|Pinterest|LinkedInApp|Twitter/i.test(navigator.userAgent || '');
+  }
+
+  window.openMusicInExternalBrowser = () => {
+    const url = window.location.href;
+    if (/android/i.test(navigator.userAgent || '')) {
+      // Android in-app WebViews is intent:// scheme ko honour karke asli
+      // system browser (jo bhi default hai) mein handoff kar dete hain.
+      const withoutScheme = url.replace(/^https?:\/\//, '');
+      window.location.href = `intent://${withoutScheme}#Intent;scheme=https;action=android.intent.action.VIEW;end`;
+    } else {
+      // iOS ya baaki: koi bhi JS trick in-app WebView se force-navigate nahi
+      // kar sakta (Apple isko jaan-boojhkar allow nahi karta) — link copy
+      // karke user ko khud app ke "•••"/"Open in Browser" option batate hain.
+      robustCopyToClipboard(url);
+      showToast('Link copy ho gaya — is app ke "•••" menu se "Open in Browser/Safari" chuno', 'success');
+    }
+  };
+
   window.showMusic = () => {
     closeSidebar();
     if (!(currentUser && authToken)) { showAuth(); showToast('Pehle login karo','error'); return; }
     logVisit('music_page');
+    document.getElementById('music-inapp-browser-banner').style.display = isInAppBrowser() ? 'block' : 'none';
     document.getElementById('auth-view').style.display = 'none';
     document.getElementById('app-view').style.display = 'none';
     document.getElementById('download-page').classList.remove('show');
@@ -4706,6 +4743,7 @@
     document.getElementById('media-converter-page').classList.remove('show');
     document.getElementById('pdf-tools-page').classList.remove('show');
     document.getElementById('pdf-edit-page').classList.remove('show');
+    document.getElementById('image-converter-page').classList.remove('show');
     document.getElementById('music-page').classList.add('show');
     window.scrollTo({ top: 0, behavior: 'smooth' });
     setupMusicColumnSync();
@@ -8138,7 +8176,9 @@
       if (musicCurrentIndex !== i || !musicPlayer || typeof musicPlayer.getPlayerState !== 'function') return;
       const state = musicPlayer.getPlayerState();
       if (state !== 1 && state !== 3) {
-        document.getElementById('music-status-note').textContent = '▶️ Autoplay block ho gaya — Play button dabao gaana shuru karne ke liye';
+        document.getElementById('music-status-note').textContent = isInAppBrowser()
+          ? '⚠️ Is app ke andar wale browser mein gaana play nahi ho pa raha — upar diye button se normal browser mein kholo'
+          : '▶️ Autoplay block ho gaya — Play button dabao gaana shuru karne ke liye';
       }
     }, 2500);
   };
@@ -8154,7 +8194,9 @@
       // skip karte rehne ke bajaye yahi ruk jaate hain, warna infinite loop
       // ban jaata (kuch YouTube videos "auth" error dete hain, embed hi
       // nahi hote — humari taraf se koi fix nahi, YouTube ka restriction hai).
-      document.getElementById('music-status-note').textContent = '⚠️ Is list ke tracks yahan embed nahi ho pa rahe (YouTube restriction). Doosra gaana search karo.';
+      document.getElementById('music-status-note').textContent = isInAppBrowser()
+        ? '⚠️ Is app ke andar wale browser mein YouTube playback kaam nahi karta — upar diye button se normal browser mein kholo'
+        : '⚠️ Is list ke tracks yahan embed nahi ho pa rahe (YouTube restriction). Doosra gaana search karo.';
       return;
     }
     document.getElementById('music-status-note').textContent = '⚠️ Ye track play nahi ho saka, agla try kar rahe hain...';
