@@ -3419,8 +3419,24 @@
   //  Sirf auth/app views toggle karo,
   //  download page ko TOUCH NAHI KARO
   // ════════════════════════════════
-  if (currentUser && authToken) showApp(currentUser);
-  else showAuth();
+  if (currentUser && authToken) {
+    // showApp() (jab user pehle se logged in ho) yahan is exact point par
+    // turant call NAHI karte — kyunki niche is script mein aage abhi bhi
+    // bahut saare `window.xxx = () => {...}` assignments (jaise khud
+    // showMusic) execute HONE BAAKI hain is top-level script mein is point
+    // tak. showApp() ke andar se handleSharedMusicLink() chalta hai jo
+    // shared-music-link (?music=...) ke liye showMusic() call karta hai —
+    // agar wo abhi turant call ho jaaye to "showMusic is not defined" jaisi
+    // error aati hai (verified: exactly ye error real test mein aayi thi,
+    // sirf "already logged in" case mein — signup/login button click wale
+    // case mein bug kabhi nahi dikhta tha kyunki tab tak poora script pehle
+    // hi chal chuka hota hai). setTimeout(...,0) se agla macrotask tak
+    // (poora script top-to-bottom chal jaane ke baad) defer karte hain,
+    // taaki har function guaranteed define ho chuki ho.
+    setTimeout(() => showApp(currentUser), 0);
+  } else {
+    showAuth();
+  }
 
   // Email wale reset-password link se aaya ho (?resetToken=...) — chahe
   // login ho ya na ho, seedha reset-password form dikhao.
