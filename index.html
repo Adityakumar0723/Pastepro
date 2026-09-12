@@ -1020,6 +1020,23 @@
     .music-track-row-dl { flex-shrink:0; width:30px; height:30px; border-radius:50%; border:none; background:var(--surface); color:var(--text); font-size:13px; cursor:pointer; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity 0.15s; }
     .music-track-row:hover .music-track-row-dl { opacity:1; }
     .music-track-row-dl:hover { background:var(--green); color:#0c0c0e; }
+    .music-track-row-add { flex-shrink:0; width:30px; height:30px; border-radius:50%; border:1px solid var(--border); background:var(--surface); color:var(--text); font-size:16px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity 0.15s, background 0.15s; }
+    .music-track-row:hover .music-track-row-add { opacity:1; }
+    .music-track-row-add:hover { background:var(--green); color:#0c0c0e; border-color:var(--green); }
+    .music-playlist-open-btn { padding:12px 20px; border-radius:50px; border:1px solid var(--border); background:var(--surface); color:var(--text); font-family:'Space Grotesk',sans-serif; font-size:13.5px; font-weight:700; cursor:pointer; white-space:nowrap; transition:border-color 0.15s; }
+    .music-playlist-open-btn:hover { border-color:var(--green); color:var(--green); }
+    .music-playlist-modal-inner { max-width:480px; }
+    .music-playlist-list { max-height:50vh; overflow-y:auto; display:flex; flex-direction:column; gap:8px; margin-top:14px; }
+    .music-playlist-empty { text-align:center; color:var(--muted); font-size:13.5px; padding:30px 10px; }
+    .music-playlist-row { display:flex; align-items:center; gap:12px; background:var(--surface); border:1px solid var(--border); padding:8px 10px; border-radius:10px; }
+    .music-playlist-row-thumb { width:44px; height:44px; border-radius:8px; overflow:hidden; flex-shrink:0; background:#000; }
+    .music-playlist-row-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+    .music-playlist-row-body { flex:1; min-width:0; }
+    .music-playlist-row-title { font-size:13px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .music-playlist-row-meta { font-size:11.5px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .music-playlist-row-play, .music-playlist-row-remove { flex-shrink:0; width:30px; height:30px; border-radius:50%; border:none; background:var(--bg); color:var(--text); cursor:pointer; display:flex; align-items:center; justify-content:center; }
+    .music-playlist-row-play:hover { background:var(--green); color:#0c0c0e; }
+    .music-playlist-row-remove:hover { background:var(--accent); color:#fff; }
   </style>
 </head>
 <body>
@@ -1607,6 +1624,8 @@
             <li>Now-playing card with album art, seek bar, volume, and play/pause/next/prev controls</li>
             <li>Keeps playing in the background when you switch to any other section, and picks up right where it left off when you come back</li>
             <li>One click downloads the current track as MP3</li>
+            <li>Share a track with a link — whoever opens it (logged in) gets the same song playing instantly</li>
+            <li>Save songs to your own Playlist and play them back any time, from any device</li>
           </ul>
           <div class="docs-shot-wrap">
             <img class="docs-shot" src="/docs-assets/music-player.png" alt="Music Player page" loading="lazy" />
@@ -2074,6 +2093,7 @@
         <input class="music-search-input" id="music-query" type="text" placeholder="Gaana, artist ya album dhundo..." onkeydown="if(event.key==='Enter') doMusicSearch()" />
         <button type="button" class="music-search-btn" id="music-search-btn" onclick="doMusicSearch()">🔍 Search Karo</button>
       </div>
+      <button type="button" class="music-playlist-open-btn" onclick="openMusicPlaylistModal()">🎵 Meri Playlist</button>
     </div>
 
     <div class="pg-thinking" id="music-thinking">
@@ -2124,6 +2144,7 @@
 
           <div class="music-download-row" style="display:flex; gap:10px;">
             <button type="button" class="dl-btn dl-btn-green" style="flex:1;" id="music-download-btn" onclick="downloadCurrentMusicTrack()">⬇ MP3 Download Karo</button>
+            <button type="button" class="dl-btn dl-btn-gray" style="width:auto; padding:11px 16px;" id="music-playlist-add-btn" onclick="addCurrentTrackToPlaylist()" title="Playlist Mein Add Karo"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/><line x1="12" y1="11" x2="21" y2="9.5"/></svg></button>
             <button type="button" class="dl-btn dl-btn-gray" style="width:auto; padding:11px 16px;" id="music-share-btn" onclick="shareCurrentMusicTrack()" title="Share Karo"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></button>
           </div>
 
@@ -8101,6 +8122,7 @@
           <div class="music-track-row-meta">${escapeHtml(r.channel || '')}</div>
         </div>
         <div class="music-track-row-duration">${escapeHtml(r.duration || '')}</div>
+        <button type="button" class="music-track-row-add" onclick="event.stopPropagation(); addMusicTrackToPlaylist(${i})" title="Playlist Mein Add Karo">+</button>
         <button type="button" class="music-track-row-dl" onclick="event.stopPropagation(); downloadMusicResult(${i})" title="Download">⬇</button>
       </div>
     `).join('');
@@ -8243,6 +8265,105 @@
   window.downloadCurrentMusicTrack = () => {
     if (musicCurrentIndex < 0) return;
     downloadMusicResult(musicCurrentIndex);
+  };
+
+  // ─── PLAYLIST — user ki apni saved-songs list (server par persist hoti
+  // hai, taaki jis bhi device par login kare wahi playlist mile). Search
+  // result row aur now-playing card, dono jagah se add kar sakte hain; modal
+  // khol kar wahan se seedha play/remove bhi ho sakta hai. ───
+  let musicPlaylistItems = []; // last-fetched playlist ka local cache — modal render + play ke liye
+
+  async function addTrackToPlaylist(track) {
+    if (!track || !track.id) return;
+    try {
+      const res = await fetch(`${BACKEND}/api/music/playlist`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ videoId: track.id, title: track.title, channel: track.channel || '', thumbnail: track.thumbnail || '', duration: track.duration || '' }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || 'Playlist mein add nahi ho paya');
+      showToast(data.alreadyExists ? 'Ye gaana pehle se playlist mein hai' : 'Playlist mein add ho gaya! 🎵', 'success');
+    } catch (e) {
+      showToast(e.message || 'Playlist mein add nahi ho paya', 'error');
+    }
+  }
+
+  window.addCurrentTrackToPlaylist = () => {
+    if (musicCurrentIndex < 0) { showToast('Pehle koi gaana select karo', 'error'); return; }
+    addTrackToPlaylist(musicResults[musicCurrentIndex]);
+  };
+
+  window.addMusicTrackToPlaylist = (i) => {
+    addTrackToPlaylist(musicResults[i]);
+  };
+
+  window.openMusicPlaylistModal = async () => {
+    document.getElementById('music-playlist-modal').style.display = 'flex';
+    document.getElementById('music-playlist-modal-list').innerHTML = '<div class="music-playlist-empty">Load ho raha hai...</div>';
+    try {
+      const res = await fetch(`${BACKEND}/api/music/playlist`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || 'Playlist load nahi ho payi');
+      musicPlaylistItems = data.items || [];
+      renderMusicPlaylistModal();
+    } catch (e) {
+      document.getElementById('music-playlist-modal-list').innerHTML = `<div class="music-playlist-empty">⚠️ ${escapeHtml(e.message || 'Playlist load nahi ho payi')}</div>`;
+    }
+  };
+
+  window.closeMusicPlaylistModal = () => {
+    document.getElementById('music-playlist-modal').style.display = 'none';
+  };
+
+  function renderMusicPlaylistModal() {
+    const wrap = document.getElementById('music-playlist-modal-list');
+    if (!musicPlaylistItems.length) {
+      wrap.innerHTML = '<div class="music-playlist-empty">Abhi tak koi gaana playlist mein nahi hai — kisi bhi gaane ke "+" button se add karo.</div>';
+      return;
+    }
+    wrap.innerHTML = musicPlaylistItems.map((it, i) => `
+      <div class="music-playlist-row">
+        <div class="music-playlist-row-thumb">${it.thumbnail ? `<img src="${it.thumbnail}" alt="" loading="lazy" />` : ''}</div>
+        <div class="music-playlist-row-body">
+          <div class="music-playlist-row-title">${escapeHtml(it.title)}</div>
+          <div class="music-playlist-row-meta">${escapeHtml(it.channel || '')}</div>
+        </div>
+        <button type="button" class="music-playlist-row-play" onclick="playMusicPlaylistTrack(${i})" title="Play Karo">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+        <button type="button" class="music-playlist-row-remove" onclick="removeMusicPlaylistItem('${it.id}')" title="Playlist Se Hatao">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+        </button>
+      </div>
+    `).join('');
+  }
+
+  window.playMusicPlaylistTrack = (i) => {
+    const it = musicPlaylistItems[i];
+    if (!it) return;
+    // Playlist ko hi current results bana dete hain — isse prev/next aur
+    // results-list ka poora existing machinery (playMusicTrack wagaira)
+    // bina kisi extra kaam ke playlist par bhi kaam kar jaata hai.
+    musicResults = musicPlaylistItems.map(p => ({ id: p.videoId, title: p.title, channel: p.channel, thumbnail: p.thumbnail, duration: p.duration }));
+    renderMusicResults(musicResults);
+    document.getElementById('music-body').style.display = 'block';
+    setupMusicColumnSync();
+    closeMusicPlaylistModal();
+    playMusicTrack(i);
+  };
+
+  window.removeMusicPlaylistItem = async (id) => {
+    try {
+      const res = await fetch(`${BACKEND}/api/music/playlist/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${authToken}` } });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || 'Remove nahi ho paya');
+      musicPlaylistItems = musicPlaylistItems.filter(it => it.id !== id);
+      renderMusicPlaylistModal();
+      showToast('Playlist se hata diya', 'success');
+    } catch (e) {
+      showToast(e.message || 'Remove nahi ho paya', 'error');
+    }
   };
 
   // Share link — ?music=<videoId> ke saath, jo bhi khole use seedha wahi
@@ -9695,6 +9816,17 @@
         <span class="music-share-platform-label">Reddit</span>
       </button>
     </div>
+  </div>
+</div>
+
+<!-- MUSIC PLAYLIST MODAL — user ki saved songs, seedha yahin se play/remove -->
+<div class="pg-confirm-modal" id="music-playlist-modal" style="display:none;" onclick="if(event.target===this) closeMusicPlaylistModal()">
+  <div class="pg-confirm-modal-inner music-playlist-modal-inner">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+      <div style="font-weight:700; font-size:15px;">🎵 Meri Playlist</div>
+      <button type="button" class="pg-attach-modal-close" onclick="closeMusicPlaylistModal()">✕</button>
+    </div>
+    <div id="music-playlist-modal-list" class="music-playlist-list"></div>
   </div>
 </div>
 </body>

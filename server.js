@@ -106,10 +106,25 @@ const workflowSchema = new mongoose.Schema({
   }],
 }, { timestamps: true });
 
+// Music Player ki "Playlist" — ek user ka ek hi saved-songs list, jo bhi
+// track add kare wo ek naya document banta hai (jaisa Download ka pattern
+// hai). {user,videoId} par unique index se same gaana dobara add hone par
+// duplicate row nahi banti.
+const musicPlaylistSchema = new mongoose.Schema({
+  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  videoId: { type: String, required: true },
+  title: { type: String, required: true, maxlength: 300 },
+  channel: { type: String, default: '', maxlength: 200 },
+  thumbnail: { type: String, default: '' },
+  duration: { type: String, default: '' },
+}, { timestamps: true });
+musicPlaylistSchema.index({ user: 1, videoId: 1 }, { unique: true });
+
 const User = mongoose.model('User', userSchema);
 const Download = mongoose.model('Download', downloadSchema);
 const ActivityLog = mongoose.model('ActivityLog', activityLogSchema);
 const Workflow = mongoose.model('Workflow', workflowSchema);
+const MusicPlaylistItem = mongoose.model('MusicPlaylistItem', musicPlaylistSchema);
 
 // Best-effort — logging kabhi bhi asal feature ko fail nahi karna chahiye,
 // isliye caller ko await karne ki bhi zaroorat nahi (fire-and-forget),
@@ -3898,6 +3913,58 @@ app.get('/api/music/track-info', requireAuth, async (req, res) => {
     }
     handle(error, stdout, stderr);
   });
+});
+
+const MAX_MUSIC_PLAYLIST_ITEMS = 300;
+
+app.get('/api/music/playlist', requireAuth, async (req, res) => {
+  try {
+    const items = await MusicPlaylistItem.find({ user: req.user.id }).sort({ createdAt: 1 }).lean();
+    res.json({
+      success: true,
+      items: items.map(it => ({ id: it._id, videoId: it.videoId, title: it.title, channel: it.channel, thumbnail: it.thumbnail, duration: it.duration })),
+    });
+  } catch (err) {
+    console.error('Playlist list error:', err);
+    res.status(500).json({ error: 'Playlist load nahi ho payi' });
+  }
+});
+
+app.post('/api/music/playlist', requireAuth, async (req, res) => {
+  const videoId = String(req.body.videoId || '').trim();
+  const title = String(req.body.title || '').trim();
+  if (!videoId || !title) return res.status(400).json({ error: 'Track info missing' });
+
+  try {
+    const existing = await MusicPlaylistItem.findOne({ user: req.user.id, videoId });
+    if (existing) return res.json({ success: true, alreadyExists: true, id: existing._id });
+
+    const count = await MusicPlaylistItem.countDocuments({ user: req.user.id });
+    if (count >= MAX_MUSIC_PLAYLIST_ITEMS) return res.status(400).json({ error: `Playlist mein zyada se zyada ${MAX_MUSIC_PLAYLIST_ITEMS} gaane ho sakte hain` });
+
+    const item = await MusicPlaylistItem.create({
+      user: req.user.id,
+      videoId,
+      title: title.slice(0, 300),
+      channel: String(req.body.channel || '').slice(0, 200),
+      thumbnail: String(req.body.thumbnail || ''),
+      duration: String(req.body.duration || ''),
+    });
+    res.json({ success: true, id: item._id });
+  } catch (err) {
+    if (err.code === 11000) return res.json({ success: true, alreadyExists: true }); // race — dusri request ne abhi-abhi add kar diya
+    console.error('Playlist add error:', err);
+    res.status(500).json({ error: 'Playlist mein add nahi ho paya' });
+  }
+});
+
+app.delete('/api/music/playlist/:id', requireAuth, async (req, res) => {
+  try {
+    await MusicPlaylistItem.deleteOne({ _id: req.params.id, user: req.user.id });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: 'Remove nahi ho paya' });
+  }
 });
 
 // ─── SEARCH PAGE — live word-by-word captions while previewing ───
