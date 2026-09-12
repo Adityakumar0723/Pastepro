@@ -1210,6 +1210,12 @@ const EDIT_EFFECT_FILTERS = {
   oldfilm: 'hue=s=0,eq=contrast=1.3,vignette',
 };
 const EDIT_ALLOWED_FONTS = { sans: 'sans-serif', serif: 'serif', mono: 'monospace' };
+// Resolution/Compress — "4k" tak upscale bhi allowed hai, par ye ffmpeg ka
+// seedha pixel-interpolation scale hai, koi AI se real detail add nahi
+// hoti — sirf source jitni real quality hi hoti hai, bas resolution/
+// bitrate badal jaata hai.
+const EDIT_ALLOWED_RESOLUTIONS = { original: null, '480p': 480, '720p': 720, '1080p': 1080, '1440p': 1440, '4k': 2160 };
+const EDIT_ALLOWED_COMPRESS_MODES = ['none', 'quality', 'size'];
 const EDIT_MAX_TEXT_LEN = 300;
 
 // Filter-graph string mein path daalne se pehle: backslash -> forward slash
@@ -1226,6 +1232,7 @@ app.post('/api/edit/process', requireAuth, async (req, res) => {
     filename, trimStart, trimEnd, noiseReduction, volume, speed,
     effect, brightness, contrast, saturation, fadeIn, fadeOut,
     textEnabled, text, textFont, textSize, textColor, textX, textY, textBox,
+    resolution, compressMode, compressQuality, targetSizeMB,
   } = req.body;
   if (!filename) return res.status(400).json({ error: 'Filename zaroori hai' });
 
@@ -1279,6 +1286,13 @@ app.post('/api/edit/process', requireAuth, async (req, res) => {
   if (!Number.isFinite(ty) || ty < 0 || ty > 100) return res.status(400).json({ error: 'Text Y position invalid hai' });
   const withBox = textBox === true || textBox === 'true';
 
+  const resKey = resolution && Object.prototype.hasOwnProperty.call(EDIT_ALLOWED_RESOLUTIONS, resolution) ? resolution : 'original';
+  const cMode  = EDIT_ALLOWED_COMPRESS_MODES.includes(compressMode) ? compressMode : 'none';
+  const cQuality = compressQuality !== undefined && compressQuality !== null && compressQuality !== '' ? Number(compressQuality) : 70;
+  if (!Number.isFinite(cQuality) || cQuality < 1 || cQuality > 100) return res.status(400).json({ error: 'Compression quality invalid hai (1-100 ke beech)' });
+  const targetMB = targetSizeMB !== undefined && targetSizeMB !== null && targetSizeMB !== '' ? Number(targetSizeMB) : null;
+  if (cMode === 'size' && (!targetMB || targetMB <= 0)) return res.status(400).json({ error: 'Target size (MB) sahi se daalo' });
+
   const ffmpegCmd = await resolveFfmpegCommand();
   if (!ffmpegCmd) {
     return res.status(500).json({
@@ -1290,7 +1304,8 @@ app.post('/api/edit/process', requireAuth, async (req, res) => {
   // Kam se kam ek edit zaroor select ho — warna ye sirf ek expensive no-op
   // re-encode hi ban jaata.
   const hasAnyEdit = start !== null || end !== null || denoise || vol !== 1 || spd !== 1 ||
-    fx !== 'none' || bright !== 0 || contr !== 1 || satur !== 1 || doFadeIn || doFadeOut || doText;
+    fx !== 'none' || bright !== 0 || contr !== 1 || satur !== 1 || doFadeIn || doFadeOut || doText ||
+    resKey !== 'original' || cMode !== 'none';
   if (!hasAnyEdit) {
     return res.status(400).json({ error: 'Kam se kam ek edit option choose karo' });
   }
@@ -1302,7 +1317,11 @@ app.post('/api/edit/process', requireAuth, async (req, res) => {
   // filter-chain mein fade se pehle, isliye fade ka st= final/output timeline
   // (jo already sped-up hai) ke against hi sahi baithta hai.
   let fadeInDur = 0, fadeOutDur = 0, fadeOutStart = 0;
-  if (doFadeIn || doFadeOut) {
+  // Fade in/out AND target-size (MB) mode dono ko final (trim+speed ke baad
+  // wali) duration chahiye — ek hi baar nikaalte hain, ffprobe call mehenga
+  // hai, do baar chalane ki zaroorat nahi.
+  let finalDurationSec = null;
+  if (doFadeIn || doFadeOut || cMode === 'size') {
     let sourceDur = null;
     if (end !== null) {
       sourceDur = end - (start || 0);
@@ -1311,12 +1330,18 @@ app.post('/api/edit/process', requireAuth, async (req, res) => {
       const totalDur = ffprobeCmd ? await getMediaDuration(ffprobeCmd, inputPath) : null;
       if (totalDur !== null) sourceDur = totalDur - (start || 0);
     }
-    const finalDur = sourceDur !== null && sourceDur > 0 ? sourceDur / spd : null;
-    if (finalDur !== null) {
-      const fd = Math.min(1, finalDur / 2.5);
+    finalDurationSec = sourceDur !== null && sourceDur > 0 ? sourceDur / spd : null;
+    if (finalDurationSec !== null) {
+      const fd = Math.min(1, finalDurationSec / 2.5);
       if (doFadeIn) fadeInDur = fd;
-      if (doFadeOut) { fadeOutDur = fd; fadeOutStart = Math.max(0, finalDur - fd); }
+      if (doFadeOut) { fadeOutDur = fd; fadeOutStart = Math.max(0, finalDurationSec - fd); }
     }
+  }
+
+  if (cMode === 'size' && (!finalDurationSec || finalDurationSec <= 0)) {
+    // Ye check text-overlay temp file banne SE PEHLE hi hai, isliye yahan
+    // koi cleanup zaroori nahi.
+    return res.status(400).json({ error: 'Video ki duration nahi nikal payi — target size mode ke liye ye zaroori hai' });
   }
 
   // Text overlay: user ka text ek temp .txt file mein likh dete hain aur
@@ -1339,6 +1364,12 @@ app.post('/api/edit/process', requireAuth, async (req, res) => {
   if (fadeOutDur > 0) audioFilters.push(`afade=t=out:st=${fadeOutStart.toFixed(2)}:d=${fadeOutDur.toFixed(2)}`);
 
   const videoFilters = [];
+  // Resolution scale sabse pehle — text/effect filters ke x/y aur w/h
+  // expressions isi ke baad wali (final) dimensions ke against resolve
+  // honge, jo preview ke percentage-based positioning se match karta hai.
+  // "-2" width automatically compute karta hai (aspect ratio maintain) aur
+  // hamesha even number deta hai (libx264 ko chahiye hota hai).
+  if (EDIT_ALLOWED_RESOLUTIONS[resKey]) videoFilters.push(`scale=-2:${EDIT_ALLOWED_RESOLUTIONS[resKey]}`);
   if (fx !== 'none') videoFilters.push(EDIT_EFFECT_FILTERS[fx]);
   if (bright !== 0 || contr !== 1 || satur !== 1) videoFilters.push(`eq=brightness=${bright}:contrast=${contr}:saturation=${satur}`);
   if (doText) {
@@ -1366,26 +1397,57 @@ app.post('/api/edit/process', requireAuth, async (req, res) => {
   // (live test se confirm hua: trim(1-8) + speed 1.25x se expected 5.6s ki
   // jagah 8s output aaya tha, kyunki -to speed-adjusted output pts par cut
   // kar raha tha, source par nahi).
+  // Compress mode teen tareeke se kaam karta hai:
+  //  - 'none'    -> hamesha jaisa fixed CRF 23 (koi size/quality intent nahi diya)
+  //  - 'quality' -> user ke slider (1-100, zyada = behtar quality) se CRF nikaalte
+  //                 hain (CRF ulta hota hai — kam CRF matlab zyada quality/size)
+  //  - 'size'    -> CRF variable-output hai, exact size guarantee nahi karta.
+  //                 Isliye yahan bitrate mode use karte hain: target MB aur
+  //                 (trim+speed ke baad wali) duration se seedha bitrate compute
+  //                 karke -b:v/-maxrate/-bufsize lagate hain — ye hi tarika hai
+  //                 jisse video encoding mein predictably ek size target hit
+  //                 hoti hai (image compression ke CRF-binary-search jaisa yahan
+  //                 nahi chalta, kyunki har CRF-attempt poori video re-encode
+  //                 maangta — bahut slow ho jaata).
+  let codecArgs;
+  if (cMode === 'size') {
+    const audioKbps = 128;
+    const targetTotalKbps = Math.floor((targetMB * 8192) / finalDurationSec); // 8192 = 1024*8 (MB -> kilobits)
+    const videoKbps = Math.max(100, targetTotalKbps - audioKbps); // 100kbps floor — bahut chhote target par bhi kuch dikhta rahe
+    codecArgs = ['-c:v', 'libx264', '-preset', 'veryfast', '-b:v', `${videoKbps}k`, '-maxrate', `${Math.round(videoKbps * 1.5)}k`, '-bufsize', `${videoKbps * 2}k`, '-c:a', 'aac', '-b:a', `${audioKbps}k`];
+  } else {
+    const crf = cMode === 'quality' ? Math.round(18 + ((100 - cQuality) / 100) * 15) : 23; // 100=CRF18 (best), 1=CRF33 (sabse chhota)
+    codecArgs = ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', String(crf), '-c:a', 'aac'];
+  }
+
   const argParts = [quoteIfPath(ffmpegCmd), '-y'];
   if (start !== null) argParts.push('-ss', start);
   if (end !== null) argParts.push('-t', end - (start || 0));
   argParts.push('-i', `"${inputPath}"`);
   if (videoFilters.length) argParts.push('-vf', `"${videoFilters.join(',')}"`);
   if (audioFilters.length) argParts.push('-af', `"${audioFilters.join(',')}"`);
-  argParts.push('-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', '-c:a', 'aac', `"${outputPath}"`);
+  argParts.push(...codecArgs, `"${outputPath}"`);
   const command = argParts.join(' ');
 
-  console.log(`[${uid.slice(0,8)}] Editing video: ${safeName} -> ${outName}`, { start, end, denoise, vol, spd, fx, doText });
+  console.log(`[${uid.slice(0,8)}] Editing video: ${safeName} -> ${outName}`, { start, end, denoise, vol, spd, fx, doText, resKey, cMode });
 
-  exec(command, { timeout: 5 * 60 * 1000, shell: true, cwd: DOWNLOADS_DIR }, (error, stdout, stderr) => {
+  // Resolution scale/compress re-encodes (khaas kar upscale ya bitrate-mode)
+  // ek plain trim se zyada CPU time le sakte hain — timeout 5 se 10 min
+  // badhaya hai taaki bade (300MB tak) uploads bhi complete ho paayein.
+  exec(command, { timeout: 10 * 60 * 1000, shell: true, cwd: DOWNLOADS_DIR }, (error, stdout, stderr) => {
     if (textFilePath) fs.unlink(textFilePath, () => {}); // best-effort cleanup, temp file hai
     if (error || !fs.existsSync(outputPath)) {
       console.error('ffmpeg edit error:', stderr || (error && error.message));
       return res.status(500).json({ error: 'Edit fail ho gaya. Dobara try karo' });
     }
     console.log(`[${uid.slice(0,8)}] Edited: ${outName}`);
-    logActivity(req, 'video_edit', { sourceFilename: safeName, outName, start, end, denoise, vol, spd, fx, doText });
-    res.json({ success: true, fileUrl: `/files/${outName}`, filename: outName });
+    logActivity(req, 'video_edit', { sourceFilename: safeName, outName, start, end, denoise, vol, spd, fx, doText, resKey, cMode });
+    let originalSizeBytes = null, outputSizeBytes = null;
+    try {
+      originalSizeBytes = fs.statSync(inputPath).size;
+      outputSizeBytes = fs.statSync(outputPath).size;
+    } catch (e) { /* stats fail ho to bhi result dikhana hai, sizes optional hain */ }
+    res.json({ success: true, fileUrl: `/files/${outName}`, filename: outName, originalSizeBytes, outputSizeBytes });
   });
 });
 
