@@ -8134,7 +8134,23 @@
     goToDownloadWithUrl(r.url);
   };
 
+  // playMusicTrack do baar (bina ruke) call ho sakta hai — jaise search
+  // complete hote hi top result apne aap bajta hai (line ~8103 dekho) aur
+  // agar theek usi waqt user khud kisi row par tap kar de (loading state
+  // mein bahut hi normal reaction), to dono calls "await loadYouTubeIframeAPI()"
+  // ke baad ek hi target element par ALAG-ALAG "new YT.Player(...)" bana
+  // sakte the — jis se `musicPlayer` reference asli chal rahe iframe se
+  // desync ho jaata tha, aur uske baad us track ke liye isMuted/play/pause
+  // sab hamesha ke liye kaam karna band kar dete the (gaana silently atka
+  // reh jaata, bilkul "loading hota hai par gaana aata nahi" jaisa) — ye
+  // exact wahi reproduce hua jab shared-link flow mein loading ke dauraan
+  // row par tap kiya gaya. Fix: generation counter — jo bhi call SABSE NAYI
+  // nahi hai (beech mein koi aur naya playMusicTrack aa chuka hai), wo await
+  // ke baad chup-chaap ruk jaata hai, player ko touch hi nahi karta.
+  let musicPlayTrackGeneration = 0;
+
   window.playMusicTrack = async (i, viaAutoSkip = false) => {
+    const myGeneration = ++musicPlayTrackGeneration;
     const r = musicResults[i];
     if (!r) return;
     musicCurrentIndex = i;
@@ -8158,6 +8174,8 @@
     document.getElementById('music-time-current').textContent = '0:00';
     document.getElementById('music-time-total').textContent = '0:00';
 
+    updateMusicMediaSession(r);
+
     fitMusicAlbumArt(); // naya title/artist ki height badal sakti hai, isliye image ka size dobara fit karo
 
     document.querySelectorAll('.music-track-row').forEach(el => el.classList.remove('playing'));
@@ -8165,6 +8183,7 @@
     if (activeRow) activeRow.classList.add('playing');
 
     await loadYouTubeIframeAPI();
+    if (myGeneration !== musicPlayTrackGeneration) return; // beech mein ek aur naya playMusicTrack aa chuka hai — ye stale call hai, player ko touch mat karo
 
     if (musicPlayer && typeof musicPlayer.loadVideoById === 'function') {
       musicPlayer.loadVideoById(r.id);
@@ -8185,6 +8204,7 @@
       window.musicPlayer = musicPlayer; // debug/test access — player khud closure-scoped hai
     }
     if (!musicProgressTimer) musicProgressTimer = setInterval(updateMusicProgressUI, 500);
+    armGlobalUnmuteOnFirstTap();
 
     // Kai mobile browsers (khaas kar iOS Safari) autoplay() ko sirf tabhi allow
     // karte hain jab play call EXACTLY user ke tap ke turant baad, same call
@@ -8207,6 +8227,31 @@
 
   function onMusicPlayerStateChange(e) {
     if (e.data === 0) playMusicNext(); // ENDED — agla track apne aap bajao, Spotify ki tarah
+    if ('mediaSession' in navigator) {
+      if (e.data === 1) navigator.mediaSession.playbackState = 'playing';
+      else if (e.data === 2) navigator.mediaSession.playbackState = 'paused';
+    }
+  }
+
+  // Mobile OS (khaas kar Android Chrome) background/lock-screen mein audio
+  // tabhi zyada reliably chalne deta hai jab tab khud ek "active media
+  // session" declare kare (Media Session API) — bina isske browser is
+  // hidden YouTube iframe ke audio ko "important" nahi maanta aur screen
+  // lock/app-switch par jaldi suspend kar sakta hai. iOS Safari par ye kam
+  // guaranteed hai (Apple ka apna extra restriction hai regular web tabs
+  // ke background audio par, jo humari taraf se fix nahi ho sakta), par
+  // Android par isse kaafi behtar hota hai.
+  function updateMusicMediaSession(track) {
+    if (!('mediaSession' in navigator)) return;
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: track.title || 'PastePro Music',
+      artist: track.channel || '',
+      artwork: track.thumbnail ? [{ src: track.thumbnail, sizes: '480x480', type: 'image/jpeg' }] : [],
+    });
+    navigator.mediaSession.setActionHandler('play', () => { if (musicPlayer && typeof musicPlayer.playVideo === 'function') musicPlayer.playVideo(); });
+    navigator.mediaSession.setActionHandler('pause', () => { if (musicPlayer && typeof musicPlayer.pauseVideo === 'function') musicPlayer.pauseVideo(); });
+    navigator.mediaSession.setActionHandler('previoustrack', () => playMusicPrev());
+    navigator.mediaSession.setActionHandler('nexttrack', () => playMusicNext());
   }
 
   function handleMusicPlayerError() {
@@ -8261,6 +8306,22 @@
     if (musicPlayer && typeof musicPlayer.unMute === 'function') musicPlayer.unMute();
     document.getElementById('music-unmute-banner').style.display = 'none';
   };
+
+  // Muted-autoplay ke baad chhota pulsing banner hi tap karne ka sirf EK
+  // tarika tha — agar user ka dhyaan wahan na jaaye (khaas kar share-link
+  // se signup/login ke turant baad, jab poora page hi naya-naya load hua
+  // ho), to lagta hai "gaana play hi nahi ho raha" jabki wo sirf muted
+  // bajta reh jaata hai. Isliye ab track load hote hi is poore page par
+  // agla PEHLA tap (kahin bhi) bhi unmute kar deta hai — user ko exact
+  // chhote banner ko dhoondhna nahi padta.
+  function globalUnmuteOnTapHandler() {
+    if (musicPlayer && typeof musicPlayer.isMuted === 'function' && musicPlayer.isMuted()) {
+      unmuteMusicPlayer();
+    }
+  }
+  function armGlobalUnmuteOnFirstTap() {
+    document.addEventListener('pointerdown', globalUnmuteOnTapHandler, { once: true, capture: true });
+  }
 
   window.downloadCurrentMusicTrack = () => {
     if (musicCurrentIndex < 0) return;
@@ -8563,6 +8624,7 @@
     if (playIcon) playIcon.innerHTML = '<path d="M8 5v14l11-7z"/>';
     const banner = document.getElementById('music-unmute-banner');
     if (banner) banner.style.display = 'none';
+    if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none';
   }
 
   // Type — video ya audio, sabse pehle choose karo
